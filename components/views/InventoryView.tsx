@@ -16,9 +16,18 @@ import {
   Eye,
   EyeOff,
   DollarSign,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
+import {
+  strictProductMatch,
+  getAllMasterColors,
+  saveCustomColor,
+  DEFAULT_MASTER_STORAGES,
+  DEFAULT_MASTER_CONDITIONS,
+  DEFAULT_MASTER_CATEGORIES
+} from '@/lib/masterAttributes';
 import { InventoryItem, Product } from '@/types/database';
 import MoneyInput from '@/components/ui/MoneyInput';
 import ScannerModal from '@/components/ScannerModal';
@@ -34,6 +43,11 @@ export default function InventoryView({ user }: InventoryViewProps) {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Master Colors
+  const [availableColors, setAvailableColors] = useState<string[]>([]);
+  const [isAddingNewColor, setIsAddingNewColor] = useState(false);
+  const [newCustomColor, setNewCustomColor] = useState('');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -55,7 +69,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
   // Add IMEI State
   const [selectedProductId, setSelectedProductId] = useState('');
   const [newImei, setNewImei] = useState('');
-  const [newColor, setNewColor] = useState('Titan Tự Nhiên');
+  const [newColor, setNewColor] = useState('Titan Tự Nhiên (Natural Titanium)');
   const [newStorage, setNewStorage] = useState('128GB');
   const [newCondition, setNewCondition] = useState('99%');
   const [newBattery, setNewBattery] = useState(100);
@@ -73,10 +87,11 @@ export default function InventoryView({ user }: InventoryViewProps) {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setAvailableColors(getAllMasterColors());
+
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (categoryFilter !== 'all') params.append('category', categoryFilter);
-      if (search.trim()) params.append('search', search.trim());
 
       const [invRes, prodRes] = await Promise.all([
         fetch(`/api/inventory?${params.toString()}`),
@@ -100,7 +115,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
 
   useEffect(() => {
     fetchData();
-  }, [statusFilter, categoryFilter, search]);
+  }, [statusFilter, categoryFilter]);
 
   const handleCreateImei = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,6 +182,16 @@ export default function InventoryView({ user }: InventoryViewProps) {
     }
   };
 
+  const handleAddNewColorMaster = () => {
+    if (newCustomColor.trim()) {
+      saveCustomColor(newCustomColor.trim());
+      setAvailableColors(getAllMasterColors());
+      setNewColor(newCustomColor.trim());
+      setNewCustomColor('');
+      setIsAddingNewColor(false);
+    }
+  };
+
   const openEditModal = (item: InventoryItem) => {
     setItemToEdit(item);
     setEditSellingPrice(parseFloat(item.selling_price as any) || 0);
@@ -217,6 +242,11 @@ export default function InventoryView({ user }: InventoryViewProps) {
     }
   };
 
+  // Filter with Strict Search
+  const filteredInventory = inventory.filter((item) => {
+    return strictProductMatch(item.product_name || '', item.imei, item.color, search);
+  });
+
   return (
     <div className="space-y-4">
       {/* Top Header Card */}
@@ -227,10 +257,10 @@ export default function InventoryView({ user }: InventoryViewProps) {
           </div>
           <div>
             <h2 className="text-base font-black text-gray-950 uppercase tracking-wide">
-              Quản Lý Tồn Kho Theo Mã IMEI
+              Quản Lý Tồn Kho Theo Mã IMEI & Thuộc Tính Master
             </h2>
             <p className="text-xs text-gray-500">
-              Mỗi chiếc điện thoại Apple là 1 mã IMEI duy nhất kèm % pin và sửa giá niêm yết linh hoạt.
+              Tìm kiếm Strict Search chính xác dòng máy, chuẩn hóa màu sắc và điều chỉnh giá niêm yết.
             </p>
           </div>
         </div>
@@ -241,7 +271,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
             className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition flex items-center space-x-1"
           >
             <Tag className="w-3.5 h-3.5" />
-            <span>+ Tạo Mẫu Máy Mới</span>
+            <span>+ Tạo Nhóm Mẫu Máy</span>
           </button>
           <button
             onClick={() => setIsAddImeiOpen(true)}
@@ -275,7 +305,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       )}
 
-      {/* Filter Bar */}
+      {/* Filter Bar with Strict Search Notice */}
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="relative">
@@ -284,8 +314,8 @@ export default function InventoryView({ user }: InventoryViewProps) {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo IMEI, tên máy, màu sắc..."
-              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none"
+              placeholder="Strict Search: '11', '15 Pro Max', IMEI..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:bg-white focus:outline-none"
             />
           </div>
 
@@ -323,7 +353,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="text-center py-16 text-xs text-gray-400">Đang tải kho máy...</div>
-        ) : inventory.length === 0 ? (
+        ) : filteredInventory.length === 0 ? (
           <div className="text-center py-16 text-xs text-gray-500">
             Không tìm thấy máy nào phù hợp với bộ lọc.
           </div>
@@ -333,8 +363,8 @@ export default function InventoryView({ user }: InventoryViewProps) {
               <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase text-[10px]">
                 <tr>
                   <th className="px-4 py-3">Mã IMEI</th>
-                  <th className="px-4 py-3">Tên Dòng Máy</th>
-                  <th className="px-4 py-3">Quy Cách & Pin</th>
+                  <th className="px-4 py-3">Dòng Sản Phẩm</th>
+                  <th className="px-4 py-3">Thuộc Tính & Pin</th>
                   <th className="px-4 py-3">Giá Niêm Yết</th>
                   {canSeeCost && <th className="px-4 py-3">Giá Vốn Nhập</th>}
                   <th className="px-4 py-3">Trạng Thái</th>
@@ -342,7 +372,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {inventory.map((item) => {
+                {filteredInventory.map((item) => {
                   const isInStock = item.status === 'in_stock';
                   return (
                     <tr key={item.id} className="hover:bg-gray-50/80 transition">
@@ -350,21 +380,26 @@ export default function InventoryView({ user }: InventoryViewProps) {
                         {item.imei}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-bold text-gray-900">{item.product_name}</div>
-                        <div className="text-[10px] text-gray-400 uppercase font-semibold">
+                        {/* Bold large product name */}
+                        <div className="font-black text-gray-950 text-xs sm:text-sm">{item.product_name}</div>
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">
                           {item.category}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        <div className="flex items-center space-x-1.5">
-                          <span>{item.color}</span>
-                          <span>•</span>
-                          <span>{item.storage}</span>
-                          <span>•</span>
-                          <span className="font-bold text-gray-900">{item.condition}</span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="px-2 py-0.5 bg-gray-900 text-white rounded text-[10px] font-bold font-mono">
+                            {item.storage || '128GB'}
+                          </span>
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-900 rounded text-[10px] font-bold">
+                            {item.color}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-bold">
+                            {item.condition}
+                          </span>
                         </div>
                         {item.battery_health && (
-                          <div className="text-[10px] text-emerald-700 font-bold mt-0.5">
+                          <div className="text-[10px] text-emerald-700 font-bold mt-1">
                             🔋 Pin: {item.battery_health}%
                           </div>
                         )}
@@ -509,7 +544,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       )}
 
-      {/* Modal Add IMEI */}
+      {/* Modal Add IMEI with Master Attributes */}
       {isAddImeiOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-200">
@@ -525,7 +560,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
             <form onSubmit={handleCreateImei} className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Chọn mẫu máy *
+                  Chọn nhóm dòng máy *
                 </label>
                 <select
                   value={selectedProductId}
@@ -565,46 +600,89 @@ export default function InventoryView({ user }: InventoryViewProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* Master Attributes */}
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Màu sắc</label>
-                  <input
-                    type="text"
-                    value={newColor}
-                    onChange={(e) => setNewColor(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-gray-700">Màu sắc Master</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingNewColor(!isAddingNewColor)}
+                      className="text-[10px] text-emerald-700 font-bold"
+                    >
+                      {isAddingNewColor ? 'Đóng' : '+ Thêm màu mới'}
+                    </button>
+                  </div>
+                  {isAddingNewColor ? (
+                    <div className="flex items-center space-x-1 mb-1">
+                      <input
+                        type="text"
+                        value={newCustomColor}
+                        onChange={(e) => setNewCustomColor(e.target.value)}
+                        placeholder="Tên màu mới..."
+                        className="flex-1 px-2.5 py-1 text-xs border rounded-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddNewColorMaster}
+                        className="px-2.5 py-1 bg-emerald-700 text-white text-xs font-bold rounded-lg"
+                      >
+                        Lưu
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={newColor}
+                      onChange={(e) => setNewColor(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold"
+                    >
+                      {availableColors.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Dung lượng</label>
-                  <input
-                    type="text"
-                    value={newStorage}
-                    onChange={(e) => setNewStorage(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Ngoại hình</label>
-                  <select
-                    value={newCondition}
-                    onChange={(e) => setNewCondition(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
-                  >
-                    <option value="99%">99%</option>
-                    <option value="98%">98%</option>
-                    <option value="97%">97%</option>
-                    <option value="new">Mới 100%</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-600 mb-1">% Pin</label>
-                  <input
-                    type="number"
-                    value={newBattery}
-                    onChange={(e) => setNewBattery(parseInt(e.target.value, 10) || 0)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-bold"
-                  />
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Dung lượng</label>
+                    <select
+                      value={newStorage}
+                      onChange={(e) => setNewStorage(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                    >
+                      {DEFAULT_MASTER_STORAGES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Ngoại hình</label>
+                    <select
+                      value={newCondition}
+                      onChange={(e) => setNewCondition(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                    >
+                      {DEFAULT_MASTER_CONDITIONS.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">% Pin</label>
+                    <input
+                      type="number"
+                      value={newBattery}
+                      onChange={(e) => setNewBattery(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -656,7 +734,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
             <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
-              <h3 className="text-sm font-bold">Tạo Mẫu Dòng Máy Mới</h3>
+              <h3 className="text-sm font-bold">Tạo Nhóm Dòng Máy Mới</h3>
               <button
                 onClick={() => setIsAddProductOpen(false)}
                 className="text-gray-400 hover:text-white"
@@ -688,11 +766,11 @@ export default function InventoryView({ user }: InventoryViewProps) {
                   onChange={(e) => setNewProdCategory(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
                 >
-                  <option value="iPhone">iPhone</option>
-                  <option value="iPad">iPad</option>
-                  <option value="Macbook">Macbook</option>
-                  <option value="Airpods">Airpods</option>
-                  <option value="AppleWatch">Apple Watch</option>
+                  {DEFAULT_MASTER_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                 </select>
               </div>
 

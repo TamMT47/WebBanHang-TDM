@@ -16,10 +16,18 @@ import {
   ChevronDown,
   X,
   Layers,
-  Sparkles
+  Sparkles,
+  Palette
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
-import { Product, Partner, PaymentMethod } from '@/types/database';
+import { Product, Partner, PaymentMethod, ProductCondition } from '@/types/database';
+import {
+  getAllMasterColors,
+  saveCustomColor,
+  DEFAULT_MASTER_STORAGES,
+  DEFAULT_MASTER_CONDITIONS,
+  DEFAULT_MASTER_CATEGORIES
+} from '@/lib/masterAttributes';
 import MoneyInput from '@/components/ui/MoneyInput';
 import ScannerModal from '@/components/ScannerModal';
 
@@ -34,17 +42,22 @@ export default function ImportView({ user }: ImportViewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Master Colors & Custom Color Creation
+  const [availableColors, setAvailableColors] = useState<string[]>([]);
+  const [isAddingNewColor, setIsAddingNewColor] = useState(false);
+  const [newColorInput, setNewColorInput] = useState('');
+
   // Autocomplete Product Search
   const [productQuery, setProductQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const productDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Specs
+  // Master Specs Selection
   const [category, setCategory] = useState('iPhone');
   const [storage, setStorage] = useState('128GB');
-  const [color, setColor] = useState('Titan Tự Nhiên');
-  const [condition, setCondition] = useState('99%');
+  const [color, setColor] = useState('Titan Tự Nhiên (Natural Titanium)');
+  const [condition, setCondition] = useState<ProductCondition>('99%');
   const [batteryHealth, setBatteryHealth] = useState(100);
   const [costPrice, setCostPrice] = useState<number>(18500000);
   const [sellingPrice, setSellingPrice] = useState<number>(21500000);
@@ -66,10 +79,12 @@ export default function ImportView({ user }: ImportViewProps) {
   // Scanner Modal
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // Fetch Products & Suppliers
+  // Fetch Products, Master Colors, Suppliers
   const fetchData = async () => {
     try {
       setLoading(true);
+      setAvailableColors(getAllMasterColors());
+
       const [prodRes, suppRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/partners?type=supplier'),
@@ -131,18 +146,28 @@ export default function ImportView({ user }: ImportViewProps) {
     setIsProductDropdownOpen(false);
   };
 
+  const handleAddNewMasterColor = () => {
+    if (newColorInput.trim()) {
+      saveCustomColor(newColorInput.trim());
+      const updated = getAllMasterColors();
+      setAvailableColors(updated);
+      setColor(newColorInput.trim());
+      setNewColorInput('');
+      setIsAddingNewColor(false);
+    }
+  };
+
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(productQuery.toLowerCase().trim())
   );
 
-  // Parse IMEI Input into clean list of strings
+  // Parse IMEI Input into clean unique array
   const parsedImeis = React.useMemo(() => {
     const rawTokens = imeiInput
       .split(/[\n,;\t\s]+/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
-    // Keep unique order
     return Array.from(new Set(rawTokens));
   }, [imeiInput]);
 
@@ -269,10 +294,10 @@ export default function ImportView({ user }: ImportViewProps) {
           </div>
           <div>
             <h2 className="text-base font-black text-gray-950 uppercase tracking-wide">
-              Nhập Hàng Vào Kho (Quản Lý Theo IMEI)
+              Nhập Hàng Vào Kho (Chuẩn Hóa Thuộc Tính Master)
             </h2>
             <p className="text-xs text-gray-500">
-              Gợi ý thông minh dòng máy, nhận diện danh sách IMEI và tự động sinh phiếu chi/công nợ NCC.
+              Gợi ý thông minh dòng máy, chọn màu sắc chuẩn cố định và tự động phân tách danh sách IMEI.
             </p>
           </div>
         </div>
@@ -302,16 +327,16 @@ export default function ImportView({ user }: ImportViewProps) {
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
-        {/* Left Form: Product Smart Autocomplete & IMEI Badges (7 cols) */}
+        {/* Left Form: Product Smart Autocomplete & Master Attributes (7 cols) */}
         <div className="lg:col-span-7 bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
           <h3 className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center space-x-1.5">
-            <span>1. Chọn Dòng Máy & Cấu Hình Nhập</span>
+            <span>1. Chọn Dòng Máy & Bộ Thuộc Tính Chuẩn</span>
           </h3>
 
           {/* Autocomplete Product Search Dropdown */}
           <div className="relative" ref={productDropdownRef}>
-            <label className="block text-xs font-bold text-gray-800 mb-1">
-              Dòng máy Apple (Gõ để tìm kiếm thông minh) *
+            <label className="block text-xs font-black text-gray-900 mb-1">
+              Nhóm dòng máy Apple (Gõ để tìm kiếm nhanh) *
             </label>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -323,7 +348,7 @@ export default function ImportView({ user }: ImportViewProps) {
                   setIsProductDropdownOpen(true);
                 }}
                 onFocus={() => setIsProductDropdownOpen(true)}
-                placeholder="Gõ tên máy (VD: 15 Pro Max, 13, iPad Pro...)"
+                placeholder="Gõ tên máy (VD: 15 Pro Max, 13, iPad Air...)"
                 className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-gray-950 focus:outline-none transition"
                 required
               />
@@ -355,14 +380,13 @@ export default function ImportView({ user }: ImportViewProps) {
                   </div>
                 ))}
 
-                {/* If user typed a non-existing product name */}
                 {productQuery.trim() && !products.some((p) => p.name.toLowerCase() === productQuery.trim().toLowerCase()) && (
                   <div
                     onClick={() => handleCreateNewProductName(productQuery)}
                     className="p-3 bg-amber-50/70 hover:bg-amber-50 cursor-pointer text-xs font-bold text-amber-900 flex items-center space-x-2"
                   >
                     <Plus className="w-4 h-4 text-amber-700" />
-                    <span>Tạo dòng máy mới: &ldquo;{productQuery.trim()}&rdquo;</span>
+                    <span>Tạo nhóm dòng máy mới: &ldquo;{productQuery.trim()}&rdquo;</span>
                   </div>
                 )}
               </div>
@@ -371,59 +395,117 @@ export default function ImportView({ user }: ImportViewProps) {
             {selectedProduct && (
               <div className="mt-1.5 flex items-center space-x-2 text-[11px] text-emerald-700 font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Đã chọn dòng máy sẵn có: {selectedProduct.name} ({selectedProduct.category})</span>
+                <span>Đã liên kết với nhóm máy: {selectedProduct.name} ({selectedProduct.category})</span>
               </div>
             )}
           </div>
 
-          {/* Specs: Storage, Color, Condition, Battery */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 mb-1">Dung lượng</label>
-              <input
-                type="text"
-                value={storage}
-                onChange={(e) => setStorage(e.target.value)}
-                placeholder="128GB"
-                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold"
-              />
+          {/* Master Attributes Selection: Color, Storage, Condition, Battery */}
+          <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black text-gray-700 uppercase">
+                Bộ Thuộc Tính Master Cố Định
+              </span>
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                ✓ Khắc phục sai màu
+              </span>
             </div>
+
+            {/* Color Master Dropdown & Add Custom Color */}
             <div>
-              <label className="block text-[11px] font-bold text-gray-600 mb-1">Màu sắc</label>
-              <input
-                type="text"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                placeholder="Titan Tự Nhiên"
-                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-gray-800">
+                  Màu sắc chuẩn (Chọn từ danh sách) *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingNewColor(!isAddingNewColor)}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center space-x-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>{isAddingNewColor ? 'Đóng' : 'Thêm màu mới vào Hệ thống'}</span>
+                </button>
+              </div>
+
+              {isAddingNewColor ? (
+                <div className="flex items-center space-x-1.5 mb-1.5">
+                  <input
+                    type="text"
+                    value={newColorInput}
+                    onChange={(e) => setNewColorInput(e.target.value)}
+                    placeholder="Nhập tên màu mới (VD: Titan Sa Mạc Đậm, Xanh Rừng)..."
+                    className="flex-1 px-3 py-2 bg-white border border-emerald-500 rounded-xl text-xs font-bold focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddNewMasterColor}
+                    className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition"
+                  >
+                    Lưu Màu
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-gray-900 focus:ring-2 focus:ring-gray-900"
+                >
+                  {availableColors.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 mb-1">Ngoại hình</label>
-              <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value)}
-                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-bold"
-              >
-                <option value="99%">99% (Keng)</option>
-                <option value="98%">98% (Phẩy nhẹ)</option>
-                <option value="97%">97% (Cấn xước)</option>
-                <option value="new">Mới 100% (Seal)</option>
-                <option value="thanh_ly">Thanh lý</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 mb-1">% Pin</label>
-              <input
-                type="number"
-                value={batteryHealth}
-                onChange={(e) => setBatteryHealth(parseInt(e.target.value, 10) || 0)}
-                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-bold font-mono"
-              />
+
+            {/* Storage, Condition, Battery */}
+            <div className="grid grid-cols-3 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Dung lượng</label>
+                <select
+                  value={storage}
+                  onChange={(e) => setStorage(e.target.value)}
+                  className="w-full px-2.5 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold"
+                >
+                  {DEFAULT_MASTER_STORAGES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Ngoại hình</label>
+                <select
+                  value={condition}
+                  onChange={(e) => setCondition(e.target.value as any)}
+                  className="w-full px-2.5 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold"
+                >
+                  {DEFAULT_MASTER_CONDITIONS.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">% Pin</label>
+                <input
+                  type="number"
+                  value={batteryHealth}
+                  onChange={(e) => setBatteryHealth(parseInt(e.target.value, 10) || 0)}
+                  className="w-full px-2.5 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold font-mono"
+                  min={50}
+                  max={100}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Pricing: Cost Price & Suggested Selling Price (Auto-formatted) */}
+          {/* Pricing: Cost Price & Suggested Selling Price */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200">
             <div>
               <label className="block text-xs font-bold text-gray-800 mb-1">
