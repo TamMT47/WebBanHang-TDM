@@ -14,7 +14,9 @@ import {
   Camera,
   Filter,
   Eye,
-  EyeOff
+  EyeOff,
+  DollarSign,
+  X
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import { InventoryItem, Product } from '@/types/database';
@@ -27,6 +29,7 @@ interface InventoryViewProps {
 
 export default function InventoryView({ user }: InventoryViewProps) {
   const canSeeCost = user && ['admin', 'owner', 'manager'].includes(user.role);
+  const isAdminOrOwner = user && ['admin', 'owner'].includes(user.role);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -41,6 +44,13 @@ export default function InventoryView({ user }: InventoryViewProps) {
   const [isAddImeiOpen, setIsAddImeiOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  // Edit Price Modal
+  const [itemToEdit, setItemToEdit] = useState<InventoryItem | null>(null);
+  const [editSellingPrice, setEditSellingPrice] = useState<number>(0);
+  const [editCostPrice, setEditCostPrice] = useState<number>(0);
+  const [editBattery, setEditBattery] = useState<number>(100);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Add IMEI State
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -157,6 +167,43 @@ export default function InventoryView({ user }: InventoryViewProps) {
     }
   };
 
+  const openEditModal = (item: InventoryItem) => {
+    setItemToEdit(item);
+    setEditSellingPrice(parseFloat(item.selling_price as any) || 0);
+    setEditCostPrice(parseFloat(item.cost_price as any) || 0);
+    setEditBattery(item.battery_health || 100);
+  };
+
+  const handleSavePriceEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemToEdit) return;
+
+    try {
+      setSavingEdit(true);
+      const res = await fetch('/api/inventory', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: itemToEdit.id,
+          selling_price: editSellingPrice,
+          cost_price: canSeeCost ? editCostPrice : undefined,
+          battery_health: editBattery,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi khi cập nhật giá');
+
+      setMessage({ type: 'success', text: `Đã cập nhật giá bán máy IMEI ${itemToEdit.imei} thành công!` });
+      setItemToEdit(null);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleDeleteImei = async (id: string, imei: string) => {
     if (!confirm(`Bạn có chắc muốn xóa mã máy IMEI ${imei} khỏi kho?`)) return;
 
@@ -183,7 +230,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
               Quản Lý Tồn Kho Theo Mã IMEI
             </h2>
             <p className="text-xs text-gray-500">
-              Mỗi chiếc điện thoại Apple là 1 mã IMEI duy nhất kèm % pin và tình trạng máy.
+              Mỗi chiếc điện thoại Apple là 1 mã IMEI duy nhất kèm % pin và sửa giá niêm yết linh hoạt.
             </p>
           </div>
         </div>
@@ -318,7 +365,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                         </div>
                         {item.battery_health && (
                           <div className="text-[10px] text-emerald-700 font-bold mt-0.5">
-                            🔋 Dung lượng pin: {item.battery_health}%
+                            🔋 Pin: {item.battery_health}%
                           </div>
                         )}
                       </td>
@@ -348,14 +395,27 @@ export default function InventoryView({ user }: InventoryViewProps) {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {canSeeCost && isInStock && (
-                          <button
-                            onClick={() => handleDeleteImei(item.id, item.imei)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end space-x-1">
+                          {canSeeCost && isInStock && (
+                            <button
+                              onClick={() => openEditModal(item)}
+                              title="Sửa giá bán / giá vốn (Admin/Manager)"
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {isAdminOrOwner && isInStock && (
+                            <button
+                              onClick={() => handleDeleteImei(item.id, item.imei)}
+                              title="Xóa máy khỏi kho"
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -365,6 +425,89 @@ export default function InventoryView({ user }: InventoryViewProps) {
           </div>
         )}
       </div>
+
+      {/* Edit Price Modal */}
+      {itemToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
+            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Edit className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-bold">Chỉnh Sửa Giá & Thông Số IMEI</h3>
+              </div>
+              <button
+                onClick={() => setItemToEdit(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePriceEdit} className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                <div className="font-bold text-gray-950 text-sm">{itemToEdit.product_name}</div>
+                <div className="text-[11px] font-mono text-gray-600">Mã IMEI: <b>{itemToEdit.imei}</b></div>
+                <div className="text-[10px] text-gray-500">{itemToEdit.storage} • {itemToEdit.color} • {itemToEdit.condition}</div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-emerald-800 mb-1">
+                  Giá niêm yết bán ra *
+                </label>
+                <MoneyInput
+                  value={editSellingPrice}
+                  onValueChange={(num) => setEditSellingPrice(num)}
+                  placeholder="0"
+                  className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-sm font-black text-emerald-700 font-mono"
+                />
+              </div>
+
+              {canSeeCost && (
+                <div>
+                  <label className="block text-xs font-bold text-rose-800 mb-1">
+                    Giá vốn nhập vào
+                  </label>
+                  <MoneyInput
+                    value={editCostPrice}
+                    onValueChange={(num) => setEditCostPrice(num)}
+                    placeholder="0"
+                    className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-sm font-black text-rose-700 font-mono"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Dung lượng Pin (%)
+                </label>
+                <input
+                  type="number"
+                  value={editBattery}
+                  onChange={(e) => setEditBattery(parseInt(e.target.value, 10) || 0)}
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold font-mono"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setItemToEdit(null)}
+                  className="flex-1 py-2.5 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-100"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl font-bold shadow transition"
+                >
+                  {savingEdit ? 'Đang Lưu...' : 'Lưu Thay Đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Add IMEI */}
       {isAddImeiOpen && (

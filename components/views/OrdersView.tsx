@@ -11,7 +11,10 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  Trash2,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import { Order } from '@/types/database';
@@ -22,6 +25,8 @@ interface OrdersViewProps {
 }
 
 export default function OrdersView({ user }: OrdersViewProps) {
+  const isAdminOrOwner = user && ['admin', 'owner'].includes(user.role);
+
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<'all' | 'sell' | 'import'>('all');
@@ -30,6 +35,11 @@ export default function OrdersView({ user }: OrdersViewProps) {
   // Selected Order for Re-printing
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+
+  // Delete Order Confirmation Modal
+  const [orderToDelete, setOrderToDelete] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     try {
@@ -51,6 +61,29 @@ export default function OrdersView({ user }: OrdersViewProps) {
   useEffect(() => {
     fetchOrders();
   }, [typeFilter, search]);
+
+  const handleDeleteConfirm = async () => {
+    if (!orderToDelete) return;
+    try {
+      setDeleting(true);
+      setDeleteError(null);
+
+      const res = await fetch(`/api/orders?id=${orderToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Có lỗi xảy ra khi xóa đơn');
+      }
+
+      setOrderToDelete(null);
+      fetchOrders();
+    } catch (err: any) {
+      setDeleteError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -119,7 +152,7 @@ export default function OrdersView({ user }: OrdersViewProps) {
                   <th className="px-4 py-3">Khách Cần Trả</th>
                   <th className="px-4 py-3">Đã Thanh Toán</th>
                   <th className="px-4 py-3">Công Nợ</th>
-                  <th className="px-4 py-3 text-right">In Bill</th>
+                  <th className="px-4 py-3 text-right">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -191,18 +224,30 @@ export default function OrdersView({ user }: OrdersViewProps) {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {isSell && (
-                          <button
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setIsInvoiceOpen(true);
-                            }}
-                            className="px-2.5 py-1.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center space-x-1 ml-auto transition shadow-sm"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>In A4</span>
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end space-x-1.5">
+                          {isSell && (
+                            <button
+                              onClick={() => {
+                                setSelectedOrder(order);
+                                setIsInvoiceOpen(true);
+                              }}
+                              className="px-2.5 py-1.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center space-x-1 transition shadow-sm"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>In A4</span>
+                            </button>
+                          )}
+
+                          {isAdminOrOwner && (
+                            <button
+                              onClick={() => setOrderToDelete(order)}
+                              title="Xóa/Hủy hóa đơn (Admin)"
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -212,6 +257,73 @@ export default function OrdersView({ user }: OrdersViewProps) {
           </div>
         )}
       </div>
+
+      {/* Delete Order Confirmation Modal */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
+            <div className="px-5 py-4 bg-red-700 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-5 h-5 text-amber-300" />
+                <h3 className="text-sm font-bold">Xác Nhận Hủy / Xóa Đơn #{orderToDelete.code}</h3>
+              </div>
+              <button
+                onClick={() => setOrderToDelete(null)}
+                className="text-white/80 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 text-xs">
+              {deleteError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl font-medium">
+                  {deleteError}
+                </div>
+              )}
+
+              <p className="text-gray-800 font-semibold leading-relaxed">
+                Bạn có chắc chắn muốn xóa vĩnh viễn đơn hàng <b className="text-red-600 font-mono">#{orderToDelete.code}</b>?
+              </p>
+
+              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-1.5 text-[11px] text-gray-600">
+                <div className="font-bold text-gray-900">Khi xóa đơn này, hệ thống sẽ tự động:</div>
+                {orderToDelete.type === 'sell' ? (
+                  <>
+                    <div>• Hoàn trả trạng thái các máy đã bán trong đơn về <b>Còn Hàng (in_stock)</b>.</div>
+                    <div>• Hủy bỏ và hoàn trả công nợ khách hàng đã ghi nhận (+{formatVND(orderToDelete.debt_added)}).</div>
+                    <div>• Xóa phiếu thu tiền liên quan trong Sổ Quỹ.</div>
+                  </>
+                ) : (
+                  <>
+                    <div>• Xóa các máy nhập kho nếu chưa được bán ra.</div>
+                    <div>• Hoàn lại công nợ đối với Nhà cung cấp.</div>
+                    <div>• Xóa phiếu chi tiền nhập hàng trong Sổ Quỹ.</div>
+                  </>
+                )}
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setOrderToDelete(null)}
+                  className="flex-1 py-2.5 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-100 transition"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={handleDeleteConfirm}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-md transition disabled:opacity-50"
+                >
+                  {deleting ? 'Đang Xóa...' : 'Xác Nhận Xóa'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <InvoiceModal
         isOpen={isInvoiceOpen}

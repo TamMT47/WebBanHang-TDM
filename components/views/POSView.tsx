@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   Camera,
@@ -20,7 +20,10 @@ import {
   Sparkles,
   ArrowRight,
   RotateCcw,
-  Coins
+  Coins,
+  ChevronDown,
+  ChevronUp,
+  Layers
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatVND, formatNumberDots, parseNumberDots } from '@/lib/format';
@@ -132,7 +135,7 @@ export default function POSView({ user }: POSViewProps) {
   // Add Item to Cart
   const addToCart = (item: InventoryItem) => {
     if (cart.some((c) => c.inventory.id === item.id)) {
-      return; // Already in cart
+      return;
     }
     setCart((prev) => [
       ...prev,
@@ -298,20 +301,47 @@ export default function POSView({ user }: POSViewProps) {
     { id: 'Airpods', label: 'Airpods' },
   ];
 
-  const filteredInventory = inventory.filter((item) => {
-    const matchCat = selectedCategory === 'all' || item.category === selectedCategory;
-    const matchSearch =
-      !searchTerm ||
-      item.imei.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.product_name && item.product_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.color && item.color.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchCat && matchSearch;
-  });
+  // Group inventory items by product name
+  const groupedProducts = useMemo(() => {
+    const groups: Record<
+      string,
+      {
+        product_name: string;
+        category: string;
+        items: InventoryItem[];
+      }
+    > = {};
+
+    inventory.forEach((item) => {
+      const matchCat = selectedCategory === 'all' || item.category === selectedCategory;
+      const matchSearch =
+        !searchTerm ||
+        item.imei.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.product_name && item.product_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.color && item.color.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      if (matchCat && matchSearch) {
+        const key = item.product_name || 'Khác';
+        if (!groups[key]) {
+          groups[key] = {
+            product_name: key,
+            category: item.category || 'iPhone',
+            items: [],
+          };
+        }
+        groups[key].items.push(item);
+      }
+    });
+
+    return Object.values(groups);
+  }, [inventory, selectedCategory, searchTerm]);
+
+  const totalInStockCount = groupedProducts.reduce((sum, g) => sum + g.items.length, 0);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
       
-      {/* LEFT COLUMN: Product Catalog & Fast Search (7 cols on desktop) */}
+      {/* LEFT COLUMN: Grouped Product Catalog with Nested IMEIs (7 cols on desktop) */}
       <div className="lg:col-span-7 space-y-4">
         
         {/* Search & Actions Bar Card */}
@@ -323,7 +353,7 @@ export default function POSView({ user }: POSViewProps) {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tìm nhanh theo Tên máy, Màu, hoặc Mã IMEI..."
+                placeholder="Tìm dòng máy (VD: 15 Pro Max) hoặc quét 15 số IMEI..."
                 className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-gray-900 focus:outline-none transition"
               />
             </div>
@@ -333,7 +363,7 @@ export default function POSView({ user }: POSViewProps) {
                 setIsScannerOpen(true);
               }}
               title="Bật Camera Quét Barcode/QR IMEI"
-              className="flex items-center space-x-1.5 px-3.5 py-2.5 bg-gray-950 hover:bg-gray-800 text-white rounded-xl text-xs font-bold shadow-sm transition"
+              className="flex items-center space-x-1.5 px-3.5 py-2.5 bg-gray-950 hover:bg-gray-800 text-white rounded-xl text-xs font-bold shadow-sm transition active:scale-95"
             >
               <Camera className="w-4 h-4 text-blue-400" />
               <span className="hidden sm:inline">Quét IMEI</span>
@@ -381,11 +411,11 @@ export default function POSView({ user }: POSViewProps) {
           </div>
         )}
 
-        {/* Available Products Card Grid */}
-        <div className="space-y-2">
+        {/* Grouped Products Section */}
+        <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-black text-gray-700 uppercase tracking-wider">
-              Máy sẵn có trong kho ({filteredInventory.length} máy)
+            <span className="text-xs font-black text-gray-800 uppercase tracking-wider">
+              Danh Mục Sản Phẩm & Máy Sẵn Có ({totalInStockCount} máy)
             </span>
             <button
               onClick={fetchInventory}
@@ -399,93 +429,115 @@ export default function POSView({ user }: POSViewProps) {
             <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 text-xs text-gray-400">
               Đang tải danh sách kho máy...
             </div>
-          ) : filteredInventory.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 p-6">
-              <Smartphone className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+          ) : groupedProducts.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 p-6 space-y-2">
+              <Smartphone className="w-10 h-10 text-gray-300 mx-auto" />
               <div className="text-xs font-bold text-gray-700">Không tìm thấy sản phẩm nào</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">
-                Vui lòng kiểm tra lại từ khóa tìm kiếm hoặc nhập thêm máy mới vào kho.
+              <div className="text-[11px] text-gray-400">
+                Hãy kiểm tra lại từ khóa tìm kiếm hoặc nhập thêm máy mới vào kho.
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[620px] overflow-y-auto pr-1">
-              {filteredInventory.map((item) => {
-                const inCart = cart.some((c) => c.inventory.id === item.id);
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => !inCart && addToCart(item)}
-                    className={`bg-white p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
-                      inCart
-                        ? 'border-gray-950 bg-gray-50/90 ring-2 ring-gray-950 shadow-md'
-                        : 'border-gray-200 hover:border-gray-400 hover:shadow-md'
-                    }`}
-                  >
-                    <div>
-                      {/* Top badges */}
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="px-2 py-0.5 bg-gray-100 text-gray-800 text-[10px] font-extrabold rounded-md uppercase">
-                          {item.category}
-                        </span>
-                        <div className="flex items-center space-x-1">
-                          {item.battery_health && (
-                            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded">
-                              🔋 {item.battery_health}%
-                            </span>
-                          )}
-                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-bold rounded">
-                            {item.condition || '99%'}
-                          </span>
-                        </div>
+            <div className="space-y-3 max-h-[660px] overflow-y-auto pr-1">
+              {groupedProducts.map((group, gIdx) => (
+                <div
+                  key={gIdx}
+                  className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+                >
+                  {/* Line 1: Product Header Card */}
+                  <div className="px-4 py-3 bg-gray-50/80 border-b border-gray-200 flex items-center justify-between">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="p-1.5 bg-gray-900 text-white rounded-lg">
+                        <Smartphone className="w-4 h-4 text-emerald-400" />
                       </div>
-
-                      {/* Product Name */}
-                      <h4 className="text-xs font-bold text-gray-950 leading-snug line-clamp-2">
-                        {item.product_name}
-                      </h4>
-
-                      {/* Specs & Color */}
-                      <div className="text-[11px] text-gray-500 mt-1 flex items-center space-x-2">
-                        <span>{item.color || 'Titan'}</span>
-                        <span>•</span>
-                        <span>{item.storage || '256GB'}</span>
-                      </div>
-
-                      {/* IMEI Tag */}
-                      <div className="mt-2 inline-block font-mono text-[10px] bg-gray-100 text-gray-800 px-2 py-0.5 rounded border border-gray-200 font-bold">
-                        IMEI: {item.imei}
+                      <div>
+                        <h4 className="text-sm font-black text-gray-950 tracking-tight">
+                          {group.product_name}
+                        </h4>
                       </div>
                     </div>
 
-                    {/* Price & Action */}
-                    <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between">
-                      <div className="text-sm font-black text-gray-950 font-mono">
-                        {formatVND(item.selling_price)}
-                      </div>
-                      <button
-                        type="button"
-                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center space-x-1 transition ${
-                          inCart
-                            ? 'bg-gray-950 text-white'
-                            : 'bg-gray-100 text-gray-800 hover:bg-gray-950 hover:text-white'
-                        }`}
-                      >
-                        {inCart ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Đã chọn</span>
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Chọn mua</span>
-                          </>
-                        )}
-                      </button>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="px-2 py-0.5 bg-gray-200 text-gray-800 text-[10px] font-bold rounded uppercase">
+                        {group.category}
+                      </span>
+                      <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-[11px] rounded-full border border-emerald-200">
+                        {group.items.length} máy sẵn có
+                      </span>
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* Line 2: Nested In-Stock IMEIs List */}
+                  <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-white">
+                    {group.items.map((item) => {
+                      const inCart = cart.some((c) => c.inventory.id === item.id);
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => !inCart && addToCart(item)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                            inCart
+                              ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600 shadow-sm'
+                              : 'border-gray-200 hover:border-gray-950 hover:bg-gray-50/80 hover:shadow-md'
+                          }`}
+                        >
+                          <div>
+                            {/* Specs row */}
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="font-bold text-gray-900">
+                                {item.storage || '128GB'} • {item.color || 'Titan'}
+                              </span>
+                              <div className="flex items-center space-x-1">
+                                {item.battery_health && (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    🔋 {item.battery_health}%
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">
+                                  {item.condition || '99%'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* IMEI Badge */}
+                            <div className="font-mono text-xs font-extrabold text-gray-800 bg-gray-100 px-2 py-0.5 rounded inline-block">
+                              IMEI: {item.imei}
+                            </div>
+                          </div>
+
+                          {/* Price & Select Button */}
+                          <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between">
+                            <div className="text-sm font-black text-gray-950 font-mono">
+                              {formatVND(item.selling_price)}
+                            </div>
+
+                            <button
+                              type="button"
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 ${
+                                inCart
+                                  ? 'bg-emerald-700 text-white'
+                                  : 'bg-gray-950 hover:bg-black text-white'
+                              }`}
+                            >
+                              {inCart ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-white" />
+                                  <span>Đã chọn</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3 h-3 text-emerald-400" />
+                                  <span>Chọn máy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -521,7 +573,7 @@ export default function POSView({ user }: POSViewProps) {
             <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200 p-4">
               <p className="text-xs font-bold text-gray-700">Giỏ hàng đang trống</p>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Chạm vào sản phẩm bên trái hoặc quét mã IMEI để thêm vào hóa đơn.
+                Chạm vào mã IMEI sản phẩm bên trái hoặc quét mã để thêm vào hóa đơn.
               </p>
             </div>
           ) : (
@@ -534,7 +586,7 @@ export default function POSView({ user }: POSViewProps) {
                   <div className="flex-1 pr-2">
                     <div className="font-bold text-gray-950">{item.inventory.product_name}</div>
                     <div className="text-[10px] font-mono text-gray-600 font-bold">
-                      IMEI: {item.inventory.imei}
+                      IMEI: {item.inventory.imei} • {item.inventory.storage} ({item.inventory.color})
                     </div>
                     {/* Warranty Selector */}
                     <div className="mt-1 flex items-center space-x-1 text-[11px] text-gray-600">

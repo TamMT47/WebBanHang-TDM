@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient, query } from '@/lib/db';
-import { getUserFromRequest, canViewSensitiveFinancials } from '@/lib/auth';
+import { getUserFromRequest, canViewSensitiveFinancials, canManageUsers } from '@/lib/auth';
 import { notifySaleOrder, notifyImportOrder } from '@/lib/telegram';
 import { POSSalePayload, ImportOrderPayload } from '@/types/database';
 
@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
         o.created_at,
         p.name AS partner_name,
         p.phone AS partner_phone,
+        p.address AS partner_address,
+        p.cccd AS partner_cccd,
         u.full_name AS creator_name
       FROM orders o
       LEFT JOIN partners p ON o.partner_id = p.id
@@ -320,7 +322,7 @@ export async function POST(request: NextRequest) {
 
       await client.query('COMMIT');
 
-      // 8. Trigger Telegram notification asynchronously (safe)
+      // 8. Trigger Telegram notification asynchronously
       notifySaleOrder({
         orderCode: code,
         customerName: customer.name,
@@ -349,35 +351,45 @@ export async function POST(request: NextRequest) {
       // ----------------------------------------------------
       // NHẬP HÀNG TỪ NHÀ CUNG CẤP
       // ----------------------------------------------------
-      const payload = body as ImportOrderPayload;
-      const { supplier, items, paid_amount = 0, payment_method = 'transfer', note } = payload;
+      const { supplier, items, paid_amount = 0, payment_method = 'transfer', note } = body;
 
       if (!items || items.length === 0) {
         await client.query('ROLLBACK');
         return NextResponse.json({ error: 'Đơn nhập không có sản phẩm nào' }, { status: 400 });
       }
 
-      if (!supplier || !supplier.name) {
-        await client.query('ROLLBACK');
-        return NextResponse.json({ error: 'Vui lòng cung cấp tên nhà cung cấp' }, { status: 400 });
-      }
+      // 1. Supplier handling (Rock-solid resolution)
+      let supplierId = supplier?.id;
+      let supplierName = supplier?.name?.trim();
 
-      // 1. Supplier handling
-      let supplierId = supplier.id;
       if (!supplierId) {
-        const sRes = await client.query('SELECT id, name, phone, debt FROM partners WHERE phone = $1', [
-          supplier.phone?.trim() || '',
-        ]);
-        if (sRes.rows.length > 0 && supplier.phone?.trim()) {
+        if (!supplierName) {
+          supplierName = 'Nhà Cung Cấp Tổng';
+        }
+        const suppPhone = supplier?.phone?.trim() || '';
+        
+        let sRes;
+        if (suppPhone) {
+          sRes = await client.query('SELECT id, name, phone, debt FROM partners WHERE phone = $1', [suppPhone]);
+        } else {
+          sRes = await client.query('SELECT id, name, phone, debt FROM partners WHERE name = $1 AND type = \'supplier\'', [supplierName]);
+        }
+
+        if (sRes && sRes.rows.length > 0) {
           supplierId = sRes.rows[0].id;
         } else {
           const newS = await client.query(
             `INSERT INTO partners (name, phone, address, type, debt)
              VALUES ($1, $2, $3, 'supplier', 0)
-             RETURNING id`,
-            [supplier.name.trim(), supplier.phone?.trim() || `NCC-${Date.now().toString().slice(-4)}`, supplier.address || '']
+             RETURNING id, name`,
+            [supplierName, suppPhone || `NCC-${Date.now().toString().slice(-4)}`, supplier?.address || '']
           );
           supplierId = newS.rows[0].id;
+        }
+      } else {
+        const checkS = await client.query('SELECT name FROM partners WHERE id = $1', [supplierId]);
+        if (checkS.rows.length > 0) {
+          supplierName = checkS.rows[0].name;
         }
       }
 
@@ -402,20 +414,25 @@ export async function POST(request: NextRequest) {
 
       // 3. Process items into products and inventory
       for (const item of items) {
-        // Create or find product
-        const prodRes = await client.query(
-          `INSERT INTO products (name, category, condition, color, storage)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id`,
-          [
-            item.product_name.trim(),
-            item.category || 'iPhone',
-            item.condition || '99%',
-            item.color || '',
-            item.storage || '',
-          ]
-        );
-        const prodId = prodRes.rows[0].id;
+        let prodId = item.product_id;
+
+        if (!prodId) {
+          // If no product_id supplied, create or find product by name
+          const pName = item.product_name || 'iPhone';
+          const prodRes = await client.query(
+            `INSERT INTO products (name, category, condition, color, storage)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id`,
+            [
+              pName.trim(),
+              item.category || 'iPhone',
+              item.condition || '99%',
+              item.color || '',
+              item.storage || '',
+            ]
+          );
+          prodId = prodRes.rows[0].id;
+        }
 
         // Insert inventory
         const invRes = await client.query(
@@ -468,7 +485,7 @@ export async function POST(request: NextRequest) {
       // 6. Telegram notification
       notifyImportOrder({
         orderCode: code,
-        supplierName: supplier.name,
+        supplierName: supplierName || 'Nhà Cung Cấp',
         staffName: user.full_name,
         totalAmount: totalImportAmount,
         paidAmount,
@@ -485,6 +502,79 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Order creation error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const client = await getClient();
+  try {
+    const user = getUserFromRequest(request);
+    if (!user || !['admin', 'owner'].includes(user.role)) {
+      return NextResponse.json({ error: 'Chỉ Admin hoặc Chủ cửa hàng mới có quyền xóa/hủy hóa đơn' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Thiếu ID hóa đơn cần xóa' }, { status: 400 });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Fetch Order details
+    const orderRes = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [id]);
+    if (orderRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return NextResponse.json({ error: 'Không tìm thấy hóa đơn' }, { status: 404 });
+    }
+    const order = orderRes.rows[0];
+
+    // 2. Fetch order items to revert inventory
+    const itemsRes = await client.query('SELECT * FROM order_items WHERE order_id = $1', [id]);
+
+    if (order.type === 'sell') {
+      // Revert sold inventory items back to 'in_stock'
+      for (const item of itemsRes.rows) {
+        if (item.inventory_id) {
+          await client.query('UPDATE inventory SET status = \'in_stock\' WHERE id = $1', [item.inventory_id]);
+        }
+      }
+
+      // Revert customer debt if debt was added
+      if (order.debt_added !== 0 && order.partner_id) {
+        await client.query('UPDATE partners SET debt = debt - $1 WHERE id = $2', [order.debt_added, order.partner_id]);
+      }
+    } else if (order.type === 'import') {
+      // Revert supplier debt
+      if (order.debt_added > 0 && order.partner_id) {
+        await client.query('UPDATE partners SET debt = debt + $1 WHERE id = $2', [order.debt_added, order.partner_id]);
+      }
+
+      // Delete the imported inventory if not sold
+      for (const item of itemsRes.rows) {
+        if (item.inventory_id) {
+          await client.query('DELETE FROM inventory WHERE id = $1 AND status = \'in_stock\'', [item.inventory_id]);
+        }
+      }
+    }
+
+    // 3. Delete linked cash flow records
+    await client.query('DELETE FROM cash_flow WHERE order_id = $1', [id]);
+
+    // 4. Delete order items & order
+    await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+    await client.query('DELETE FROM orders WHERE id = $1', [id]);
+
+    await client.query('COMMIT');
+
+    return NextResponse.json({ success: true, message: `Đã xóa thành công hóa đơn ${order.code}` });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Order DELETE error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
     client.release();

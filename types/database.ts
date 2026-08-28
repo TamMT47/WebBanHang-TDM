@@ -29,9 +29,10 @@ export interface Product {
   id: string;
   name: string;
   category: ProductCategory;
-  condition: ProductCondition;
+  condition?: ProductCondition;
   color?: string | null;
   storage?: string | null;
+  base_price?: number;
   created_at: string;
 }
 
