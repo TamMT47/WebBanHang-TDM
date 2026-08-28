@@ -1,0 +1,597 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import {
+  Search,
+  Plus,
+  Layers,
+  Trash2,
+  Edit,
+  CheckCircle2,
+  AlertTriangle,
+  Smartphone,
+  Tag,
+  Camera,
+  Filter,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+import { formatVND } from '@/lib/format';
+import { InventoryItem, Product } from '@/types/database';
+import MoneyInput from '@/components/ui/MoneyInput';
+import ScannerModal from '@/components/ScannerModal';
+
+interface InventoryViewProps {
+  user: any;
+}
+
+export default function InventoryView({ user }: InventoryViewProps) {
+  const canSeeCost = user && ['admin', 'owner', 'manager'].includes(user.role);
+
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+
+  // Modals
+  const [isAddImeiOpen, setIsAddImeiOpen] = useState(false);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  // Add IMEI State
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [newImei, setNewImei] = useState('');
+  const [newColor, setNewColor] = useState('Titan Tự Nhiên');
+  const [newStorage, setNewStorage] = useState('128GB');
+  const [newCondition, setNewCondition] = useState('99%');
+  const [newBattery, setNewBattery] = useState(100);
+  const [newCostPrice, setNewCostPrice] = useState<number>(18000000);
+  const [newSellingPrice, setNewSellingPrice] = useState<number>(21000000);
+
+  // Add Product State
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdCategory, setNewProdCategory] = useState('iPhone');
+  const [newProdBasePrice, setNewProdBasePrice] = useState<number>(20000000);
+
+  // Message
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (categoryFilter !== 'all') params.append('category', categoryFilter);
+      if (search.trim()) params.append('search', search.trim());
+
+      const [invRes, prodRes] = await Promise.all([
+        fetch(`/api/inventory?${params.toString()}`),
+        fetch('/api/products'),
+      ]);
+
+      const invData = await invRes.json();
+      const prodData = await prodRes.json();
+
+      setInventory(invData.inventory || []);
+      setProducts(prodData.products || []);
+      if (prodData.products && prodData.products.length > 0 && !selectedProductId) {
+        setSelectedProductId(prodData.products[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [statusFilter, categoryFilter, search]);
+
+  const handleCreateImei = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newImei || !selectedProductId) {
+      setMessage({ type: 'error', text: 'Vui lòng nhập đầy đủ mã IMEI và chọn dòng máy' });
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: selectedProductId,
+          imei: newImei.trim(),
+          color: newColor,
+          storage: newStorage,
+          condition: newCondition,
+          battery_health: newBattery,
+          cost_price: newCostPrice,
+          selling_price: newSellingPrice,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Có lỗi xảy ra khi thêm IMEI');
+
+      setMessage({ type: 'success', text: `Đã thêm máy IMEI ${newImei} vào kho thành công!` });
+      setIsAddImeiOpen(false);
+      setNewImei('');
+      fetchData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim()) {
+      setMessage({ type: 'error', text: 'Vui lòng nhập tên dòng máy' });
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newProdName.trim(),
+          category: newProdCategory,
+          base_price: newProdBasePrice,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi khi tạo sản phẩm');
+
+      setMessage({ type: 'success', text: `Đã tạo mẫu máy ${newProdName} thành công!` });
+      setIsAddProductOpen(false);
+      setNewProdName('');
+      fetchData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleDeleteImei = async (id: string, imei: string) => {
+    if (!confirm(`Bạn có chắc muốn xóa mã máy IMEI ${imei} khỏi kho?`)) return;
+
+    try {
+      const res = await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi khi xóa máy');
+      fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Top Header Card */}
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-2.5">
+          <div className="p-2 bg-gray-950 text-white rounded-xl">
+            <Layers className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-black text-gray-950 uppercase tracking-wide">
+              Quản Lý Tồn Kho Theo Mã IMEI
+            </h2>
+            <p className="text-xs text-gray-500">
+              Mỗi chiếc điện thoại Apple là 1 mã IMEI duy nhất kèm % pin và tình trạng máy.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setIsAddProductOpen(true)}
+            className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>+ Tạo Mẫu Máy Mới</span>
+          </button>
+          <button
+            onClick={() => setIsAddImeiOpen(true)}
+            className="px-4 py-2 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5"
+          >
+            <Plus className="w-4 h-4 text-emerald-400" />
+            <span>+ Thêm Máy Vào Kho</span>
+          </button>
+        </div>
+      </div>
+
+      {message && (
+        <div
+          className={`p-3.5 rounded-xl text-xs flex items-center justify-between border ${
+            message.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-red-50 text-red-800 border-red-200'
+          }`}
+        >
+          <div className="flex items-center space-x-2">
+            {message.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-red-600" />
+            )}
+            <span className="font-semibold">{message.text}</span>
+          </div>
+          <button onClick={() => setMessage(null)} className="text-gray-400 hover:text-gray-600">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Filter Bar */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm theo IMEI, tên máy, màu sắc..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:bg-white focus:outline-none"
+            >
+              <option value="all">Tất cả Dòng sản phẩm</option>
+              <option value="iPhone">iPhone</option>
+              <option value="iPad">iPad</option>
+              <option value="Macbook">Macbook</option>
+              <option value="Airpods">Airpods</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:bg-white focus:outline-none"
+            >
+              <option value="all">Tất cả Trạng thái máy</option>
+              <option value="in_stock">🟢 Còn hàng (Sẵn sàng bán)</option>
+              <option value="sold">⚪ Đã bán</option>
+              <option value="warranty">🟡 Đang bảo hành</option>
+              <option value="returned">🔴 Đã hoàn trả</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Inventory List */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="text-center py-16 text-xs text-gray-400">Đang tải kho máy...</div>
+        ) : inventory.length === 0 ? (
+          <div className="text-center py-16 text-xs text-gray-500">
+            Không tìm thấy máy nào phù hợp với bộ lọc.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase text-[10px]">
+                <tr>
+                  <th className="px-4 py-3">Mã IMEI</th>
+                  <th className="px-4 py-3">Tên Dòng Máy</th>
+                  <th className="px-4 py-3">Quy Cách & Pin</th>
+                  <th className="px-4 py-3">Giá Niêm Yết</th>
+                  {canSeeCost && <th className="px-4 py-3">Giá Vốn Nhập</th>}
+                  <th className="px-4 py-3">Trạng Thái</th>
+                  <th className="px-4 py-3 text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {inventory.map((item) => {
+                  const isInStock = item.status === 'in_stock';
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50/80 transition">
+                      <td className="px-4 py-3 font-extrabold text-gray-950 font-mono">
+                        {item.imei}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-gray-900">{item.product_name}</div>
+                        <div className="text-[10px] text-gray-400 uppercase font-semibold">
+                          {item.category}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        <div className="flex items-center space-x-1.5">
+                          <span>{item.color}</span>
+                          <span>•</span>
+                          <span>{item.storage}</span>
+                          <span>•</span>
+                          <span className="font-bold text-gray-900">{item.condition}</span>
+                        </div>
+                        {item.battery_health && (
+                          <div className="text-[10px] text-emerald-700 font-bold mt-0.5">
+                            🔋 Dung lượng pin: {item.battery_health}%
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-black text-sm text-gray-950 font-mono">
+                        {formatVND(item.selling_price)}
+                      </td>
+                      {canSeeCost && (
+                        <td className="px-4 py-3 font-bold text-rose-700 font-mono">
+                          {formatVND(item.cost_price)}
+                        </td>
+                      )}
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            isInStock
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : item.status === 'sold'
+                              ? 'bg-gray-100 text-gray-700'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {isInStock
+                            ? '● Còn hàng'
+                            : item.status === 'sold'
+                            ? 'Đã bán'
+                            : 'Đang bảo hành'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {canSeeCost && isInStock && (
+                          <button
+                            onClick={() => handleDeleteImei(item.id, item.imei)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Add IMEI */}
+      {isAddImeiOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-200">
+            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
+              <h3 className="text-sm font-bold">Thêm Máy Mới Vào Kho (Nhập Lẻ)</h3>
+              <button
+                onClick={() => setIsAddImeiOpen(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateImei} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Chọn mẫu máy *
+                </label>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
+                  required
+                >
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Mã IMEI (15 số) *
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={newImei}
+                    onChange={(e) => setNewImei(e.target.value)}
+                    placeholder="VD: 359123456789012"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsScannerOpen(true)}
+                    className="px-3 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold flex items-center space-x-1"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Quét</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Màu sắc</label>
+                  <input
+                    type="text"
+                    value={newColor}
+                    onChange={(e) => setNewColor(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Dung lượng</label>
+                  <input
+                    type="text"
+                    value={newStorage}
+                    onChange={(e) => setNewStorage(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Ngoại hình</label>
+                  <select
+                    value={newCondition}
+                    onChange={(e) => setNewCondition(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs"
+                  >
+                    <option value="99%">99%</option>
+                    <option value="98%">98%</option>
+                    <option value="97%">97%</option>
+                    <option value="new">Mới 100%</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">% Pin</label>
+                  <input
+                    type="number"
+                    value={newBattery}
+                    onChange={(e) => setNewBattery(parseInt(e.target.value, 10) || 0)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              {canSeeCost && (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <div>
+                    <label className="block text-xs font-bold text-rose-800 mb-1">Giá vốn *</label>
+                    <MoneyInput
+                      value={newCostPrice}
+                      onValueChange={(num) => setNewCostPrice(num)}
+                      placeholder="0"
+                      className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-rose-700 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-emerald-800 mb-1">Giá bán *</label>
+                    <MoneyInput
+                      value={newSellingPrice}
+                      onValueChange={(num) => setNewSellingPrice(num)}
+                      placeholder="0"
+                      className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-emerald-700 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddImeiOpen(false)}
+                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
+                >
+                  Thêm Vào Kho
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Add Product Model */}
+      {isAddProductOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
+            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
+              <h3 className="text-sm font-bold">Tạo Mẫu Dòng Máy Mới</h3>
+              <button
+                onClick={() => setIsAddProductOpen(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateProduct} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Tên dòng máy *
+                </label>
+                <input
+                  type="text"
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  placeholder="VD: iPhone 16 Pro Max"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Danh mục Apple
+                </label>
+                <select
+                  value={newProdCategory}
+                  onChange={(e) => setNewProdCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
+                >
+                  <option value="iPhone">iPhone</option>
+                  <option value="iPad">iPad</option>
+                  <option value="Macbook">Macbook</option>
+                  <option value="Airpods">Airpods</option>
+                  <option value="AppleWatch">Apple Watch</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Giá tham chiếu cơ bản
+                </label>
+                <MoneyInput
+                  value={newProdBasePrice}
+                  onValueChange={(num) => setNewProdBasePrice(num)}
+                  placeholder="0"
+                  className="px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold font-mono"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddProductOpen(false)}
+                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
+                >
+                  Tạo Mẫu Máy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Scanner Modal */}
+      <ScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={(scanned) => setNewImei(scanned)}
+        title="Quét Barcode / QR IMEI Nhập Máy"
+      />
+    </div>
+  );
+}
