@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
       sql += ` AND p.category = $${params.length}`;
     }
 
-    sql += ` GROUP BY p.id ORDER BY p.created_at DESC`;
+    // Sort products alphabetically A-Z
+    sql += ` GROUP BY p.id ORDER BY p.name ASC`;
 
     const result = await query(sql, params);
     return NextResponse.json({ products: result.rows });

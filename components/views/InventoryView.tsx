@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   Plus,
@@ -17,17 +17,25 @@ import {
   EyeOff,
   DollarSign,
   X,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import {
   strictProductMatch,
   getAllMasterColors,
   saveCustomColor,
-  DEFAULT_MASTER_STORAGES,
+  DEFAULT_MASTER_SKUS,
   DEFAULT_MASTER_CONDITIONS,
-  DEFAULT_MASTER_CATEGORIES
+  DEFAULT_MASTER_CATEGORIES,
+  sortItemsAZ
 } from '@/lib/masterAttributes';
+import {
+  getCachedInventory,
+  setCachedInventory,
+  invalidateInventoryCache,
+  subscribeToCacheInvalidation
+} from '@/lib/cache';
 import { InventoryItem, Product } from '@/types/database';
 import MoneyInput from '@/components/ui/MoneyInput';
 import ScannerModal from '@/components/ScannerModal';
@@ -86,7 +94,13 @@ export default function InventoryView({ user }: InventoryViewProps) {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      // 1. Instant Cache
+      const cached = getCachedInventory();
+      if (cached && cached.length > 0 && statusFilter === 'all' && categoryFilter === 'all') {
+        setInventory(cached);
+        setLoading(false);
+      }
+
       setAvailableColors(getAllMasterColors());
 
       const params = new URLSearchParams();
@@ -101,10 +115,22 @@ export default function InventoryView({ user }: InventoryViewProps) {
       const invData = await invRes.json();
       const prodData = await prodRes.json();
 
-      setInventory(invData.inventory || []);
-      setProducts(prodData.products || []);
-      if (prodData.products && prodData.products.length > 0 && !selectedProductId) {
-        setSelectedProductId(prodData.products[0].id);
+      const rawInv = invData.inventory || [];
+      const rawProds = prodData.products || [];
+
+      // Sort A-Z by product name
+      const sortedInv = sortItemsAZ(rawInv, (item: InventoryItem) => item.product_name || '');
+      const sortedProds = sortItemsAZ(rawProds, (p: Product) => p.name);
+
+      setInventory(sortedInv);
+      setProducts(sortedProds);
+
+      if (statusFilter === 'all' && categoryFilter === 'all') {
+        setCachedInventory(sortedInv);
+      }
+
+      if (sortedProds.length > 0 && !selectedProductId) {
+        setSelectedProductId(sortedProds[0].id);
       }
     } catch (err) {
       console.error(err);
@@ -115,6 +141,13 @@ export default function InventoryView({ user }: InventoryViewProps) {
 
   useEffect(() => {
     fetchData();
+
+    // Subscribe to cache invalidations
+    const unsubscribe = subscribeToCacheInvalidation(() => {
+      fetchData();
+    });
+
+    return () => unsubscribe();
   }, [statusFilter, categoryFilter]);
 
   const handleCreateImei = async (e: React.FormEvent) => {
@@ -144,6 +177,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
       if (!res.ok) throw new Error(data.error || 'Có lỗi xảy ra khi thêm IMEI');
 
       setMessage({ type: 'success', text: `Đã thêm máy IMEI ${newImei} vào kho thành công!` });
+      invalidateInventoryCache();
       setIsAddImeiOpen(false);
       setNewImei('');
       fetchData();
@@ -155,7 +189,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName.trim()) {
-      setMessage({ type: 'error', text: 'Vui lòng nhập tên dòng máy' });
+      setMessage({ type: 'error', text: 'Vui lòng nhập tên dòng máy mẫu' });
       return;
     }
 
@@ -220,6 +254,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
       if (!res.ok) throw new Error(data.error || 'Lỗi khi cập nhật giá');
 
       setMessage({ type: 'success', text: `Đã cập nhật giá bán máy IMEI ${itemToEdit.imei} thành công!` });
+      invalidateInventoryCache();
       setItemToEdit(null);
       fetchData();
     } catch (err: any) {
@@ -236,16 +271,20 @@ export default function InventoryView({ user }: InventoryViewProps) {
       const res = await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi khi xóa máy');
+      invalidateInventoryCache();
       fetchData();
     } catch (err: any) {
       alert(err.message);
     }
   };
 
-  // Filter with Strict Search
-  const filteredInventory = inventory.filter((item) => {
-    return strictProductMatch(item.product_name || '', item.imei, item.color, search);
-  });
+  // Filter with Strict Search & Sort A-Z
+  const filteredInventory = useMemo(() => {
+    const list = inventory.filter((item) => {
+      return strictProductMatch(item.product_name || '', item.imei, item.color, search);
+    });
+    return sortItemsAZ(list, (item) => item.product_name || '');
+  }, [inventory, search]);
 
   return (
     <div className="space-y-4">
@@ -257,10 +296,10 @@ export default function InventoryView({ user }: InventoryViewProps) {
           </div>
           <div>
             <h2 className="text-base font-black text-gray-950 uppercase tracking-wide">
-              Quản Lý Tồn Kho Theo Mã IMEI & Thuộc Tính Master
+              Quản Lý Tồn Kho Theo Mã IMEI & Sắp Xếp A-Z
             </h2>
             <p className="text-xs text-gray-500">
-              Tìm kiếm Strict Search chính xác dòng máy, chuẩn hóa màu sắc và điều chỉnh giá niêm yết.
+              Tìm kiếm tức thì, quản lý từng máy theo IMEI, dung lượng, màu sắc, tình trạng Pin và giá bán.
             </p>
           </div>
         </div>
@@ -271,7 +310,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
             className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition flex items-center space-x-1"
           >
             <Tag className="w-3.5 h-3.5" />
-            <span>+ Tạo Nhóm Mẫu Máy</span>
+            <span>+ Tạo Mẫu Máy</span>
           </button>
           <button
             onClick={() => setIsAddImeiOpen(true)}
@@ -305,7 +344,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       )}
 
-      {/* Filter Bar with Strict Search Notice */}
+      {/* Filter Bar with Strict Search */}
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="relative">
@@ -349,7 +388,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       </div>
 
-      {/* Inventory List */}
+      {/* Inventory List Table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="text-center py-16 text-xs text-gray-400">Đang tải kho máy...</div>
@@ -380,7 +419,6 @@ export default function InventoryView({ user }: InventoryViewProps) {
                         {item.imei}
                       </td>
                       <td className="px-4 py-3">
-                        {/* Bold large product name */}
                         <div className="font-black text-gray-950 text-xs sm:text-sm">{item.product_name}</div>
                         <div className="text-[10px] text-gray-400 uppercase font-bold">
                           {item.category}
@@ -388,15 +426,21 @@ export default function InventoryView({ user }: InventoryViewProps) {
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         <div className="flex flex-wrap items-center gap-1">
-                          <span className="px-2 py-0.5 bg-gray-900 text-white rounded text-[10px] font-bold font-mono">
-                            {item.storage || '128GB'}
-                          </span>
-                          <span className="px-2 py-0.5 bg-gray-100 text-gray-900 rounded text-[10px] font-bold">
-                            {item.color}
-                          </span>
-                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-bold">
-                            {item.condition}
-                          </span>
+                          {item.color && (
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-900 rounded text-[10px] font-bold">
+                              {item.color}
+                            </span>
+                          )}
+                          {item.storage && (
+                            <span className="px-2 py-0.5 bg-gray-900 text-white rounded text-[10px] font-bold font-mono">
+                              {item.storage}
+                            </span>
+                          )}
+                          {item.condition && (
+                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-bold">
+                              {item.condition}
+                            </span>
+                          )}
                         </div>
                         {item.battery_health && (
                           <div className="text-[10px] text-emerald-700 font-bold mt-1">
@@ -434,7 +478,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                           {canSeeCost && isInStock && (
                             <button
                               onClick={() => openEditModal(item)}
-                              title="Sửa giá bán / giá vốn (Admin/Manager)"
+                              title="Sửa giá bán / giá vốn"
                               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -544,7 +588,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       )}
 
-      {/* Modal Add IMEI with Master Attributes */}
+      {/* Modal Add IMEI */}
       {isAddImeiOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-200">
@@ -645,21 +689,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Dung lượng</label>
-                    <select
-                      value={newStorage}
-                      onChange={(e) => setNewStorage(e.target.value)}
-                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
-                    >
-                      {DEFAULT_MASTER_STORAGES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-600 mb-1">Ngoại hình</label>
                     <select
@@ -745,13 +775,13 @@ export default function InventoryView({ user }: InventoryViewProps) {
             <form onSubmit={handleCreateProduct} className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Tên dòng máy *
+                  Tên dòng máy mẫu (Tên + Dung lượng + Tình trạng) *
                 </label>
                 <input
                   type="text"
                   value={newProdName}
                   onChange={(e) => setNewProdName(e.target.value)}
-                  placeholder="VD: iPhone 16 Pro Max"
+                  placeholder="VD: iPhone 16 Pro Max - 256GB - Mới 100%"
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
                   required
                 />
@@ -798,7 +828,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                   type="submit"
                   className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
                 >
-                  Tạo Mẫu Máy
+                  Tạo Sản Phẩm
                 </button>
               </div>
             </form>
@@ -806,12 +836,11 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       )}
 
-      {/* Scanner Modal */}
       <ScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={(scanned) => setNewImei(scanned)}
-        title="Quét Barcode / QR IMEI Nhập Máy"
+        title="Quét Mã IMEI Nhập Kho"
       />
     </div>
   );

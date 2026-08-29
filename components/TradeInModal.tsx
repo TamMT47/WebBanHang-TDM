@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, RefreshCw, Smartphone, Camera, Search, Plus, Check, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, RefreshCw, Smartphone, Camera, Search, Plus, Check, Sparkles, AlertCircle } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import { TradeInItemInput, ProductCondition, Product } from '@/types/database';
 import {
   getAllMasterColors,
   saveCustomColor,
-  DEFAULT_MASTER_STORAGES,
-  DEFAULT_MASTER_CONDITIONS,
-  DEFAULT_MASTER_CATEGORIES
+  DEFAULT_MASTER_SKUS,
+  sortItemsAZ
 } from '@/lib/masterAttributes';
 import MoneyInput from '@/components/ui/MoneyInput';
 
@@ -19,6 +18,7 @@ interface TradeInModalProps {
   onConfirm: (item: TradeInItemInput) => void;
   onOpenScanner?: () => void;
   scannedImei?: string;
+  initialItem?: TradeInItemInput | null;
 }
 
 export default function TradeInModal({
@@ -27,43 +27,62 @@ export default function TradeInModal({
   onConfirm,
   onOpenScanner,
   scannedImei,
+  initialItem,
 }: TradeInModalProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
-  // Search / Selection for existing catalog model
-  const [searchQuery, setSearchQuery] = useState('iPhone 13');
+  // Search / Selection for Master SKU (Tên + Dung lượng + Tình trạng)
+  const [searchQuery, setSearchQuery] = useState('iPhone 12 - 64GB - 99%');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Master Attributes
+  // Master Colors
   const [availableColors, setAvailableColors] = useState<string[]>([]);
   const [isAddingNewColor, setIsAddingNewColor] = useState(false);
   const [newCustomColorName, setNewCustomColorName] = useState('');
 
-  // Selected Item Specs
-  const [category, setCategory] = useState('iPhone');
-  const [condition, setCondition] = useState<ProductCondition>('99%');
+  // 3 Mandatory Fields
   const [color, setColor] = useState('Midnight (Đen Đêm)');
-  const [storage, setStorage] = useState('128GB');
+  const [batteryHealth, setBatteryHealth] = useState<number | string>(86);
   const [imei, setImei] = useState(scannedImei || '');
-  const [batteryHealth, setBatteryHealth] = useState<number>(86);
-  const [tradeInValue, setTradeInValue] = useState<number>(8500000);
-  const [error, setError] = useState<string | null>(null);
+
+  // Specs & Value
+  const [category, setCategory] = useState('iPhone');
+  const [tradeInValue, setTradeInValue] = useState<number>(6500000);
+
+  // Field validation errors
+  const [fieldErrors, setFieldErrors] = useState<{
+    productName?: string;
+    color?: string;
+    batteryHealth?: string;
+    imei?: string;
+    tradeInValue?: string;
+  }>({});
 
   // Fetch Existing Products Catalog and Master Colors
   useEffect(() => {
     if (isOpen) {
       setAvailableColors(getAllMasterColors());
       fetchProducts();
+      setFieldErrors({});
+
+      if (initialItem) {
+        setSearchQuery(initialItem.name.replace(' [Hàng Trade-in]', ''));
+        setColor(initialItem.color || 'Midnight (Đen Đêm)');
+        setBatteryHealth(initialItem.battery_health || 86);
+        setImei(initialItem.imei || '');
+        setTradeInValue(initialItem.trade_in_value || 6500000);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialItem]);
 
   // Sync scanned IMEI if provided
   useEffect(() => {
     if (scannedImei) {
       setImei(scannedImei);
+      setFieldErrors((prev) => ({ ...prev, imei: undefined }));
     }
   }, [scannedImei]);
 
@@ -91,55 +110,83 @@ export default function TradeInModal({
     }
   };
 
-  const handleSelectProduct = (prod: Product) => {
-    setSelectedProduct(prod);
-    setSearchQuery(prod.name);
-    setCategory(prod.category || 'iPhone');
+  const allMasterSkuOptions = useMemo(() => {
+    const fromDb = products.map((p) => p.name);
+    const combined = Array.from(new Set([...fromDb, ...DEFAULT_MASTER_SKUS]));
+    return sortItemsAZ(combined, (s) => s);
+  }, [products]);
+
+  const filteredMasterSkus = useMemo(() => {
+    if (!searchQuery.trim()) return allMasterSkuOptions;
+    const q = searchQuery.toLowerCase().trim();
+    return allMasterSkuOptions.filter((sku) => sku.toLowerCase().includes(q));
+  }, [allMasterSkuOptions, searchQuery]);
+
+  const handleSelectSku = (skuName: string) => {
+    setSearchQuery(skuName);
+    setFieldErrors((prev) => ({ ...prev, productName: undefined }));
+    if (skuName.toLowerCase().includes('ipad')) setCategory('iPad');
+    else if (skuName.toLowerCase().includes('macbook')) setCategory('Macbook');
+    else if (skuName.toLowerCase().includes('airpods')) setCategory('Airpods');
+    else setCategory('iPhone');
     setIsDropdownOpen(false);
   };
 
   const handleCreateNewCustomColor = () => {
     if (newCustomColorName.trim()) {
-      const updated = saveCustomColor(newCustomColorName.trim());
+      saveCustomColor(newCustomColorName.trim());
       setAvailableColors(getAllMasterColors());
       setColor(newCustomColorName.trim());
+      setFieldErrors((prev) => ({ ...prev, color: undefined }));
       setNewCustomColorName('');
       setIsAddingNewColor(false);
     }
   };
 
-  if (!isOpen) return null;
+  const validate = (): boolean => {
+    const errors: typeof fieldErrors = {};
 
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
-  );
+    if (!searchQuery.trim()) {
+      errors.productName = 'Bắt buộc chọn hoặc nhập tên dòng máy mẫu';
+    }
+    if (!color || !color.trim()) {
+      errors.color = 'Bắt buộc chọn màu sắc máy';
+    }
+    const numBattery = typeof batteryHealth === 'string' ? parseInt(batteryHealth, 10) : batteryHealth;
+    if (isNaN(numBattery) || numBattery <= 0 || numBattery > 100) {
+      errors.batteryHealth = 'Bắt buộc nhập % Pin cụ thể từ 1% đến 100%';
+    }
+    if (!imei || !imei.trim()) {
+      errors.imei = 'Bắt buộc nhập hoặc quét mã IMEI máy cũ';
+    }
+    if (!tradeInValue || tradeInValue <= 0) {
+      errors.tradeInValue = 'Bắt buộc nhập giá thu mua thỏa thuận lớn hơn 0đ';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalModelName = selectedProduct ? selectedProduct.name : searchQuery.trim();
+    if (!validate()) return;
 
-    if (!finalModelName) {
-      setError('Vui lòng chọn hoặc nhập tên dòng máy cũ thu lại');
-      return;
-    }
-
-    if (!imei.trim() || !tradeInValue || tradeInValue <= 0) {
-      setError('Vui lòng điền đầy đủ số IMEI và giá thu mua thỏa thuận');
-      return;
-    }
+    const numBattery = typeof batteryHealth === 'string' ? parseInt(batteryHealth, 10) : batteryHealth;
 
     onConfirm({
-      name: `${finalModelName} [Hàng Trade-in]`.trim(),
+      name: `${searchQuery.trim()} [Hàng Trade-in]`,
       category,
-      condition,
-      color,
-      storage,
+      condition: '99%',
+      color: color.trim(),
+      storage: '',
       imei: imei.trim(),
-      battery_health: batteryHealth,
+      battery_health: numBattery,
       trade_in_value: tradeInValue,
     });
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
@@ -156,7 +203,7 @@ export default function TradeInModal({
                 Thu Cũ Đổi Mới (Trade-in)
               </h3>
               <p className="text-[11px] text-amber-100 font-medium">
-                Đồng bộ thuộc tính Master và tự động lưu vào kho với nhãn &ldquo;Hàng Trade-in&rdquo;
+                Chuẩn hóa Master SKU & thông tin bắt buộc (% Pin, Màu sắc, IMEI, Giá thu)
               </p>
             </div>
           </div>
@@ -170,16 +217,11 @@ export default function TradeInModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-bold">
-              {error}
-            </div>
-          )}
-
-          {/* Search/Select Existing Product Model with Master Autocomplete */}
+          
+          {/* Master SKU Autocomplete (Tên + Dung lượng + Tình trạng) */}
           <div className="relative" ref={dropdownRef}>
             <label className="block text-xs font-black text-gray-900 mb-1">
-              1. Chọn hoặc tìm dòng máy trong Danh mục kho *
+              1. Tên Sản phẩm mẫu thu lại (Tên + Dung lượng + Ngoại hình) *
             </label>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -189,95 +231,63 @@ export default function TradeInModal({
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setIsDropdownOpen(true);
+                  setFieldErrors((prev) => ({ ...prev, productName: undefined }));
                 }}
                 onFocus={() => setIsDropdownOpen(true)}
-                placeholder="Gõ tên máy (VD: iPhone 13, 14 Pro Max...)"
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                required
+                placeholder="Gõ tìm mẫu máy (VD: iPhone 11 - 64GB - 99%, 13 - 128GB)..."
+                className={`w-full pl-10 pr-4 py-2.5 bg-gray-50 border rounded-xl text-xs font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none ${
+                  fieldErrors.productName ? 'border-red-500 ring-1 ring-red-500 bg-red-50/20' : 'border-gray-300'
+                }`}
               />
             </div>
+
+            {fieldErrors.productName && (
+              <p className="text-[11px] font-bold text-red-600 mt-1 flex items-center space-x-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>{fieldErrors.productName}</span>
+              </p>
+            )}
 
             {/* Dropdown Results */}
             {isDropdownOpen && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl z-30 max-h-52 overflow-y-auto divide-y divide-gray-100 animate-in fade-in">
-                {filteredProducts.map((p) => (
+                {filteredMasterSkus.map((sku, idx) => (
                   <div
-                    key={p.id}
-                    onClick={() => handleSelectProduct(p)}
+                    key={idx}
+                    onClick={() => handleSelectSku(sku)}
                     className="p-3 hover:bg-amber-50/70 cursor-pointer flex items-center justify-between transition"
                   >
-                    <div>
-                      <span className="font-black text-gray-950">{p.name}</span>
-                      <span className="ml-2 text-[10px] uppercase font-bold text-gray-500">
-                        {p.category}
-                      </span>
-                    </div>
-                    {selectedProduct?.id === p.id && (
+                    <span className="font-bold text-gray-950">{sku}</span>
+                    {searchQuery.toLowerCase() === sku.toLowerCase() && (
                       <Check className="w-4 h-4 text-amber-600 font-bold" />
                     )}
                   </div>
                 ))}
 
-                {searchQuery.trim() && !products.some((p) => p.name.toLowerCase() === searchQuery.trim().toLowerCase()) && (
+                {searchQuery.trim() && !filteredMasterSkus.some((s) => s.toLowerCase() === searchQuery.trim().toLowerCase()) && (
                   <div
-                    onClick={() => {
-                      setSelectedProduct(null);
-                      setIsDropdownOpen(false);
-                    }}
+                    onClick={() => handleSelectSku(searchQuery.trim())}
                     className="p-3 bg-amber-50 hover:bg-amber-100 cursor-pointer text-amber-950 font-bold flex items-center space-x-1.5"
                   >
                     <Plus className="w-4 h-4 text-amber-700" />
-                    <span>+ Thu máy dòng mới chưa có trong kho: &ldquo;{searchQuery.trim()}&rdquo;</span>
+                    <span>+ Thu máy dòng mới: &ldquo;{searchQuery.trim()}&rdquo;</span>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Master Attributes: Storage, Color, Condition, Battery */}
+          {/* 3 Mandatory Fields: Color, Battery, IMEI */}
           <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
-            <div className="font-black text-gray-800 uppercase tracking-wide text-[11px]">
-              2. Chuẩn Hóa Thuộc Tính Máy Thu Vào
+            <div className="font-black text-gray-800 uppercase tracking-wide text-[11px] flex items-center justify-between">
+              <span>2. 3 Thông Tin Bắt Buộc</span>
+              <span className="text-[10px] text-amber-800 font-bold">Màu, % Pin, IMEI</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Storage */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Dung lượng</label>
-                <select
-                  value={storage}
-                  onChange={(e) => setStorage(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold"
-                >
-                  {DEFAULT_MASTER_STORAGES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Condition */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Ngoại hình</label>
-                <select
-                  value={condition}
-                  onChange={(e) => setCondition(e.target.value as any)}
-                  className="w-full px-2.5 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold"
-                >
-                  {DEFAULT_MASTER_CONDITIONS.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Color Master Dropdown & Quick Add New Color */}
+            {/* Color Master Dropdown */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-gray-700">Màu sắc chuẩn</label>
+                <label className="block text-xs font-bold text-gray-800">Màu sắc máy *</label>
                 <button
                   type="button"
                   onClick={() => setIsAddingNewColor(!isAddingNewColor)}
@@ -293,7 +303,7 @@ export default function TradeInModal({
                     type="text"
                     value={newCustomColorName}
                     onChange={(e) => setNewCustomColorName(e.target.value)}
-                    placeholder="Nhập tên màu mới (VD: Xanh Mint)..."
+                    placeholder="Nhập tên màu mới..."
                     className="flex-1 px-3 py-1.5 bg-white border border-gray-300 rounded-xl text-xs font-semibold"
                   />
                   <button
@@ -307,9 +317,15 @@ export default function TradeInModal({
               ) : (
                 <select
                   value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-gray-900"
+                  onChange={(e) => {
+                    setColor(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, color: undefined }));
+                  }}
+                  className={`w-full px-2.5 py-2 bg-white border rounded-xl text-xs font-bold text-gray-900 ${
+                    fieldErrors.color ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
+                  }`}
                 >
+                  <option value="">-- Chọn màu sắc --</option>
                   {availableColors.map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -317,48 +333,67 @@ export default function TradeInModal({
                   ))}
                 </select>
               )}
+
+              {fieldErrors.color && (
+                <p className="text-[10px] font-bold text-red-600 mt-1">{fieldErrors.color}</p>
+              )}
             </div>
 
             {/* Battery Health */}
             <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                Tình trạng Pin (% Pin hiện tại)
+              <label className="block text-xs font-bold text-gray-800 mb-1">
+                Tình trạng Pin (% Pin hiện tại) *
               </label>
               <input
                 type="number"
                 value={batteryHealth}
-                onChange={(e) => setBatteryHealth(parseInt(e.target.value, 10) || 0)}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold font-mono"
-                min={50}
+                onChange={(e) => {
+                  setBatteryHealth(e.target.value === '' ? '' : parseInt(e.target.value, 10));
+                  setFieldErrors((prev) => ({ ...prev, batteryHealth: undefined }));
+                }}
+                placeholder="VD: 86"
+                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-bold font-mono ${
+                  fieldErrors.batteryHealth ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
+                }`}
+                min={1}
                 max={100}
-                required
               />
+              {fieldErrors.batteryHealth && (
+                <p className="text-[10px] font-bold text-red-600 mt-1">{fieldErrors.batteryHealth}</p>
+              )}
             </div>
-          </div>
 
-          {/* IMEI & Camera Scanner */}
-          <div>
-            <label className="block text-xs font-black text-gray-900 mb-1">
-              3. Số IMEI máy cũ (15 số) *
-            </label>
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={imei}
-                onChange={(e) => setImei(e.target.value)}
-                placeholder="Nhập hoặc quét mã 15 số IMEI..."
-                className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-mono font-black focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                required
-              />
-              {onOpenScanner && (
-                <button
-                  type="button"
-                  onClick={onOpenScanner}
-                  className="px-3.5 py-2.5 bg-gray-950 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 hover:bg-black active:scale-95 transition"
-                >
-                  <Camera className="w-4 h-4 text-amber-400" />
-                  <span>Quét</span>
-                </button>
+            {/* IMEI & Scanner */}
+            <div>
+              <label className="block text-xs font-bold text-gray-800 mb-1">
+                Mã IMEI máy thu lại *
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={imei}
+                  onChange={(e) => {
+                    setImei(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, imei: undefined }));
+                  }}
+                  placeholder="Nhập hoặc quét 15 số IMEI..."
+                  className={`flex-1 px-3 py-2 bg-white border rounded-xl text-xs font-mono font-bold ${
+                    fieldErrors.imei ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
+                  }`}
+                />
+                {onOpenScanner && (
+                  <button
+                    type="button"
+                    onClick={onOpenScanner}
+                    className="px-3 py-2 bg-gray-950 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 hover:bg-black active:scale-95 transition"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Quét</span>
+                  </button>
+                )}
+              </div>
+              {fieldErrors.imei && (
+                <p className="text-[10px] font-bold text-red-600 mt-1">{fieldErrors.imei}</p>
               )}
             </div>
           </div>
@@ -367,7 +402,7 @@ export default function TradeInModal({
           <div className="bg-amber-50/90 border border-amber-300 p-4 rounded-2xl space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-black text-amber-950 uppercase">
-                4. Giá thỏa thuận thu lại *
+                3. Giá Thỏa Thuận Thu Lại *
               </label>
               <span className="text-[10px] font-black text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
                 Trừ vào tổng đơn bán
@@ -375,10 +410,19 @@ export default function TradeInModal({
             </div>
             <MoneyInput
               value={tradeInValue}
-              onValueChange={(num) => setTradeInValue(num)}
-              placeholder="VD: 8.500.000"
-              className="px-3.5 py-2.5 bg-white border-2 border-amber-500 rounded-xl text-base font-black text-amber-950 focus:ring-2 focus:ring-amber-600 font-mono"
+              onValueChange={(num) => {
+                setTradeInValue(num);
+                setFieldErrors((prev) => ({ ...prev, tradeInValue: undefined }));
+              }}
+              placeholder="VD: 6.500.000"
+              className={`px-3.5 py-2.5 bg-white border-2 rounded-xl text-base font-black text-amber-950 focus:ring-2 focus:ring-amber-600 font-mono ${
+                fieldErrors.tradeInValue ? 'border-red-500' : 'border-amber-500'
+              }`}
             />
+            {fieldErrors.tradeInValue && (
+              <p className="text-[10px] font-bold text-red-600">{fieldErrors.tradeInValue}</p>
+            )}
+
             <div className="flex justify-between text-xs text-amber-900 font-black pt-1">
               <span>Số tiền trừ vào đơn:</span>
               <span className="font-mono text-sm">-{formatVND(tradeInValue)}</span>

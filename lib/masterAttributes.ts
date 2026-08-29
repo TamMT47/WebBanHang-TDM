@@ -36,6 +36,7 @@ export const DEFAULT_MASTER_COLORS = [
 ];
 
 export const DEFAULT_MASTER_STORAGES = [
+  '32GB',
   '64GB',
   '128GB',
   '256GB',
@@ -60,6 +61,47 @@ export const DEFAULT_MASTER_CATEGORIES = [
   'Airpods',
   'AppleWatch',
   'PhuKien',
+];
+
+/**
+ * Standardized Master SKU Examples (Tên + Dung lượng + Tình trạng)
+ */
+export const DEFAULT_MASTER_SKUS = [
+  'iPhone 11 - 64GB - 99%',
+  'iPhone 11 - 128GB - 99%',
+  'iPhone 11 Pro Max - 64GB - 99%',
+  'iPhone 11 Pro Max - 256GB - 99%',
+  'iPhone 12 - 64GB - 99%',
+  'iPhone 12 - 128GB - 99%',
+  'iPhone 12 Pro - 128GB - 99%',
+  'iPhone 12 Pro Max - 128GB - 99%',
+  'iPhone 12 Pro Max - 256GB - 99%',
+  'iPhone 13 - 128GB - 99%',
+  'iPhone 13 - 256GB - 99%',
+  'iPhone 13 Pro - 128GB - 99%',
+  'iPhone 13 Pro Max - 128GB - 99%',
+  'iPhone 13 Pro Max - 256GB - 99%',
+  'iPhone 14 - 128GB - 99%',
+  'iPhone 14 Plus - 128GB - 99%',
+  'iPhone 14 Pro - 128GB - 99%',
+  'iPhone 14 Pro Max - 128GB - 99%',
+  'iPhone 14 Pro Max - 256GB - 99%',
+  'iPhone 15 - 128GB - 99%',
+  'iPhone 15 Plus - 128GB - 99%',
+  'iPhone 15 Pro - 128GB - 99%',
+  'iPhone 15 Pro - 256GB - 99%',
+  'iPhone 15 Pro Max - 256GB - 99%',
+  'iPhone 15 Pro Max - 512GB - 99%',
+  'iPhone 16 - 128GB - Mới 100%',
+  'iPhone 16 Plus - 128GB - Mới 100%',
+  'iPhone 16 Pro - 128GB - Mới 100%',
+  'iPhone 16 Pro Max - 256GB - Mới 100%',
+  'iPhone 16 Pro Max - 512GB - Mới 100%',
+  'iPad Air 5 M1 - 64GB WiFi - 99%',
+  'iPad Pro 11 M2 - 128GB WiFi - 99%',
+  'Macbook Air M1 - 8GB/256GB - 99%',
+  'Macbook Air M2 - 8GB/256GB - 99%',
+  'Airpods Pro 2 Type-C - Mới 100%',
 ];
 
 /**
@@ -103,6 +145,17 @@ export function getAllMasterColors(): string[] {
 }
 
 /**
+ * Helper to sort array A-Z by Vietnamese locale
+ */
+export function sortItemsAZ<T>(items: T[], keyExtractor: (item: T) => string): T[] {
+  return [...items].sort((a, b) => {
+    const strA = (keyExtractor(a) || '').trim();
+    const strB = (keyExtractor(b) || '').trim();
+    return strA.localeCompare(strB, 'vi', { numeric: true, sensitivity: 'base' });
+  });
+}
+
+/**
  * Strict Apple Product Search Engine
  * 
  * Rules:
@@ -129,11 +182,9 @@ export function strictProductMatch(
   if (color && color.includes(q)) return true;
 
   // 2. Strict Apple Model Matching Logic
-  // Extract number tokens like 11, 12, 13, 14, 15, 16, 8, 7, 6, X, XS, XR, SE
   const modelNumbers = ['16', '15', '14', '13', '12', '11', 'xs max', 'xs', 'xr', 'se', 'x', '8 plus', '8', '7 plus', '7'];
 
   for (const num of modelNumbers) {
-    // Check if query mentions this specific model number as a distinct word
     const queryHasNum = new RegExp(`\\b${num}\\b`, 'i').test(q);
     const targetHasNum = new RegExp(`\\b${num}\\b`, 'i').test(name);
 
@@ -150,27 +201,22 @@ export function strictProductMatch(
       const tHasPlus = /\bplus\b/i.test(name);
       const tHasMini = /\bmini\b/i.test(name);
 
-      // If user specifically asked for "Pro Max"
       if (qHasMax) {
         return tHasMax;
       }
 
-      // If user asked for "Pro" (without Max)
       if (qHasPro && !qHasMax) {
         return tHasPro && !tHasMax;
       }
 
-      // If user asked for "Plus"
       if (qHasPlus) {
         return tHasPlus;
       }
 
-      // If user asked for "Mini"
       if (qHasMini) {
         return tHasMini;
       }
 
-      // Base model request (e.g. "iPhone 11"): MUST NOT have Pro, Max, Plus, Mini
       if (!qHasPro && !qHasMax && !qHasPlus && !qHasMini) {
         if (tHasPro || tHasMax || tHasPlus || tHasMini) {
           return false;

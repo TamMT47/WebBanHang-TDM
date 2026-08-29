@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
       sql += ` AND i.product_id = $${params.length}`;
     }
 
-    sql += ` ORDER BY i.created_at DESC`;
+    // Sort inventory items alphabetically A-Z by Product Name, then newest items
+    sql += ` ORDER BY p.name ASC, i.created_at DESC`;
 
     const result = await query(sql, params);
     return NextResponse.json({ inventory: result.rows });
