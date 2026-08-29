@@ -264,33 +264,67 @@ export async function POST(request: NextRequest) {
       // 5. Process Trade-in Machine if available
       let tradeInCreatedItem = null;
       if (trade_in && tradeInVal > 0 && trade_in.imei) {
-        // Create or find trade-in product
-        const prodRes = await client.query(
-          `INSERT INTO products (name, category, condition, color, storage)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id, name`,
-          [
-            trade_in.name.trim(),
-            trade_in.category || 'iPhone',
-            trade_in.condition || '99%',
-            trade_in.color || '',
-            trade_in.storage || '',
-          ]
-        );
-        const tradeInProd = prodRes.rows[0];
+        // Clean product name - prevent creating junk suffixes like [Hàng Trade-in]
+        const cleanModelName = (trade_in.name || 'iPhone 11').replace(/\[.*?\]/g, '').trim();
+        const tradeInStorage = (trade_in.storage || '').trim();
+        const tradeInCondition = (trade_in.condition || '99%').trim();
+        const tradeInColor = (trade_in.color || '').trim();
 
-        // Insert into inventory as IN_STOCK
+        // 1. Find or create fixed partner "Khách Trade-in"
+        let tradeInSupplierId = partnerId;
+        const suppCheck = await client.query(
+          "SELECT id FROM partners WHERE name = 'Khách Trade-in' LIMIT 1"
+        );
+        if (suppCheck.rows.length > 0) {
+          tradeInSupplierId = suppCheck.rows[0].id;
+        } else {
+          const newSupp = await client.query(
+            "INSERT INTO partners (name, phone, type, debt) VALUES ('Khách Trade-in', '0000000000', 'both', 0) RETURNING id"
+          );
+          tradeInSupplierId = newSupp.rows[0].id;
+        }
+
+        // 2. Find or create clean product in catalog
+        let tradeInProdId: string;
+        const existingProd = await client.query(
+          `SELECT id FROM products 
+           WHERE LOWER(name) = LOWER($1) 
+             AND (storage = $2 OR ($2 = '' AND (storage IS NULL OR storage = '')))
+             AND (condition = $3 OR ($3 = '' AND (condition IS NULL OR condition = '')))
+           LIMIT 1`,
+          [cleanModelName, tradeInStorage, tradeInCondition]
+        );
+
+        if (existingProd.rows.length > 0) {
+          tradeInProdId = existingProd.rows[0].id;
+        } else {
+          const prodRes = await client.query(
+            `INSERT INTO products (name, category, condition, color, storage)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id`,
+            [
+              cleanModelName,
+              trade_in.category || 'iPhone',
+              tradeInCondition,
+              tradeInColor,
+              tradeInStorage,
+            ]
+          );
+          tradeInProdId = prodRes.rows[0].id;
+        }
+
+        // 3. Insert into inventory as in_stock with supplier "Khách Trade-in"
         const tradeInvRes = await client.query(
           `INSERT INTO inventory (product_id, imei, cost_price, selling_price, battery_health, status, supplier_id)
            VALUES ($1, $2, $3, $4, $5, 'in_stock', $6)
            RETURNING *`,
           [
-            tradeInProd.id,
+            tradeInProdId,
             trade_in.imei.trim(),
             tradeInVal,
             Math.round(tradeInVal * 1.15), // suggested selling price
             trade_in.battery_health || 85,
-            partnerId,
+            tradeInSupplierId,
           ]
         );
         tradeInCreatedItem = tradeInvRes.rows[0];

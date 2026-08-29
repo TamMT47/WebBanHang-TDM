@@ -27,18 +27,19 @@ import {
   User,
   MapPin,
   FileCheck,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatVND } from '@/lib/format';
-import { strictProductMatch, sortItemsAZ } from '@/lib/masterAttributes';
+import { strictProductMatch, sortItemsAZ, formatProductTitle } from '@/lib/masterAttributes';
 import {
   getCachedInventory,
   setCachedInventory,
   invalidateInventoryCache,
   subscribeToCacheInvalidation
 } from '@/lib/cache';
-import { InventoryItem, PaymentMethod } from '@/types/database';
+import { InventoryItem } from '@/types/database';
 import ScannerModal from '@/components/ScannerModal';
 import InvoiceModal from '@/components/InvoiceModal';
 import POSCheckoutModal from '@/components/POSCheckoutModal';
@@ -63,7 +64,7 @@ export default function POSView({ user }: POSViewProps) {
     }>
   >([]);
 
-  // Quick Customer Search / Pre-selection
+  // Customer Management on POS (Requirement 3)
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{
     id?: string;
@@ -71,11 +72,20 @@ export default function POSView({ user }: POSViewProps) {
     phone: string;
     address?: string;
     cccd?: string;
+    debt?: number;
   } | null>(null);
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
-  const [customersList, setCustomersList] = useState<any[]>([]);
 
-  // Scanner & Checkout Modals
+  // Customer search & create modal state
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customersList, setCustomersList] = useState<any[]>([]);
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [isCreatingNewCust, setIsCreatingNewCust] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustAddress, setNewCustAddress] = useState('');
+  const [newCustCccd, setNewCustCccd] = useState('');
+
+  // Modals
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -85,25 +95,19 @@ export default function POSView({ user }: POSViewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Ref for scrolling
-  const checkoutSectionRef = useRef<HTMLDivElement>(null);
-
-  // Load Inventory with SWR (Stale-While-Revalidate) Cache
+  // Load Inventory with SWR
   const fetchInventory = async () => {
     try {
-      // 1. Instant Cache Load
       const cached = getCachedInventory();
       if (cached && cached.length > 0) {
         setInventory(cached);
         setLoading(false);
       }
 
-      // 2. Fresh Background Fetch
       const res = await fetch('/api/inventory?status=in_stock');
       const data = await res.json();
       const freshList = data.inventory || [];
       
-      // Sort A-Z by product name
       const sorted = sortItemsAZ(freshList, (item: InventoryItem) => item.product_name || '');
       setInventory(sorted);
       setCachedInventory(sorted);
@@ -117,7 +121,6 @@ export default function POSView({ user }: POSViewProps) {
   useEffect(() => {
     fetchInventory();
 
-    // Subscribe to cache invalidations from other tabs or actions
     const unsubscribe = subscribeToCacheInvalidation(() => {
       fetchInventory();
     });
@@ -127,13 +130,32 @@ export default function POSView({ user }: POSViewProps) {
 
   // Quick Customer Search
   useEffect(() => {
-    if (customerSearchQuery.trim().length >= 2) {
-      fetch(`/api/partners?search=${encodeURIComponent(customerSearchQuery)}&type=customer`)
+    const q = customerQuery.trim();
+    if (q.length >= 2) {
+      setSearchingCustomer(true);
+      fetch(`/api/partners?search=${encodeURIComponent(q)}&type=customer`)
         .then((res) => res.json())
         .then((data) => setCustomersList(data.partners || []))
-        .catch((e) => console.error(e));
+        .catch((e) => console.error(e))
+        .finally(() => setSearchingCustomer(false));
+    } else {
+      setCustomersList([]);
     }
-  }, [customerSearchQuery]);
+  }, [customerQuery]);
+
+  // RESET ALL STATE (REQUIREMENT 2)
+  const resetAllPOSState = () => {
+    setCart([]);
+    setSelectedCustomer(null);
+    setSearchTerm('');
+    setMessage(null);
+    setCustomerQuery('');
+    setIsCreatingNewCust(false);
+    setNewCustName('');
+    setNewCustPhone('');
+    setNewCustAddress('');
+    setNewCustCccd('');
+  };
 
   // Add Item to Cart
   const addToCart = (item: InventoryItem) => {
@@ -154,7 +176,7 @@ export default function POSView({ user }: POSViewProps) {
     setCart((prev) => prev.filter((c) => c.inventory.id !== inventoryId));
   };
 
-  // Handle Barcode/QR Scan
+  // Barcode / QR scan success
   const handleScanSuccess = (decodedImei: string) => {
     const clean = decodedImei.trim().toLowerCase();
     const match = inventory.find((i) => i.imei.toLowerCase() === clean);
@@ -162,22 +184,17 @@ export default function POSView({ user }: POSViewProps) {
       addToCart(match);
       setMessage({
         type: 'success',
-        text: `Đã thêm máy ${match.product_name} (IMEI: ${match.imei}) vào giỏ hàng!`,
+        text: `Đã thêm máy ${match.product_name} (IMEI: ${match.imei}) vào giỏ!`,
       });
     } else {
       setMessage({
         type: 'error',
-        text: `Không tìm thấy mã IMEI "${decodedImei}" còn hàng trong kho!`,
+        text: `Không tìm thấy mã IMEI "${decodedImei}" trong kho hàng!`,
       });
     }
   };
 
-  // Cart Calculations
-  const totalAmount = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.price, 0);
-  }, [cart]);
-
-  // Complete Order Handler (Called from Multi-Step POSCheckoutModal)
+  // Complete Order Handler
   const handleCompleteOrder = async (payload: any) => {
     try {
       setSubmitting(true);
@@ -194,16 +211,12 @@ export default function POSView({ user }: POSViewProps) {
         throw new Error(data.error || 'Có lỗi xảy ra khi tạo đơn hàng');
       }
 
-      // Trigger Confetti Celebration
+      // Confetti
       try {
-        confetti({
-          particleCount: 90,
-          spread: 75,
-          origin: { y: 0.6 },
-        });
+        confetti({ particleCount: 90, spread: 75, origin: { y: 0.6 } });
       } catch (e) {}
 
-      // Prepare Invoice Data
+      // Prepare Invoice
       setCompletedOrder({
         code: data.code,
         created_at: new Date().toISOString(),
@@ -212,10 +225,15 @@ export default function POSView({ user }: POSViewProps) {
         partner_address: payload.customer.address,
         partner_cccd: payload.customer.cccd,
         creator_name: user?.full_name,
-        total_amount: totalAmount,
+        total_amount: cart.reduce((s, i) => s + i.price, 0),
         discount: payload.discount,
         trade_in_value: payload.trade_in ? payload.trade_in.trade_in_value : 0,
-        final_payment: Math.max(0, totalAmount - (payload.discount || 0) - (payload.trade_in?.trade_in_value || 0)),
+        final_payment: Math.max(
+          0,
+          cart.reduce((s, i) => s + i.price, 0) -
+            (payload.discount || 0) -
+            (payload.trade_in?.trade_in_value || 0)
+        ),
         paid_amount: payload.paid_amount,
         payment_method: payload.payment_method,
         items: cart.map((c) => ({
@@ -234,10 +252,9 @@ export default function POSView({ user }: POSViewProps) {
       setIsCheckoutOpen(false);
       setIsInvoiceOpen(true);
 
-      // Invalidate inventory cache & Reset Cart
+      // Auto Reset State (Requirement 2)
+      resetAllPOSState();
       invalidateInventoryCache();
-      setCart([]);
-      setSelectedCustomer(null);
       fetchInventory();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
@@ -245,6 +262,29 @@ export default function POSView({ user }: POSViewProps) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Quick Customer Creation Handler
+  const handleSaveNewCustomer = () => {
+    if (!newCustName.trim() || !newCustPhone.trim()) {
+      alert('Vui lòng nhập Tên và Số điện thoại khách hàng');
+      return;
+    }
+
+    setSelectedCustomer({
+      name: newCustName.trim(),
+      phone: newCustPhone.trim(),
+      address: newCustAddress.trim(),
+      cccd: newCustCccd.trim(),
+      debt: 0,
+    });
+
+    setIsCustomerModalOpen(false);
+    setIsCreatingNewCust(false);
+    setNewCustName('');
+    setNewCustPhone('');
+    setNewCustAddress('');
+    setNewCustCccd('');
   };
 
   const categories = [
@@ -255,7 +295,7 @@ export default function POSView({ user }: POSViewProps) {
     { id: 'Airpods', label: 'Airpods' },
   ];
 
-  // Group inventory items by product name using Strict Search & A-Z Sorting
+  // Group inventory items by product name
   const groupedProducts = useMemo(() => {
     const groups: Record<
       string,
@@ -293,6 +333,7 @@ export default function POSView({ user }: POSViewProps) {
   }, [inventory, selectedCategory, searchTerm]);
 
   const totalInStockCount = groupedProducts.reduce((sum, g) => sum + g.items.length, 0);
+  const totalCartAmount = cart.reduce((sum, item) => sum + item.price, 0);
 
   return (
     <div className="space-y-4 pb-20 sm:pb-6">
@@ -336,7 +377,10 @@ export default function POSView({ user }: POSViewProps) {
 
             {/* Quick Customer Search Button */}
             <button
-              onClick={() => setIsCustomerModalOpen(true)}
+              onClick={() => {
+                setIsCustomerModalOpen(true);
+                setCustomerQuery('');
+              }}
               className={`flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold border transition ${
                 selectedCustomer
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
@@ -348,6 +392,49 @@ export default function POSView({ user }: POSViewProps) {
             </button>
           </div>
         </div>
+
+        {/* Selected Customer Card (Requirement 3: With Change & Clear Buttons) */}
+        {selectedCustomer && (
+          <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between animate-in fade-in text-xs">
+            <div className="flex items-center space-x-3">
+              <div className="p-1.5 bg-emerald-600 text-white rounded-lg">
+                <User className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="font-black text-emerald-950 text-sm">{selectedCustomer.name}</span>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Khách Hàng Đã Chọn
+                  </span>
+                </div>
+                <div className="text-gray-600 font-mono font-bold text-[11px]">
+                  SĐT: {selectedCustomer.phone} {selectedCustomer.address ? `• ${selectedCustomer.address}` : ''}
+                </div>
+              </div>
+            </div>
+
+            {/* 2 Buttons: Đổi khách hàng & Xóa/Clear */}
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomerModalOpen(true);
+                  setCustomerQuery('');
+                }}
+                className="px-2.5 py-1 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 rounded-lg font-bold shadow-2xs text-[11px]"
+              >
+                Đổi khách hàng
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCustomer(null)}
+                className="px-2.5 py-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-lg font-bold text-[11px]"
+              >
+                Xóa / Clear
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Category Filter Pills */}
         <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
@@ -390,7 +477,7 @@ export default function POSView({ user }: POSViewProps) {
         </div>
       )}
 
-      {/* 2. MAIN SPLIT: PRODUCTS CATALOG (7 COLS) & CART SUMMARY (5 COLS) */}
+      {/* 2. MAIN SPLIT: PRODUCTS CATALOG & CART */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* LEFT: Products Catalog Grouped & A-Z Sorted (7 cols) */}
@@ -470,6 +557,11 @@ export default function POSView({ user }: POSViewProps) {
                                   {item.color}
                                 </span>
                               )}
+                              {item.storage && (
+                                <span className="px-2 py-0.5 bg-gray-900 text-white rounded text-[10px] font-bold font-mono">
+                                  {item.storage}
+                                </span>
+                              )}
                               {item.battery_health && (
                                 <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold">
                                   🔋 {item.battery_health}%
@@ -526,7 +618,7 @@ export default function POSView({ user }: POSViewProps) {
         </div>
 
         {/* RIGHT: Cart Drawer (5 cols) */}
-        <div className="lg:col-span-5 space-y-4" ref={checkoutSectionRef}>
+        <div className="lg:col-span-5 space-y-4">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-4">
             
             {/* Cart Header */}
@@ -618,7 +710,7 @@ export default function POSView({ user }: POSViewProps) {
 
               <div className="flex justify-between text-base font-black text-gray-950 pt-2 border-t border-gray-200">
                 <span>TỔNG TIỀN NIÊM YẾT:</span>
-                <span className="font-mono text-lg text-emerald-700">{formatVND(totalAmount)}</span>
+                <span className="font-mono text-lg text-emerald-700">{formatVND(totalCartAmount)}</span>
               </div>
             </div>
 
@@ -636,32 +728,159 @@ export default function POSView({ user }: POSViewProps) {
         </div>
       </div>
 
-      {/* Sticky Bottom Bar for Mobile/Tablet */}
-      <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-xl border-t border-gray-800 text-white px-4 py-2.5 shadow-2xl flex items-center justify-between">
-        <div>
-          <div className="text-[10px] text-gray-400 uppercase font-bold flex items-center space-x-1">
-            <span>Giỏ hàng:</span>
-            <b className="text-white">{cart.length} máy</b>
-          </div>
-          <div className="text-sm font-black text-emerald-400 font-mono">
-            {formatVND(totalAmount)}
+      {/* Quick Customer Search & Add Modal (Requirement 3) */}
+      {isCustomerModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200 flex flex-col max-h-[85vh]">
+            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <User className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-black uppercase">
+                  {isCreatingNewCust ? 'Thêm Khách Hàng Mới' : 'Tìm / Chọn Khách Hàng'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsCustomerModalOpen(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto text-xs">
+              {!isCreatingNewCust ? (
+                <>
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={customerQuery}
+                      onChange={(e) => setCustomerQuery(e.target.value)}
+                      placeholder="Gõ tên hoặc số điện thoại khách..."
+                      className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl font-bold text-xs text-gray-950"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Customer Results or Add New Button */}
+                  {searchingCustomer ? (
+                    <div className="text-center py-6 text-gray-400">Đang tìm...</div>
+                  ) : customersList.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {customersList.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedCustomer(c);
+                            setIsCustomerModalOpen(false);
+                          }}
+                          className="p-3 bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 border border-gray-200 rounded-xl cursor-pointer transition flex items-center justify-between"
+                        >
+                          <div>
+                            <div className="font-black text-gray-950">{c.name}</div>
+                            <div className="text-gray-500 font-mono text-[11px]">{c.phone}</div>
+                          </div>
+                          {c.debt !== 0 && (
+                            <span className="text-[10px] font-bold text-red-600">
+                              Nợ: {formatVND(c.debt)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 space-y-3 bg-gray-50 rounded-2xl border border-dashed border-gray-200 p-4">
+                      <p className="text-xs text-gray-500 font-medium">
+                        {customerQuery.trim()
+                          ? `Không tìm thấy khách hàng "${customerQuery}".`
+                          : 'Nhập SĐT hoặc Tên khách để tìm kiếm.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingNewCust(true);
+                          setNewCustPhone(customerQuery);
+                        }}
+                        className="px-4 py-2 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 mx-auto shadow-sm"
+                      >
+                        <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>+ Thêm khách hàng mới</span>
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Form Create New Customer */
+                <div className="space-y-3 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-800 mb-1">Số điện thoại *</label>
+                    <input
+                      type="tel"
+                      value={newCustPhone}
+                      onChange={(e) => setNewCustPhone(e.target.value)}
+                      placeholder="VD: 0912345678"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-800 mb-1">Họ và tên *</label>
+                    <input
+                      type="text"
+                      value={newCustName}
+                      onChange={(e) => setNewCustName(e.target.value)}
+                      placeholder="VD: Anh Nam, Chị Linh..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-800 mb-1">Địa chỉ</label>
+                    <input
+                      type="text"
+                      value={newCustAddress}
+                      onChange={(e) => setNewCustAddress(e.target.value)}
+                      placeholder="VD: Quận 1, TP.HCM"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-800 mb-1">CCCD (Lưu bảo hành)</label>
+                    <input
+                      type="text"
+                      value={newCustCccd}
+                      onChange={(e) => setNewCustCccd(e.target.value)}
+                      placeholder="VD: 079..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingNewCust(false)}
+                      className="flex-1 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700"
+                    >
+                      Quay lại tìm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveNewCustomer}
+                      className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
+                    >
+                      Chọn Khách Này
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+      )}
 
-        <button
-          type="button"
-          onClick={() => {
-            if (cart.length > 0) setIsCheckoutOpen(true);
-          }}
-          disabled={cart.length === 0}
-          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-black text-xs rounded-xl shadow-lg flex items-center space-x-1.5 active:scale-95 transition disabled:opacity-50"
-        >
-          <span>Thanh Toán ({cart.length})</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Multi-Step Checkout Modal (Requirement 2) */}
+      {/* Multi-Step Checkout Modal */}
       <POSCheckoutModal
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
@@ -671,64 +890,7 @@ export default function POSView({ user }: POSViewProps) {
         initialCustomer={selectedCustomer}
       />
 
-      {/* Quick Customer Search Modal */}
-      {isCustomerModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200 flex flex-col max-h-[85vh]">
-            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <User className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-black uppercase">Chọn Khách Hàng</h3>
-              </div>
-              <button
-                onClick={() => setIsCustomerModalOpen(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3 flex-1 overflow-y-auto text-xs">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={customerSearchQuery}
-                  onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                  placeholder="Gõ tên hoặc số điện thoại khách..."
-                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-300 rounded-xl font-bold"
-                  autoFocus
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                {customersList.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedCustomer(c);
-                      setIsCustomerModalOpen(false);
-                    }}
-                    className="p-3 bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 border border-gray-200 rounded-xl cursor-pointer transition flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="font-black text-gray-950">{c.name}</div>
-                      <div className="text-gray-500 font-mono">{c.phone}</div>
-                    </div>
-                    {c.debt !== 0 && (
-                      <span className="text-[10px] font-bold text-red-600">
-                        Nợ: {formatVND(c.debt)}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Fast Barcode/QR Scanner Modal */}
+      {/* Barcode / QR Scanner */}
       <ScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}

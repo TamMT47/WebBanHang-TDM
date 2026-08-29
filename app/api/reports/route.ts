@@ -79,11 +79,44 @@ export async function GET(request: NextRequest) {
     const grossItemsProfit = parseFloat(profitRes.rows[0].gross_items_profit || 0);
     const grossProfit = Math.max(0, grossItemsProfit - parseFloat(metrics.total_discount || 0));
 
-    // 3. Top selling products
+    // 3. Breakdown by Device Series (iPhone 11, 12, 13, 14, 15, 16, iPad, Macbook...)
+    const modelSeriesSql = `
+      SELECT 
+        CASE 
+          WHEN (p.name ILIKE '%16%' OR p.name ILIKE '%iphone 16%') AND (p.category = 'iPhone' OR p.category IS NULL) THEN 'iPhone 16 Series'
+          WHEN (p.name ILIKE '%15%' OR p.name ILIKE '%iphone 15%') AND (p.category = 'iPhone' OR p.category IS NULL) THEN 'iPhone 15 Series'
+          WHEN (p.name ILIKE '%14%' OR p.name ILIKE '%iphone 14%') AND (p.category = 'iPhone' OR p.category IS NULL) THEN 'iPhone 14 Series'
+          WHEN (p.name ILIKE '%13%' OR p.name ILIKE '%iphone 13%') AND (p.category = 'iPhone' OR p.category IS NULL) THEN 'iPhone 13 Series'
+          WHEN (p.name ILIKE '%12%' OR p.name ILIKE '%iphone 12%') AND (p.category = 'iPhone' OR p.category IS NULL) THEN 'iPhone 12 Series'
+          WHEN (p.name ILIKE '%11%' OR p.name ILIKE '%iphone 11%') AND (p.category = 'iPhone' OR p.category IS NULL) THEN 'iPhone 11 Series'
+          WHEN (p.name ILIKE '%xs%' OR p.name ILIKE '%xr%' OR p.name ILIKE '% x%' OR p.name ILIKE 'iphone x%') THEN 'iPhone X / XS / XR'
+          WHEN (p.name ILIKE '%8%' OR p.name ILIKE '%7%' OR p.name ILIKE '%se%') AND p.category = 'iPhone' THEN 'iPhone 7 / 8 / SE'
+          WHEN p.category = 'iPad' OR p.name ILIKE '%ipad%' THEN 'iPad Series'
+          WHEN p.category = 'Macbook' OR p.name ILIKE '%macbook%' THEN 'Macbook Series'
+          WHEN p.category = 'Airpods' OR p.name ILIKE '%airpod%' THEN 'Airpods Series'
+          WHEN p.category = 'AppleWatch' OR p.name ILIKE '%watch%' THEN 'Apple Watch'
+          ELSE 'Phụ Kiện & Khác'
+        END AS series_name,
+        COUNT(oi.id) AS quantity_sold,
+        COALESCE(SUM(oi.price), 0) AS total_revenue,
+        COALESCE(SUM(oi.price - COALESCE(i.cost_price, 0)), 0) AS gross_profit
+      FROM orders o
+      JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN inventory i ON oi.inventory_id = i.id
+      LEFT JOIN products p ON i.product_id = p.id
+      WHERE o.type = 'sell' AND ${dateCondition}
+      GROUP BY 1
+      ORDER BY quantity_sold DESC, total_revenue DESC
+    `;
+    const modelSeriesRes = await query(modelSeriesSql, params);
+
+    // 4. Top selling products
     const topProductsSql = `
       SELECT 
         COALESCE(p.name, 'Sản phẩm khác') AS product_name,
         COALESCE(p.category, 'iPhone') AS category,
+        COALESCE(p.storage, '') AS storage,
+        COALESCE(p.condition, '') AS condition,
         COUNT(oi.id) AS quantity_sold,
         COALESCE(SUM(oi.price), 0) AS total_sales
       FROM orders o
@@ -91,13 +124,13 @@ export async function GET(request: NextRequest) {
       LEFT JOIN inventory i ON oi.inventory_id = i.id
       LEFT JOIN products p ON i.product_id = p.id
       WHERE o.type = 'sell' AND ${dateCondition}
-      GROUP BY p.name, p.category
+      GROUP BY p.name, p.category, p.storage, p.condition
       ORDER BY quantity_sold DESC, total_sales DESC
-      LIMIT 8
+      LIMIT 12
     `;
     const topProductsRes = await query(topProductsSql, params);
 
-    // 4. Daily revenue & profit breakdown
+    // 5. Daily revenue & profit breakdown
     const dailyChartSql = `
       SELECT 
         TO_CHAR(o.created_at, 'YYYY-MM-DD') AS sale_date,
@@ -124,17 +157,25 @@ export async function GET(request: NextRequest) {
         cash_revenue: parseFloat(metrics.cash_revenue || 0),
         transfer_revenue: parseFloat(metrics.transfer_revenue || 0),
       },
+      model_series: modelSeriesRes.rows.map((row) => ({
+        series_name: row.series_name,
+        quantity_sold: parseInt(row.quantity_sold || 0, 10),
+        total_revenue: parseFloat(row.total_revenue || 0),
+        gross_profit: parseFloat(row.gross_profit || 0),
+      })),
+      top_products: topProductsRes.rows.map((row) => ({
+        product_name: row.product_name,
+        category: row.category,
+        storage: row.storage,
+        condition: row.condition,
+        quantity_sold: parseInt(row.quantity_sold || 0, 10),
+        total_sales: parseFloat(row.total_sales || 0),
+      })),
       daily: dailyChartRes.rows.map((row) => ({
         sale_date: row.sale_date,
         order_count: parseInt(row.order_count || 0, 10),
         revenue: parseFloat(row.revenue || 0),
         profit: parseFloat(row.profit || 0),
-      })),
-      top_products: topProductsRes.rows.map((row) => ({
-        product_name: row.product_name,
-        category: row.category,
-        quantity_sold: parseInt(row.quantity_sold || 0, 10),
-        total_sales: parseFloat(row.total_sales || 0),
       })),
     });
   } catch (error: any) {

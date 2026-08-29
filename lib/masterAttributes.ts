@@ -36,21 +36,21 @@ export const DEFAULT_MASTER_COLORS = [
 ];
 
 export const DEFAULT_MASTER_STORAGES = [
-  '32GB',
   '64GB',
   '128GB',
   '256GB',
   '512GB',
   '1TB',
+  '32GB',
   '2TB',
+  'Không có / Mặc định',
 ];
 
 export const DEFAULT_MASTER_CONDITIONS = [
-  { id: 'new', label: 'Mới 100% (Nguyên Seal)' },
   { id: '99%', label: '99% (Keng như mới, Zin all)' },
+  { id: 'new', label: 'Mới 100% (Nguyên Seal)' },
   { id: '98%', label: '98% (Phẩy nhẹ theo thời gian)' },
   { id: '97%', label: '97% (Cấn xước nhẹ, giá tốt)' },
-  { id: 'trade_in', label: 'Hàng Thu Cũ Đổi Mới (Trade-in)' },
   { id: 'thanh_ly', label: 'Thanh lý / Kính vỡ / Thay pin' },
 ];
 
@@ -64,44 +64,63 @@ export const DEFAULT_MASTER_CATEGORIES = [
 ];
 
 /**
- * Standardized Master SKU Examples (Tên + Dung lượng + Tình trạng)
+ * Standardized Clean Master Models (Tên dòng máy độc lập)
  */
-export const DEFAULT_MASTER_SKUS = [
-  'iPhone 11 - 64GB - 99%',
-  'iPhone 11 - 128GB - 99%',
-  'iPhone 11 Pro Max - 64GB - 99%',
-  'iPhone 11 Pro Max - 256GB - 99%',
-  'iPhone 12 - 64GB - 99%',
-  'iPhone 12 - 128GB - 99%',
-  'iPhone 12 Pro - 128GB - 99%',
-  'iPhone 12 Pro Max - 128GB - 99%',
-  'iPhone 12 Pro Max - 256GB - 99%',
-  'iPhone 13 - 128GB - 99%',
-  'iPhone 13 - 256GB - 99%',
-  'iPhone 13 Pro - 128GB - 99%',
-  'iPhone 13 Pro Max - 128GB - 99%',
-  'iPhone 13 Pro Max - 256GB - 99%',
-  'iPhone 14 - 128GB - 99%',
-  'iPhone 14 Plus - 128GB - 99%',
-  'iPhone 14 Pro - 128GB - 99%',
-  'iPhone 14 Pro Max - 128GB - 99%',
-  'iPhone 14 Pro Max - 256GB - 99%',
-  'iPhone 15 - 128GB - 99%',
-  'iPhone 15 Plus - 128GB - 99%',
-  'iPhone 15 Pro - 128GB - 99%',
-  'iPhone 15 Pro - 256GB - 99%',
-  'iPhone 15 Pro Max - 256GB - 99%',
-  'iPhone 15 Pro Max - 512GB - 99%',
-  'iPhone 16 - 128GB - Mới 100%',
-  'iPhone 16 Plus - 128GB - Mới 100%',
-  'iPhone 16 Pro - 128GB - Mới 100%',
-  'iPhone 16 Pro Max - 256GB - Mới 100%',
-  'iPhone 16 Pro Max - 512GB - Mới 100%',
-  'iPad Air 5 M1 - 64GB WiFi - 99%',
-  'iPad Pro 11 M2 - 128GB WiFi - 99%',
-  'Macbook Air M1 - 8GB/256GB - 99%',
-  'Macbook Air M2 - 8GB/256GB - 99%',
-  'Airpods Pro 2 Type-C - Mới 100%',
+export const DEFAULT_MASTER_MODELS = [
+  'iPhone 16 Pro Max',
+  'iPhone 16 Pro',
+  'iPhone 16 Plus',
+  'iPhone 16',
+  'iPhone 15 Pro Max',
+  'iPhone 15 Pro',
+  'iPhone 15 Plus',
+  'iPhone 15',
+  'iPhone 14 Pro Max',
+  'iPhone 14 Pro',
+  'iPhone 14 Plus',
+  'iPhone 14',
+  'iPhone 13 Pro Max',
+  'iPhone 13 Pro',
+  'iPhone 13',
+  'iPhone 13 mini',
+  'iPhone 12 Pro Max',
+  'iPhone 12 Pro',
+  'iPhone 12',
+  'iPhone 12 mini',
+  'iPhone 11 Pro Max',
+  'iPhone 11 Pro',
+  'iPhone 11',
+  'iPhone XS Max',
+  'iPhone XS',
+  'iPhone XR',
+  'iPhone X',
+  'iPhone 8 Plus',
+  'iPhone 8',
+  'iPhone SE',
+  'iPad Pro 12.9 M2',
+  'iPad Pro 11 M2',
+  'iPad Pro 11 M1',
+  'iPad Air 5 M1',
+  'iPad Air 4',
+  'iPad Gen 10',
+  'iPad Gen 9',
+  'iPad mini 6',
+  'Macbook Pro 14 M3',
+  'Macbook Pro 16 M3',
+  'Macbook Pro 14 M2',
+  'Macbook Air 15 M2',
+  'Macbook Air 13 M2',
+  'Macbook Air 13 M1',
+  'Airpods Pro 2 Type-C',
+  'Airpods Pro 2 Lightning',
+  'Airpods 3',
+  'Airpods 2',
+  'Airpods Max',
+  'Apple Watch Ultra 2',
+  'Apple Watch Ultra',
+  'Apple Watch Series 9',
+  'Apple Watch Series 8',
+  'Apple Watch SE 2',
 ];
 
 /**
@@ -156,13 +175,21 @@ export function sortItemsAZ<T>(items: T[], keyExtractor: (item: T) => string): T
 }
 
 /**
+ * Format Full Product Display Label cleanly
+ */
+export function formatProductTitle(name: string, storage?: string | null, condition?: string | null): string {
+  const parts: string[] = [name.trim()];
+  if (storage && storage !== 'Không có / Mặc định' && !name.toLowerCase().includes(storage.toLowerCase())) {
+    parts.push(storage);
+  }
+  if (condition && condition !== 'Mặc định' && !name.toLowerCase().includes(condition.toLowerCase())) {
+    parts.push(condition);
+  }
+  return parts.join(' - ');
+}
+
+/**
  * Strict Apple Product Search Engine
- * 
- * Rules:
- * - If user searches "11" or "iPhone 11", do NOT match "11 Pro", "11 Pro Max", "11 Plus", "11 Mini"
- * - If user searches "11 Pro", do NOT match "11 Pro Max" or base "11"
- * - If user searches "11 Pro Max", match "11 Pro Max"
- * - If user searches by IMEI, matches by substring
  */
 export function strictProductMatch(
   targetName: string,

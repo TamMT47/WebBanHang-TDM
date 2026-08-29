@@ -14,7 +14,9 @@ import {
   Smartphone,
   Trash2,
   AlertTriangle,
-  X
+  X,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import { Order } from '@/types/database';
@@ -32,6 +34,11 @@ export default function OrdersView({ user }: OrdersViewProps) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'sell' | 'import'>('all');
   const [search, setSearch] = useState('');
 
+  // Time Range Filter (Requirement 4)
+  const [timeRange, setTimeRange] = useState<'today' | '7days' | 'this_month' | 'all' | 'custom'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
   // Selected Order for Re-printing
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -48,6 +55,25 @@ export default function OrdersView({ user }: OrdersViewProps) {
       if (typeFilter !== 'all') params.append('type', typeFilter);
       if (search.trim()) params.append('search', search.trim());
 
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      if (timeRange === 'today') {
+        params.append('dateFrom', todayStr);
+        params.append('dateTo', todayStr);
+      } else if (timeRange === '7days') {
+        const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        params.append('dateFrom', d7);
+        params.append('dateTo', todayStr);
+      } else if (timeRange === 'this_month') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        params.append('dateFrom', firstDay);
+        params.append('dateTo', todayStr);
+      } else if (timeRange === 'custom' && dateFrom && dateTo) {
+        params.append('dateFrom', dateFrom);
+        params.append('dateTo', dateTo);
+      }
+
       const res = await fetch(`/api/orders?${params.toString()}`);
       const data = await res.json();
       setOrders(data.orders || []);
@@ -60,7 +86,7 @@ export default function OrdersView({ user }: OrdersViewProps) {
 
   useEffect(() => {
     fetchOrders();
-  }, [typeFilter, search]);
+  }, [typeFilter, search, timeRange, dateFrom, dateTo]);
 
   const handleDeleteConfirm = async () => {
     if (!orderToDelete) return;
@@ -98,27 +124,30 @@ export default function OrdersView({ user }: OrdersViewProps) {
               Lịch Sử Hóa Đơn & Giao Dịch
             </h2>
             <p className="text-xs text-gray-500">
-              Tra cứu hóa đơn bán lẻ (#HD), phiếu nhập kho (#NH) và in lại hóa đơn chuẩn A4.
+              Tra cứu hóa đơn bán lẻ (#HD), phiếu nhập kho (#NH), lọc theo thời gian và in lại hóa đơn chuẩn A4.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Filter Bar */}
+      {/* Filter Bar with Time Range (Requirement 4) */}
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <div className="relative sm:col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+          
+          {/* Search Box (5 cols) */}
+          <div className="relative sm:col-span-5">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo Mã hóa đơn #HD..., tên khách hàng, SĐT hoặc IMEI..."
+              placeholder="Tìm theo Mã #HD..., tên khách, SĐT, IMEI..."
               className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none"
             />
           </div>
 
-          <div>
+          {/* Type Filter (3 cols) */}
+          <div className="sm:col-span-3">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as any)}
@@ -129,7 +158,49 @@ export default function OrdersView({ user }: OrdersViewProps) {
               <option value="import">📥 Phiếu Nhập hàng</option>
             </select>
           </div>
+
+          {/* Time Range Preset (4 cols) */}
+          <div className="sm:col-span-4">
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as any)}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:bg-white focus:outline-none"
+            >
+              <option value="all">📅 Toàn bộ thời gian</option>
+              <option value="today">📅 Hôm nay</option>
+              <option value="7days">📅 7 ngày qua</option>
+              <option value="this_month">📅 Tháng này</option>
+              <option value="custom">📅 Tùy chọn khoảng ngày...</option>
+            </select>
+          </div>
         </div>
+
+        {/* Custom Date Range Picker */}
+        {timeRange === 'custom' && (
+          <div className="flex flex-wrap items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs animate-in fade-in">
+            <span className="font-bold text-gray-700">Từ ngày:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold"
+            />
+            <span className="font-bold text-gray-700">Đến ngày:</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold"
+            />
+            <button
+              type="button"
+              onClick={fetchOrders}
+              className="px-3 py-1.5 bg-gray-950 text-white rounded-lg font-bold text-xs"
+            >
+              Lọc Ngay
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Orders List */}
@@ -138,7 +209,7 @@ export default function OrdersView({ user }: OrdersViewProps) {
           <div className="text-center py-16 text-xs text-gray-400">Đang tải lịch sử đơn...</div>
         ) : orders.length === 0 ? (
           <div className="text-center py-16 text-xs text-gray-500">
-            Không tìm thấy hóa đơn nào phù hợp.
+            Không tìm thấy hóa đơn nào phù hợp với bộ lọc.
           </div>
         ) : (
           <div className="overflow-x-auto">

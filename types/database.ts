@@ -22,8 +22,8 @@ export interface Partner {
   created_at: string;
 }
 
-export type ProductCategory = 'iPhone' | 'iPad' | 'Macbook' | 'Airpods' | 'PhuKien' | 'DichVu' | string;
-export type ProductCondition = 'new' | '99%' | '98%' | '97%' | 'thanh_ly';
+export type ProductCategory = 'iPhone' | 'iPad' | 'Macbook' | 'Airpods' | 'AppleWatch' | 'PhuKien' | 'DichVu' | string;
+export type ProductCondition = 'new' | '99%' | '98%' | '97%' | 'thanh_ly' | string;
 
 export interface Product {
   id: string;

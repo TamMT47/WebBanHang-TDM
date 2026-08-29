@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -11,9 +11,15 @@ import {
   ArrowUpRight,
   Sparkles,
   RefreshCw,
-  Coins
+  Coins,
+  Smartphone,
+  Flame,
+  PieChart,
+  Percent,
+  CheckCircle2
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
+import { formatProductTitle } from '@/lib/masterAttributes';
 
 interface ReportsViewProps {
   user: any;
@@ -59,9 +65,16 @@ export default function ReportsView({ user }: ReportsViewProps) {
     { id: 'custom', label: 'Tùy Chọn Ngày' },
   ];
 
+  // Calculate total sold units in period for percentage calculation
+  const totalUnitsSold = useMemo(() => {
+    if (!reportData?.model_series) return 0;
+    return reportData.model_series.reduce((sum: number, s: any) => sum + s.quantity_sold, 0);
+  }, [reportData]);
+
   return (
-    <div className="space-y-4">
-      {/* Top Header Card */}
+    <div className="space-y-5">
+      
+      {/* 1. TOP HEADER CARD */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center space-x-2.5">
           <div className="p-2 bg-gray-950 text-white rounded-xl">
@@ -69,10 +82,10 @@ export default function ReportsView({ user }: ReportsViewProps) {
           </div>
           <div>
             <h2 className="text-base font-black text-gray-950 uppercase tracking-wide">
-              Báo Cáo Doanh Thu & Lợi Nhuận Chuẩn Xác
+              Báo Cáo Thống Kê & Phân Tích Doanh Thu
             </h2>
             <p className="text-xs text-gray-500">
-              Phân tích doanh số bán hàng, lợi nhuận gộp thực tế, dòng tiền thu cũ và sản phẩm bán chạy.
+              Phân tích số lượng máy bán ra theo dòng máy, danh sách Top bán chạy, lợi nhuận gộp và dòng tiền.
             </p>
           </div>
         </div>
@@ -123,20 +136,28 @@ export default function ReportsView({ user }: ReportsViewProps) {
               className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none"
             />
           </div>
+          <button
+            type="button"
+            onClick={fetchReports}
+            className="px-3.5 py-1.5 bg-gray-950 text-white rounded-xl text-xs font-bold"
+          >
+            Lọc Dữ Liệu
+          </button>
         </div>
       )}
 
       {loading ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 text-xs text-gray-400">
-          Đang tính toán dữ liệu báo cáo kinh doanh...
+          Đang tổng hợp báo cáo kinh doanh...
         </div>
       ) : !reportData ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 text-xs text-gray-500">
-          Không có dữ liệu báo cáo trong khoảng thời gian này.
+          Không có dữ liệu trong khoảng thời gian này.
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* 4 KPI Cards */}
+        <div className="space-y-5">
+          
+          {/* 2. FOUR OVERVIEW KPI CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             
             {/* Revenue */}
@@ -153,7 +174,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
                 {formatVND(reportData.kpis?.total_revenue || 0)}
               </div>
               <div className="text-[11px] text-gray-500">
-                Doanh số bán ra (đã trừ chiết khấu)
+                Đã trừ chiết khấu giảm giá
               </div>
             </div>
 
@@ -171,22 +192,22 @@ export default function ReportsView({ user }: ReportsViewProps) {
                 {formatVND(reportData.kpis?.gross_profit || 0)}
               </div>
               <div className="text-[11px] text-gray-600 font-semibold">
-                = Giá bán - Giá vốn nhập kho
+                = Doanh thu - Giá vốn nhập kho
               </div>
             </div>
 
-            {/* Orders */}
+            {/* Orders & Units */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  Số Đơn Bán Ra
+                  Tổng Máy Bán Ra
                 </span>
                 <div className="p-2 bg-blue-100 text-blue-800 rounded-xl">
                   <ShoppingCart className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-2xl font-black text-gray-950 font-mono">
-                {reportData.kpis?.total_orders || 0} <span className="text-sm font-bold text-gray-500">đơn hàng</span>
+                {totalUnitsSold} <span className="text-sm font-bold text-gray-500">máy ({reportData.kpis?.total_orders || 0} đơn)</span>
               </div>
               <div className="text-[11px] text-gray-500">
                 Thực thu: <b className="text-emerald-700 font-mono">{formatVND(reportData.kpis?.total_collected || 0)}</b>
@@ -212,90 +233,129 @@ export default function ReportsView({ user }: ReportsViewProps) {
             </div>
           </div>
 
-          {/* Daily Breakdown & Top Products Grid */}
+          {/* 3. REQUIREMENT 4: TWO DETAILED BREAKDOWN TABLES */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             
-            {/* Daily History Table (7 cols) */}
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider">
-                  Doanh Thu & Lợi Nhuận Theo Ngày
-                </h3>
-                <span className="text-[10px] text-gray-400 font-medium">Sắp xếp ngày mới nhất</span>
+            {/* BẢNG 1: THỐNG KÊ SỐ LƯỢNG MÁY BÁN RA THEO TỪNG DÒNG MÁY (7 COLS) */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <Smartphone className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-xs sm:text-sm font-black text-gray-950 uppercase tracking-wide">
+                    1. Số Lượng Bán Ra Chi Tiết Theo Dòng Máy
+                  </h3>
+                </div>
+                <span className="text-[11px] font-bold text-gray-500 font-mono">
+                  Tổng: {totalUnitsSold} máy
+                </span>
               </div>
 
-              {(!reportData.daily || reportData.daily.length === 0) ? (
-                <div className="text-center py-10 text-xs text-gray-400">
+              {(!reportData.model_series || reportData.model_series.length === 0) ? (
+                <div className="text-center py-12 text-xs text-gray-400">
                   Chưa phát sinh giao dịch trong kỳ này.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-50 text-gray-600 font-bold uppercase text-[10px]">
+                    <thead className="bg-gray-50 text-gray-600 font-bold uppercase text-[10px] border-b border-gray-200">
                       <tr>
-                        <th className="py-2.5 px-3">Ngày Bán</th>
-                        <th className="py-2.5 px-3">Số Đơn</th>
-                        <th className="py-2.5 px-3 text-right">Doanh Thu</th>
-                        <th className="py-2.5 px-3 text-right">Lợi Nhuận</th>
+                        <th className="py-2.5 px-3">Dòng Sản Phẩm</th>
+                        <th className="py-2.5 px-3 text-center">Số Lượng Bán</th>
+                        <th className="py-2.5 px-3 text-right">Tổng Doanh Thu</th>
+                        <th className="py-2.5 px-3 text-right">Lợi Nhuận Gộp</th>
+                        <th className="py-2.5 px-3 text-right">Tỷ Trọng</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {reportData.daily.map((d: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-gray-50 transition">
-                          <td className="py-2.5 px-3 font-bold text-gray-900 font-mono">
-                            {new Date(d.sale_date).toLocaleDateString('vi-VN')}
-                          </td>
-                          <td className="py-2.5 px-3 text-gray-600 font-semibold">
-                            {d.order_count} đơn
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-extrabold text-gray-950 font-mono">
-                            {formatVND(d.revenue)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-black text-purple-900 font-mono">
-                            {formatVND(d.profit)}
-                          </td>
-                        </tr>
-                      ))}
+                      {reportData.model_series.map((item: any, idx: number) => {
+                        const pct = totalUnitsSold > 0 ? Math.round((item.quantity_sold / totalUnitsSold) * 100) : 0;
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50 transition">
+                            <td className="py-3 px-3">
+                              <div className="font-black text-gray-950">{item.series_name}</div>
+                              {/* Visual Progress Bar */}
+                              <div className="w-24 bg-gray-100 h-1.5 rounded-full overflow-hidden mt-1">
+                                <div
+                                  className="bg-emerald-600 h-full rounded-full"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 font-black rounded-lg text-xs font-mono">
+                                {item.quantity_sold} máy
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right font-black text-gray-950 font-mono">
+                              {formatVND(item.total_revenue)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-bold text-purple-900 font-mono">
+                              {formatVND(item.gross_profit)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-bold text-gray-500 font-mono">
+                              {pct}%
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
 
-            {/* Top Products (5 cols) */}
-            <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider">
-                  Mẫu Máy Bán Chạy Nhất
-                </h3>
-                <span className="text-[10px] text-gray-400 font-medium">Theo số lượng bán</span>
+            {/* BẢNG 2: TOP CÁC SẢN PHẨM BÁN CHẠY NHẤT (5 COLS) */}
+            <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <Flame className="w-4 h-4 text-rose-600" />
+                  <h3 className="text-xs sm:text-sm font-black text-gray-950 uppercase tracking-wide">
+                    2. Top Sản Phẩm Bán Chạy Nhất
+                  </h3>
+                </div>
+                <span className="text-[10px] text-gray-400 font-bold uppercase">Xếp Hạng</span>
               </div>
 
               {(!reportData.top_products || reportData.top_products.length === 0) ? (
-                <div className="text-center py-10 text-xs text-gray-400">
-                  Chưa có số liệu sản phẩm bán chạy.
+                <div className="text-center py-12 text-xs text-gray-400">
+                  Chưa có sản phẩm bán ra.
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
                   {reportData.top_products.map((p: any, idx: number) => (
                     <div
                       key={idx}
                       className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between text-xs hover:bg-gray-100 transition"
                     >
                       <div className="flex items-center space-x-2.5">
-                        <div className="w-6 h-6 rounded-lg bg-gray-900 text-white font-bold flex items-center justify-center text-[10px]">
+                        <div
+                          className={`w-7 h-7 rounded-xl font-black flex items-center justify-center text-xs shadow-2xs ${
+                            idx === 0
+                              ? 'bg-amber-400 text-amber-950'
+                              : idx === 1
+                              ? 'bg-gray-300 text-gray-900'
+                              : idx === 2
+                              ? 'bg-amber-700 text-white'
+                              : 'bg-gray-900 text-white'
+                          }`}
+                        >
                           #{idx + 1}
                         </div>
                         <div>
-                          <div className="font-bold text-gray-950">{p.product_name}</div>
-                          <div className="text-[10px] text-gray-500 uppercase">{p.category}</div>
+                          <div className="font-black text-gray-950">
+                            {formatProductTitle(p.product_name, p.storage, p.condition)}
+                          </div>
+                          <div className="text-[10px] text-gray-500 uppercase font-semibold">
+                            {p.category}
+                          </div>
                         </div>
                       </div>
+
                       <div className="text-right">
-                        <div className="font-black text-emerald-800">
+                        <div className="font-black text-emerald-800 font-mono text-sm">
                           {p.quantity_sold} máy
                         </div>
-                        <div className="text-[10px] font-mono text-gray-600 font-bold">
+                        <div className="text-[11px] font-mono text-gray-600 font-bold">
                           {formatVND(p.total_sales)}
                         </div>
                       </div>
@@ -304,6 +364,53 @@ export default function ReportsView({ user }: ReportsViewProps) {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* 4. DAILY SALES & PROFIT HISTORY TABLE */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                Doanh Thu & Lợi Nhuận Theo Từng Ngày
+              </h3>
+              <span className="text-[10px] text-gray-400 font-medium">Sắp xếp theo ngày mới nhất</span>
+            </div>
+
+            {(!reportData.daily || reportData.daily.length === 0) ? (
+              <div className="text-center py-8 text-xs text-gray-400">
+                Chưa có dữ liệu theo ngày.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-gray-50 text-gray-600 font-bold uppercase text-[10px] border-b border-gray-200">
+                    <tr>
+                      <th className="py-2.5 px-3">Ngày Bán</th>
+                      <th className="py-2.5 px-3">Số Đơn Hàng</th>
+                      <th className="py-2.5 px-3 text-right">Doanh Thu Thu Được</th>
+                      <th className="py-2.5 px-3 text-right">Lợi Nhuận Gộp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {reportData.daily.map((d: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-gray-50 transition">
+                        <td className="py-2.5 px-3 font-bold text-gray-900 font-mono">
+                          {new Date(d.sale_date).toLocaleDateString('vi-VN')}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-600 font-semibold">
+                          {d.order_count} đơn
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-extrabold text-gray-950 font-mono">
+                          {formatVND(d.revenue)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-black text-purple-900 font-mono">
+                          {formatVND(d.profit)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

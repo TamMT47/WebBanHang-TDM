@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -18,17 +18,21 @@ import {
   DollarSign,
   X,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Palette,
+  RotateCcw
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import {
   strictProductMatch,
   getAllMasterColors,
   saveCustomColor,
-  DEFAULT_MASTER_SKUS,
+  DEFAULT_MASTER_MODELS,
+  DEFAULT_MASTER_STORAGES,
   DEFAULT_MASTER_CONDITIONS,
   DEFAULT_MASTER_CATEGORIES,
-  sortItemsAZ
+  sortItemsAZ,
+  formatProductTitle
 } from '@/lib/masterAttributes';
 import {
   getCachedInventory,
@@ -54,8 +58,6 @@ export default function InventoryView({ user }: InventoryViewProps) {
 
   // Master Colors
   const [availableColors, setAvailableColors] = useState<string[]>([]);
-  const [isAddingNewColor, setIsAddingNewColor] = useState(false);
-  const [newCustomColor, setNewCustomColor] = useState('');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -74,27 +76,38 @@ export default function InventoryView({ user }: InventoryViewProps) {
   const [editBattery, setEditBattery] = useState<number>(100);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Add IMEI State
+  // Add IMEI State (Single Machine)
   const [selectedProductId, setSelectedProductId] = useState('');
   const [newImei, setNewImei] = useState('');
   const [newColor, setNewColor] = useState('Titan Tự Nhiên (Natural Titanium)');
-  const [newStorage, setNewStorage] = useState('128GB');
-  const [newCondition, setNewCondition] = useState('99%');
-  const [newBattery, setNewBattery] = useState(100);
+  const [newBattery, setNewBattery] = useState<number | string>(100);
   const [newCostPrice, setNewCostPrice] = useState<number>(18000000);
   const [newSellingPrice, setNewSellingPrice] = useState<number>(21000000);
 
-  // Add Product State
-  const [newProdName, setNewProdName] = useState('');
+  // 1. Modular Product Creation Form State (Requirement 1)
+  const [newProdName, setNewProdName] = useState('iPhone 15');
+  const [newProdStorage, setNewProdStorage] = useState('128GB');
+  const [newProdCondition, setNewProdCondition] = useState('99%');
   const [newProdCategory, setNewProdCategory] = useState('iPhone');
-  const [newProdBasePrice, setNewProdBasePrice] = useState<number>(20000000);
+  const [newProdBasePrice, setNewProdBasePrice] = useState<number>(18000000);
 
   // Message
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Reset State (Requirement 2)
+  const resetAllFormStates = () => {
+    setNewImei('');
+    setNewBattery(100);
+    setNewColor('Titan Tự Nhiên (Natural Titanium)');
+    setNewProdName('iPhone 15');
+    setNewProdStorage('128GB');
+    setNewProdCondition('99%');
+    setItemToEdit(null);
+    setMessage(null);
+  };
+
   const fetchData = async () => {
     try {
-      // 1. Instant Cache
       const cached = getCachedInventory();
       if (cached && cached.length > 0 && statusFilter === 'all' && categoryFilter === 'all') {
         setInventory(cached);
@@ -142,7 +155,6 @@ export default function InventoryView({ user }: InventoryViewProps) {
   useEffect(() => {
     fetchData();
 
-    // Subscribe to cache invalidations
     const unsubscribe = subscribeToCacheInvalidation(() => {
       fetchData();
     });
@@ -150,24 +162,25 @@ export default function InventoryView({ user }: InventoryViewProps) {
     return () => unsubscribe();
   }, [statusFilter, categoryFilter]);
 
+  // Handle Add Single IMEI
   const handleCreateImei = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newImei || !selectedProductId) {
+    if (!newImei.trim() || !selectedProductId) {
       setMessage({ type: 'error', text: 'Vui lòng nhập đầy đủ mã IMEI và chọn dòng máy' });
       return;
     }
 
     try {
+      const numBat = typeof newBattery === 'string' ? parseInt(newBattery, 10) : newBattery;
+
       const res = await fetch('/api/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_id: selectedProductId,
           imei: newImei.trim(),
-          color: newColor,
-          storage: newStorage,
-          condition: newCondition,
-          battery_health: newBattery,
+          color: newColor.trim(),
+          battery_health: isNaN(numBat) ? 100 : numBat,
           cost_price: newCostPrice,
           selling_price: newSellingPrice,
         }),
@@ -179,14 +192,15 @@ export default function InventoryView({ user }: InventoryViewProps) {
       setMessage({ type: 'success', text: `Đã thêm máy IMEI ${newImei} vào kho thành công!` });
       invalidateInventoryCache();
       setIsAddImeiOpen(false);
-      setNewImei('');
+      resetAllFormStates();
       fetchData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     }
   };
 
-  const handleCreateProduct = async (e: React.FormEvent) => {
+  // 1. Handle Create Modular Product Model (Requirement 1)
+  const handleCreateModularProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName.trim()) {
       setMessage({ type: 'error', text: 'Vui lòng nhập tên dòng máy mẫu' });
@@ -199,6 +213,8 @@ export default function InventoryView({ user }: InventoryViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newProdName.trim(),
+          storage: newProdStorage,
+          condition: newProdCondition,
           category: newProdCategory,
           base_price: newProdBasePrice,
         }),
@@ -207,22 +223,15 @@ export default function InventoryView({ user }: InventoryViewProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi khi tạo sản phẩm');
 
-      setMessage({ type: 'success', text: `Đã tạo mẫu máy ${newProdName} thành công!` });
+      setMessage({
+        type: 'success',
+        text: `Đã tạo mẫu máy ${formatProductTitle(newProdName, newProdStorage, newProdCondition)} thành công!`,
+      });
       setIsAddProductOpen(false);
-      setNewProdName('');
+      resetAllFormStates();
       fetchData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
-    }
-  };
-
-  const handleAddNewColorMaster = () => {
-    if (newCustomColor.trim()) {
-      saveCustomColor(newCustomColor.trim());
-      setAvailableColors(getAllMasterColors());
-      setNewColor(newCustomColor.trim());
-      setNewCustomColor('');
-      setIsAddingNewColor(false);
     }
   };
 
@@ -253,7 +262,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi khi cập nhật giá');
 
-      setMessage({ type: 'success', text: `Đã cập nhật giá bán máy IMEI ${itemToEdit.imei} thành công!` });
+      setMessage({ type: 'success', text: `Đã cập nhật máy IMEI ${itemToEdit.imei} thành công!` });
       invalidateInventoryCache();
       setItemToEdit(null);
       fetchData();
@@ -299,7 +308,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
               Quản Lý Tồn Kho Theo Mã IMEI & Sắp Xếp A-Z
             </h2>
             <p className="text-xs text-gray-500">
-              Tìm kiếm tức thì, quản lý từng máy theo IMEI, dung lượng, màu sắc, tình trạng Pin và giá bán.
+              Quản lý từng máy theo IMEI, thông số dòng máy độc lập, màu sắc và % Pin thực tế.
             </p>
           </div>
         </div>
@@ -344,7 +353,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       )}
 
-      {/* Filter Bar with Strict Search */}
+      {/* Filter Bar */}
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="relative">
@@ -353,7 +362,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Strict Search: '11', '15 Pro Max', IMEI..."
+              placeholder="Tìm theo Tên, 15 số IMEI, Màu sắc..."
               className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:bg-white focus:outline-none"
             />
           </div>
@@ -369,6 +378,8 @@ export default function InventoryView({ user }: InventoryViewProps) {
               <option value="iPad">iPad</option>
               <option value="Macbook">Macbook</option>
               <option value="Airpods">Airpods</option>
+              <option value="AppleWatch">Apple Watch</option>
+              <option value="PhuKien">Phụ Kiện</option>
             </select>
           </div>
 
@@ -505,6 +516,254 @@ export default function InventoryView({ user }: InventoryViewProps) {
         )}
       </div>
 
+      {/* 1. Modal Modular Product Model Creation (Requirement 1) */}
+      {isAddProductOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
+            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
+              <h3 className="text-sm font-bold">Tạo Mẫu Sản Phẩm (Thông Số Độc Lập)</h3>
+              <button
+                onClick={() => setIsAddProductOpen(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateModularProduct} className="p-5 space-y-3.5 text-xs">
+              
+              {/* [Tên dòng máy] */}
+              <div>
+                <label className="block text-xs font-black text-gray-900 mb-1">
+                  1. Tên dòng máy (VD: iPhone 11, iPhone 15 Pro Max) *
+                </label>
+                <input
+                  type="text"
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  placeholder="VD: iPhone 11, iPad Air 5..."
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-gray-950"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* [Dung lượng] & [Tình trạng] */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-800 mb-1">
+                    2. Dung lượng *
+                  </label>
+                  <select
+                    value={newProdStorage}
+                    onChange={(e) => setNewProdStorage(e.target.value)}
+                    className="w-full px-2.5 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold"
+                  >
+                    {DEFAULT_MASTER_STORAGES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-800 mb-1">
+                    3. Tình trạng *
+                  </label>
+                  <select
+                    value={newProdCondition}
+                    onChange={(e) => setNewProdCondition(e.target.value)}
+                    className="w-full px-2.5 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold"
+                  >
+                    {DEFAULT_MASTER_CONDITIONS.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* [Danh mục] */}
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-1">
+                  4. Danh mục sản phẩm
+                </label>
+                <select
+                  value={newProdCategory}
+                  onChange={(e) => setNewProdCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold"
+                >
+                  {DEFAULT_MASTER_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Base Price */}
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-1">
+                  Giá bán tham chiếu cơ bản
+                </label>
+                <MoneyInput
+                  value={newProdBasePrice}
+                  onValueChange={(num) => setNewProdBasePrice(num)}
+                  placeholder="0"
+                  className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold font-mono"
+                />
+              </div>
+
+              <div className="p-2.5 bg-gray-50 rounded-xl border text-[11px] text-gray-600">
+                Tên hiển thị: <b className="text-gray-900 font-mono">{formatProductTitle(newProdName, newProdStorage, newProdCondition)}</b>
+              </div>
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddProductOpen(false)}
+                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
+                >
+                  Tạo Mẫu Máy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Add Single IMEI */}
+      {isAddImeiOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-200">
+            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
+              <h3 className="text-sm font-bold">Thêm Máy Mới Vào Kho (Nhập Lẻ)</h3>
+              <button
+                onClick={() => setIsAddImeiOpen(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateImei} className="p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Chọn mẫu sản phẩm *
+                </label>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
+                  required
+                >
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {formatProductTitle(p.name, p.storage, p.condition)} ({p.category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Mã IMEI (15 số) *
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={newImei}
+                    onChange={(e) => setNewImei(e.target.value)}
+                    placeholder="VD: 359123456789012"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsScannerOpen(true)}
+                    className="px-3 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold flex items-center space-x-1"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Quét</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Color & Battery */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Màu sắc</label>
+                  <input
+                    type="text"
+                    value={newColor}
+                    onChange={(e) => setNewColor(e.target.value)}
+                    placeholder="VD: Titan Tự Nhiên, Gold..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">% Pin</label>
+                  <input
+                    type="number"
+                    value={newBattery}
+                    onChange={(e) => setNewBattery(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                    placeholder="100"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold font-mono"
+                    min={1}
+                    max={100}
+                  />
+                </div>
+              </div>
+
+              {canSeeCost && (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <div>
+                    <label className="block text-xs font-bold text-rose-800 mb-1">Giá vốn *</label>
+                    <MoneyInput
+                      value={newCostPrice}
+                      onValueChange={(num) => setNewCostPrice(num)}
+                      placeholder="0"
+                      className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-rose-700 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-emerald-800 mb-1">Giá bán *</label>
+                    <MoneyInput
+                      value={newSellingPrice}
+                      onValueChange={(num) => setNewSellingPrice(num)}
+                      placeholder="0"
+                      className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-emerald-700 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddImeiOpen(false)}
+                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
+                >
+                  Thêm Vào Kho
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Edit Price Modal */}
       {itemToEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
@@ -581,254 +840,6 @@ export default function InventoryView({ user }: InventoryViewProps) {
                   className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl font-bold shadow transition"
                 >
                   {savingEdit ? 'Đang Lưu...' : 'Lưu Thay Đổi'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Add IMEI */}
-      {isAddImeiOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-200">
-            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
-              <h3 className="text-sm font-bold">Thêm Máy Mới Vào Kho (Nhập Lẻ)</h3>
-              <button
-                onClick={() => setIsAddImeiOpen(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={handleCreateImei} className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Chọn nhóm dòng máy *
-                </label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
-                  required
-                >
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.category})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Mã IMEI (15 số) *
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    value={newImei}
-                    onChange={(e) => setNewImei(e.target.value)}
-                    placeholder="VD: 359123456789012"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-xs font-mono font-bold"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsScannerOpen(true)}
-                    className="px-3 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold flex items-center space-x-1"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Quét</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Master Attributes */}
-              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-gray-700">Màu sắc Master</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingNewColor(!isAddingNewColor)}
-                      className="text-[10px] text-emerald-700 font-bold"
-                    >
-                      {isAddingNewColor ? 'Đóng' : '+ Thêm màu mới'}
-                    </button>
-                  </div>
-                  {isAddingNewColor ? (
-                    <div className="flex items-center space-x-1 mb-1">
-                      <input
-                        type="text"
-                        value={newCustomColor}
-                        onChange={(e) => setNewCustomColor(e.target.value)}
-                        placeholder="Tên màu mới..."
-                        className="flex-1 px-2.5 py-1 text-xs border rounded-lg"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddNewColorMaster}
-                        className="px-2.5 py-1 bg-emerald-700 text-white text-xs font-bold rounded-lg"
-                      >
-                        Lưu
-                      </button>
-                    </div>
-                  ) : (
-                    <select
-                      value={newColor}
-                      onChange={(e) => setNewColor(e.target.value)}
-                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold"
-                    >
-                      {availableColors.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Ngoại hình</label>
-                    <select
-                      value={newCondition}
-                      onChange={(e) => setNewCondition(e.target.value)}
-                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
-                    >
-                      {DEFAULT_MASTER_CONDITIONS.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-1">% Pin</label>
-                    <input
-                      type="number"
-                      value={newBattery}
-                      onChange={(e) => setNewBattery(parseInt(e.target.value, 10) || 0)}
-                      className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {canSeeCost && (
-                <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                  <div>
-                    <label className="block text-xs font-bold text-rose-800 mb-1">Giá vốn *</label>
-                    <MoneyInput
-                      value={newCostPrice}
-                      onValueChange={(num) => setNewCostPrice(num)}
-                      placeholder="0"
-                      className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-rose-700 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-emerald-800 mb-1">Giá bán *</label>
-                    <MoneyInput
-                      value={newSellingPrice}
-                      onValueChange={(num) => setNewSellingPrice(num)}
-                      placeholder="0"
-                      className="px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-bold text-emerald-700 font-mono"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-2 flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddImeiOpen(false)}
-                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
-                >
-                  Thêm Vào Kho
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Add Product Model */}
-      {isAddProductOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
-            <div className="px-5 py-4 bg-gray-950 text-white flex items-center justify-between">
-              <h3 className="text-sm font-bold">Tạo Nhóm Dòng Máy Mới</h3>
-              <button
-                onClick={() => setIsAddProductOpen(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={handleCreateProduct} className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Tên dòng máy mẫu (Tên + Dung lượng + Tình trạng) *
-                </label>
-                <input
-                  type="text"
-                  value={newProdName}
-                  onChange={(e) => setNewProdName(e.target.value)}
-                  placeholder="VD: iPhone 16 Pro Max - 256GB - Mới 100%"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Danh mục Apple
-                </label>
-                <select
-                  value={newProdCategory}
-                  onChange={(e) => setNewProdCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold"
-                >
-                  {DEFAULT_MASTER_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Giá tham chiếu cơ bản
-                </label>
-                <MoneyInput
-                  value={newProdBasePrice}
-                  onValueChange={(num) => setNewProdBasePrice(num)}
-                  placeholder="0"
-                  className="px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold font-mono"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddProductOpen(false)}
-                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow"
-                >
-                  Tạo Sản Phẩm
                 </button>
               </div>
             </form>

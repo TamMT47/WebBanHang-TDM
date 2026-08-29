@@ -64,6 +64,10 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
     if (timePreset === 'today') {
       setDateFrom(todayStr);
       setDateTo(todayStr);
+    } else if (timePreset === '7days') {
+      const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      setDateFrom(d7);
+      setDateTo(todayStr);
     } else if (timePreset === 'yesterday') {
       const yest = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const yestStr = yest.toISOString().split('T')[0];
@@ -161,6 +165,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
             {[
               { id: 'today', label: 'Hôm nay' },
               { id: 'yesterday', label: 'Hôm qua' },
+              { id: '7days', label: '7 ngày qua' },
               { id: 'this_month', label: 'Tháng này' },
               { id: 'all', label: 'Toàn thời gian' },
               { id: 'custom', label: 'Tùy chọn ngày' },
