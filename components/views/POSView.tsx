@@ -28,7 +28,8 @@ import {
   MapPin,
   FileCheck,
   Check,
-  X
+  X,
+  CreditCard as PaymentIcon
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatVND } from '@/lib/format';
@@ -143,7 +144,7 @@ export default function POSView({ user }: POSViewProps) {
     }
   }, [customerQuery]);
 
-  // RESET ALL STATE (REQUIREMENT 2)
+  // RESET ALL STATE (REQUIREMENT 2 & 3)
   const resetAllPOSState = () => {
     setCart([]);
     setSelectedCustomer(null);
@@ -160,6 +161,10 @@ export default function POSView({ user }: POSViewProps) {
   // Add Item to Cart
   const addToCart = (item: InventoryItem) => {
     if (cart.some((c) => c.inventory.id === item.id)) {
+      setMessage({
+        type: 'error',
+        text: `Máy ${item.product_name} (IMEI: ${item.imei}) đã có trong giỏ hàng!`,
+      });
       return;
     }
     setCart((prev) => [
@@ -170,28 +175,40 @@ export default function POSView({ user }: POSViewProps) {
         warranty_months: 12,
       },
     ]);
+    setMessage({
+      type: 'success',
+      text: `Đã thêm ${item.product_name} (IMEI: ${item.imei}) vào giỏ hàng!`,
+    });
   };
 
   const removeFromCart = (inventoryId: string) => {
     setCart((prev) => prev.filter((c) => c.inventory.id !== inventoryId));
   };
 
-  // Barcode / QR scan success
+  // Barcode / QR scan success with automatic debounce & de-duplication
   const handleScanSuccess = (decodedImei: string) => {
     const clean = decodedImei.trim().toLowerCase();
     const match = inventory.find((i) => i.imei.toLowerCase() === clean);
     if (match) {
       addToCart(match);
-      setMessage({
-        type: 'success',
-        text: `Đã thêm máy ${match.product_name} (IMEI: ${match.imei}) vào giỏ!`,
-      });
     } else {
       setMessage({
         type: 'error',
-        text: `Không tìm thấy mã IMEI "${decodedImei}" trong kho hàng!`,
+        text: `Không tìm thấy mã IMEI "${decodedImei}" còn hàng trong kho!`,
       });
     }
+  };
+
+  // Handle Clicking "Thanh Toán" (Requirement 2: ALWAYS AVAILABLE & PROMINENT)
+  const handleProceedToCheckout = () => {
+    if (cart.length === 0) {
+      setMessage({
+        type: 'error',
+        text: '⚠️ Giỏ hàng hiện đang trống! Vui lòng chọn ít nhất 1 máy hoặc quét mã IMEI để thanh toán.',
+      });
+      return;
+    }
+    setIsCheckoutOpen(true);
   };
 
   // Complete Order Handler
@@ -211,7 +228,7 @@ export default function POSView({ user }: POSViewProps) {
         throw new Error(data.error || 'Có lỗi xảy ra khi tạo đơn hàng');
       }
 
-      // Confetti
+      // Confetti celebration
       try {
         confetti({ particleCount: 90, spread: 75, origin: { y: 0.6 } });
       } catch (e) {}
@@ -252,7 +269,7 @@ export default function POSView({ user }: POSViewProps) {
       setIsCheckoutOpen(false);
       setIsInvoiceOpen(true);
 
-      // Auto Reset State (Requirement 2)
+      // Auto Reset State
       resetAllPOSState();
       invalidateInventoryCache();
       fetchInventory();
@@ -336,7 +353,7 @@ export default function POSView({ user }: POSViewProps) {
   const totalCartAmount = cart.reduce((sum, item) => sum + item.price, 0);
 
   return (
-    <div className="space-y-4 pb-20 sm:pb-6">
+    <div className="space-y-4 pb-24 sm:pb-8">
       
       {/* 1. TOP BAR: CLEAN VIEW - Instant Search, Fast Scan, Customer Finder */}
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
@@ -393,7 +410,7 @@ export default function POSView({ user }: POSViewProps) {
           </div>
         </div>
 
-        {/* Selected Customer Card (Requirement 3: With Change & Clear Buttons) */}
+        {/* Selected Customer Card with Change & Clear */}
         {selectedCustomer && (
           <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between animate-in fade-in text-xs">
             <div className="flex items-center space-x-3">
@@ -413,7 +430,6 @@ export default function POSView({ user }: POSViewProps) {
               </div>
             </div>
 
-            {/* 2 Buttons: Đổi khách hàng & Xóa/Clear */}
             <div className="flex items-center space-x-2">
               <button
                 type="button"
@@ -477,8 +493,8 @@ export default function POSView({ user }: POSViewProps) {
         </div>
       )}
 
-      {/* 2. MAIN SPLIT: PRODUCTS CATALOG & CART */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      {/* 2. MAIN GRID: PRODUCTS CATALOG & CART SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
         {/* LEFT: Products Catalog Grouped & A-Z Sorted (7 cols) */}
         <div className="lg:col-span-7 space-y-3">
@@ -617,23 +633,31 @@ export default function POSView({ user }: POSViewProps) {
           )}
         </div>
 
-        {/* RIGHT: Cart Drawer (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 space-y-4">
+        {/* RIGHT: CỐ ĐỊNH VÀ HIỂN THỊ RÕ RÀNG MỤC THANH TOÁN (5 COLS - STICKY) */}
+        <div className="lg:col-span-5 sticky top-4 z-30 space-y-4">
+          <div className="bg-white rounded-3xl border-2 border-gray-950 shadow-xl p-4 sm:p-5 space-y-4">
             
             {/* Cart Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
               <div className="flex items-center space-x-2">
-                <ShoppingBag className="w-4 h-4 text-gray-950" />
-                <h3 className="text-xs font-black text-gray-950 uppercase tracking-wide">
-                  Giỏ Hàng Bán Lẻ ({cart.length} máy)
-                </h3>
+                <div className="p-2 bg-gray-950 text-white rounded-xl">
+                  <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-gray-950 uppercase tracking-wide">
+                    Giỏ Hàng & Thanh Toán
+                  </h3>
+                  <p className="text-[10px] text-gray-500 font-bold">
+                    {cart.length > 0 ? `Đã chọn ${cart.length} máy bán lẻ` : 'Chưa có máy nào trong giỏ'}
+                  </p>
+                </div>
               </div>
+
               {cart.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setCart([])}
-                  className="text-[11px] text-red-500 hover:text-red-700 font-semibold"
+                  className="text-[11px] text-red-500 hover:text-red-700 font-bold bg-red-50 px-2 py-1 rounded-lg"
                 >
                   Xóa tất cả
                 </button>
@@ -642,14 +666,15 @@ export default function POSView({ user }: POSViewProps) {
 
             {/* Cart Items List */}
             {cart.length === 0 ? (
-              <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200 p-4 space-y-1">
-                <p className="text-xs font-bold text-gray-700">Chưa có sản phẩm nào trong giỏ</p>
+              <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-300 p-4 space-y-1.5">
+                <Smartphone className="w-8 h-8 text-gray-400 mx-auto" />
+                <p className="text-xs font-black text-gray-800">Chưa chọn sản phẩm thanh toán</p>
                 <p className="text-[11px] text-gray-400">
-                  Chạm &ldquo;Chọn máy&rdquo; bên trái hoặc Quét Barcode/QR IMEI để thêm vào giỏ.
+                  Bấm &ldquo;Chọn máy&rdquo; hoặc Quét Barcode/QR để thêm vào giỏ.
                 </p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {cart.map((item, idx) => (
                   <div
                     key={idx}
@@ -709,26 +734,56 @@ export default function POSView({ user }: POSViewProps) {
               </div>
 
               <div className="flex justify-between text-base font-black text-gray-950 pt-2 border-t border-gray-200">
-                <span>TỔNG TIỀN NIÊM YẾT:</span>
+                <span>TỔNG TIỀN THANH TOÁN:</span>
                 <span className="font-mono text-lg text-emerald-700">{formatVND(totalCartAmount)}</span>
               </div>
             </div>
 
-            {/* Big Checkout Button (Opens Multi-Step Modal) */}
+            {/* REQUIREMENT 2: NÚT THANH TOÁN CỐ ĐỊNH & LUÔN NỔI BẬT KHẢ DỤNG */}
             <button
               type="button"
-              onClick={() => setIsCheckoutOpen(true)}
-              disabled={cart.length === 0}
-              className="w-full py-4 bg-gray-950 hover:bg-black text-white rounded-2xl text-sm font-black shadow-lg shadow-gray-900/20 flex items-center justify-center space-x-2 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
+              onClick={handleProceedToCheckout}
+              className={`w-full py-4 rounded-2xl text-sm font-black shadow-xl flex items-center justify-center space-x-2 transition active:scale-[0.99] ${
+                cart.length > 0
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-400 animate-pulse'
+                  : 'bg-gray-950 hover:bg-black text-white shadow-gray-900/30'
+              }`}
             >
-              <span>TIẾN HÀNH THANH TOÁN ({cart.length} MÁY)</span>
-              <ArrowRight className="w-4 h-4 text-emerald-400" />
+              <PaymentIcon className="w-4 h-4 text-emerald-300" />
+              <span>
+                {cart.length > 0
+                  ? `TIẾN HÀNH THANH TOÁN (${cart.length} MÁY)`
+                  : 'TIẾN HÀNH THANH TOÁN (MỞ ĐƠN HÀNG)'}
+              </span>
+              <ArrowRight className="w-4 h-4 text-emerald-300" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Quick Customer Search & Add Modal (Requirement 3) */}
+      {/* MOBILE STICKY BOTTOM CHECKOUT BAR (ALWAYS VISIBLE & PROMINENT) */}
+      <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-gray-950/98 backdrop-blur-xl border-t border-gray-800 text-white px-4 py-3 shadow-2xl flex items-center justify-between">
+        <div>
+          <div className="text-[10px] text-gray-400 uppercase font-bold flex items-center space-x-1">
+            <span>Giỏ hàng:</span>
+            <b className="text-white">{cart.length} máy</b>
+          </div>
+          <div className="text-sm font-black text-emerald-400 font-mono">
+            {formatVND(totalCartAmount)}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleProceedToCheckout}
+          className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-black text-xs rounded-xl shadow-lg flex items-center space-x-2 active:scale-95 transition"
+        >
+          <span>Thanh Toán ({cart.length})</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Customer Modal (Search / Create) */}
       {isCustomerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200 flex flex-col max-h-[85vh]">
@@ -762,7 +817,6 @@ export default function POSView({ user }: POSViewProps) {
                     />
                   </div>
 
-                  {/* Customer Results or Add New Button */}
                   {searchingCustomer ? (
                     <div className="text-center py-6 text-gray-400">Đang tìm...</div>
                   ) : customersList.length > 0 ? (
@@ -810,7 +864,6 @@ export default function POSView({ user }: POSViewProps) {
                   )}
                 </>
               ) : (
-                /* Form Create New Customer */
                 <div className="space-y-3 animate-in fade-in">
                   <div>
                     <label className="block text-xs font-bold text-gray-800 mb-1">Số điện thoại *</label>
@@ -890,11 +943,12 @@ export default function POSView({ user }: POSViewProps) {
         initialCustomer={selectedCustomer}
       />
 
-      {/* Barcode / QR Scanner */}
+      {/* Barcode / QR Scanner (With De-duplication & Debounce) */}
       <ScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={handleScanSuccess}
+        existingImeis={cart.map((c) => c.inventory.imei)}
         title="Quét Barcode / QR IMEI Bán Hàng"
       />
 

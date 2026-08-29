@@ -67,34 +67,34 @@ export default function ImportView({ user }: ImportViewProps) {
     sellingPrice?: string;
   }>({});
 
-  // 1. Modular Product Specs Form (Tên dòng máy, Dung lượng, Tình trạng, Danh mục)
-  const [modelName, setModelName] = useState('iPhone 13 Pro Max');
+  // REQUIREMENT 3: CLEAN INITIAL STATE (NO DRAFT / NO STALE VALUES)
+  const [modelName, setModelName] = useState('');
   const [storage, setStorage] = useState('128GB');
   const [condition, setCondition] = useState('99%');
   const [category, setCategory] = useState('iPhone');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
 
-  // 2. Flexible Color & Battery %
+  // Flexible Color & Battery %
   const [availableColors, setAvailableColors] = useState<string[]>([]);
-  const [color, setColor] = useState('Titan Tự Nhiên (Natural Titanium)');
+  const [color, setColor] = useState('');
   const [batteryHealth, setBatteryHealth] = useState<number | string>(100);
 
-  // 3. IMEI Input & Scanner
+  // IMEI Input & Scanner
   const [imeiInput, setImeiInput] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // 4. Prices
-  const [costPrice, setCostPrice] = useState<number>(18500000);
-  const [sellingPrice, setSellingPrice] = useState<number>(21500000);
+  // Pricing (Zeroed by default)
+  const [costPrice, setCostPrice] = useState<number>(0);
+  const [sellingPrice, setSellingPrice] = useState<number>(0);
 
-  // 5. Supplier
+  // Supplier (Clean by default)
   const [supplierMode, setSupplierMode] = useState<'existing' | 'new'>('existing');
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('');
 
-  // 6. Payment
+  // Payment
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
   const [note, setNote] = useState('');
@@ -112,7 +112,7 @@ export default function ImportView({ user }: ImportViewProps) {
     return allMasterModelOptions.filter((m) => m.toLowerCase().includes(q));
   }, [allMasterModelOptions, modelName]);
 
-  // Parse IMEI tokens
+  // Parse IMEI tokens with auto-deduplication
   const parsedImeis = useMemo(() => {
     const rawTokens = imeiInput
       .split(/[\n,;\t\s]+/)
@@ -135,7 +135,26 @@ export default function ImportView({ user }: ImportViewProps) {
   const totalSelling = sellingPrice * parsedImeis.length;
   const debtCreated = Math.max(0, totalCost - paidAmount);
 
-  // Load Initial Data
+  // REQUIREMENT 3: STRICT RESET STATE FUNCTION
+  const resetFormState = () => {
+    setModelName('');
+    setStorage('128GB');
+    setCondition('99%');
+    setColor('');
+    setBatteryHealth(100);
+    setImeiInput('');
+    setCostPrice(0);
+    setSellingPrice(0);
+    setPaidAmount(0);
+    setSelectedSupplierId('');
+    setSupplierName('');
+    setSupplierPhone('');
+    setNote('');
+    setFieldErrors({});
+    setMessage(null);
+  };
+
+  // Load Initial Data & Always Reset on Mount / Navigation
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -159,10 +178,6 @@ export default function ImportView({ user }: ImportViewProps) {
       setProducts(sortItemsAZ(freshProds, (p: Product) => p.name));
       setCachedProducts(freshProds);
       setSuppliers(sortItemsAZ(freshSupps, (s: Partner) => s.name));
-
-      if (freshSupps.length > 0 && !selectedSupplierId) {
-        setSelectedSupplierId(freshSupps[0].id);
-      }
     } catch (err) {
       console.error('ImportView fetch error:', err);
     } finally {
@@ -171,6 +186,7 @@ export default function ImportView({ user }: ImportViewProps) {
   };
 
   useEffect(() => {
+    resetFormState();
     fetchData();
   }, []);
 
@@ -195,24 +211,6 @@ export default function ImportView({ user }: ImportViewProps) {
     else if (lower.includes('sạc') || lower.includes('cáp') || lower.includes('tai nghe')) setCategory('PhuKien');
     else setCategory('iPhone');
   }, [modelName]);
-
-  // RESET STATE ON ACTION / NAVIGATION
-  const resetFormState = () => {
-    setModelName('');
-    setStorage('128GB');
-    setCondition('99%');
-    setColor('Titan Tự Nhiên (Natural Titanium)');
-    setBatteryHealth(100);
-    setImeiInput('');
-    setCostPrice(0);
-    setSellingPrice(0);
-    setPaidAmount(0);
-    setSupplierName('');
-    setSupplierPhone('');
-    setNote('');
-    setFieldErrors({});
-    setMessage(null);
-  };
 
   // Strict Validation
   const validateForm = (): boolean => {
@@ -322,7 +320,7 @@ export default function ImportView({ user }: ImportViewProps) {
         text: `Đã nhập thành công ${parsedImeis.length} máy "${modelName} (${storage} - ${condition})" vào kho (Mã phiếu: #${data.code})!`,
       });
 
-      // Clear state and revalidate
+      // REQUIREMENT 3: AUTO CLEAR ALL DATA AFTER SUCCESSFUL IMPORT
       invalidateInventoryCache();
       resetFormState();
       fetchData();
@@ -347,7 +345,7 @@ export default function ImportView({ user }: ImportViewProps) {
               Nhập Hàng Vào Kho (Quy Chuẩn Thông Số Độc Lập)
             </h2>
             <p className="text-xs text-gray-500">
-              Chọn Tên máy mẫu, chọn nhanh Dung lượng, Tình trạng, Màu sắc và % Pin linh hoạt theo từng đợt hàng.
+              Chọn Tên máy mẫu, Dung lượng, Tình trạng, Màu sắc & % Pin linh hoạt • Tự động xóa sạch dữ liệu cũ khi xong.
             </p>
           </div>
         </div>
@@ -358,7 +356,7 @@ export default function ImportView({ user }: ImportViewProps) {
           className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 self-start sm:self-auto"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Làm mới Form</span>
+          <span>Làm mới / Xóa Trắng Form</span>
         </button>
       </div>
 
@@ -500,12 +498,14 @@ export default function ImportView({ user }: ImportViewProps) {
               </div>
 
               {/* Preview Formatted Title */}
-              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between text-xs">
-                <span className="text-gray-500 font-medium">Tên hiển thị bán lẻ:</span>
-                <span className="font-black text-gray-950 font-mono">
-                  {formatProductTitle(modelName, storage, condition)}
-                </span>
-              </div>
+              {modelName && (
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between text-xs">
+                  <span className="text-gray-500 font-medium">Tên hiển thị bán lẻ:</span>
+                  <span className="font-black text-gray-950 font-mono">
+                    {formatProductTitle(modelName, storage, condition)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Section 2: Flexible Color & Battery % */}
@@ -587,7 +587,7 @@ export default function ImportView({ user }: ImportViewProps) {
                   className="px-3 py-1.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold flex items-center space-x-1 shadow-sm transition"
                 >
                   <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Quét Camera</span>
+                  <span>Quét Camera Liên Tục</span>
                 </button>
               </div>
 
@@ -795,13 +795,15 @@ export default function ImportView({ user }: ImportViewProps) {
         </div>
       </form>
 
-      {/* Barcode Scanner Modal */}
+      {/* Barcode Scanner Modal with Continuous Mode & De-duplication */}
       <ScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={(code) => {
           setImeiInput((prev) => (prev.trim() ? `${prev}\n${code}` : code));
         }}
+        existingImeis={parsedImeis}
+        continuous={true}
         title="Quét Mã Barcode / QR IMEI Nhập Kho"
       />
     </div>

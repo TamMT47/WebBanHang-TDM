@@ -1,7 +1,18 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { X, Camera, AlertCircle, RefreshCw, Zap, ZapOff, CheckCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  X,
+  Camera,
+  AlertCircle,
+  RefreshCw,
+  Zap,
+  ZapOff,
+  CheckCircle,
+  ScanLine,
+  Layers,
+  Sparkles
+} from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 interface ScannerModalProps {
@@ -9,6 +20,8 @@ interface ScannerModalProps {
   onClose: () => void;
   onScanSuccess: (decodedText: string) => void;
   title?: string;
+  existingImeis?: string[];
+  continuous?: boolean;
 }
 
 export default function ScannerModal({
@@ -16,50 +29,159 @@ export default function ScannerModal({
   onClose,
   onScanSuccess,
   title = 'Quét mã Barcode / QR IMEI',
+  existingImeis = [],
+  continuous = false,
 }: ScannerModalProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
   const [lastScanned, setLastScanned] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [scannedCount, setScannedCount] = useState<number>(0);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isCooldownRef = useRef<boolean>(false);
+  const scannedImeisSetRef = useRef<Set<string>>(new Set());
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const ocrIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const readerElementId = 'html5-barcode-reader';
 
-  useEffect(() => {
-    if (!isOpen) {
-      stopScanner();
-      setLastScanned(null);
+  // Extract 15-digit IMEI using regex
+  const extractImei = (rawText: string): string => {
+    if (!rawText) return '';
+    const clean = rawText.trim();
+    
+    // Match 15 consecutive digits (standard Apple IMEI length)
+    const match15 = clean.match(/\b\d{15}\b/) || clean.match(/\d{15}/);
+    if (match15) {
+      return match15[0];
+    }
+    
+    // Match 14 or 16 digit serial/IMEI fallback
+    const matchAny = clean.match(/\b[A-Z0-9]{12,18}\b/i);
+    if (matchAny) {
+      return matchAny[0];
+    }
+
+    return clean;
+  };
+
+  // Sound and Haptic Feedback
+  const playSuccessFeedback = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1050, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.18);
+    } catch (e) {}
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([120, 40, 120]);
+      }
+    } catch (e) {}
+  };
+
+  // Process a detected code with De-duplication & 1.5s Debounce
+  const handleCodeDetected = useCallback((rawCode: string) => {
+    if (isCooldownRef.current) return;
+
+    const imei = extractImei(rawCode);
+    if (!imei || imei.length < 5) return;
+
+    // Check if IMEI was already scanned in this session or in existing list
+    const isDuplicate =
+      scannedImeisSetRef.current.has(imei.toLowerCase()) ||
+      existingImeis.some((ex) => ex.toLowerCase() === imei.toLowerCase());
+
+    if (isDuplicate) {
+      setDuplicateWarning(`Mã IMEI ${imei} đã có trong danh sách!`);
+      setTimeout(() => setDuplicateWarning(null), 1800);
       return;
     }
 
-    // Start scanner with a slight delay to ensure DOM is mounted
-    const timer = setTimeout(() => {
-      startScanner();
-    }, 250);
+    // New valid IMEI
+    isCooldownRef.current = true;
+    scannedImeisSetRef.current.add(imei.toLowerCase());
+    setLastScanned(imei);
+    setScannedCount((prev) => prev + 1);
+    playSuccessFeedback();
 
-    return () => {
-      clearTimeout(timer);
-      stopScanner();
-    };
-  }, [isOpen]);
+    onScanSuccess(imei);
+
+    if (!continuous) {
+      setTimeout(() => {
+        stopScanner();
+        onClose();
+      }, 500);
+    } else {
+      // 1.5-second cooldown pause before allowing next scan
+      setTimeout(() => {
+        isCooldownRef.current = false;
+        setLastScanned(null);
+      }, 1500);
+    }
+  }, [existingImeis, continuous, onScanSuccess, onClose]);
+
+  // Hardware / OCR Text Recognition Fallback
+  const setupOcrFallback = () => {
+    if (ocrIntervalRef.current) clearInterval(ocrIntervalRef.current);
+
+    ocrIntervalRef.current = setInterval(async () => {
+      if (isCooldownRef.current) return;
+
+      try {
+        const videoElem = document.querySelector(`#${readerElementId} video`) as HTMLVideoElement;
+        if (!videoElem || videoElem.readyState < 2) return;
+
+        // Check if Native BarcodeDetector is supported in browser
+        if ('BarcodeDetector' in window) {
+          try {
+            const barcodeDetector = new (window as any).BarcodeDetector({
+              formats: ['code_128', 'code_39', 'ean_13', 'upc_a', 'qr_code', 'data_matrix'],
+            });
+            const barcodes = await barcodeDetector.detect(videoElem);
+            if (barcodes && barcodes.length > 0) {
+              const detectedVal = barcodes[0].rawValue;
+              if (detectedVal) {
+                handleCodeDetected(detectedVal);
+                return;
+              }
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }, 600);
+  };
 
   const startScanner = async () => {
     try {
       setErrorMsg(null);
       setIsScanning(true);
+      setLastScanned(null);
+      setDuplicateWarning(null);
 
-      // Supported formats: QR Code + common 1D barcodes for IMEI & Serial
+      // Initialize scanned set with existing IMEIs
+      scannedImeisSetRef.current = new Set(existingImeis.map((i) => i.toLowerCase().trim()));
+
       const formatsToSupport = [
-        Html5QrcodeSupportedFormats.QR_CODE,
         Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.QR_CODE,
         Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.CODE_93,
         Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
         Html5QrcodeSupportedFormats.UPC_A,
         Html5QrcodeSupportedFormats.UPC_E,
         Html5QrcodeSupportedFormats.DATA_MATRIX,
+        Html5QrcodeSupportedFormats.CODE_93,
         Html5QrcodeSupportedFormats.ITF,
       ];
 
@@ -69,15 +191,15 @@ export default function ScannerModal({
       });
       scannerRef.current = html5QrCode;
 
-      // Responsive qrbox calculation: wide enough for 1D barcodes and tall enough for QR
+      // Ultra-wide scanning box optimized for 1D bar codes and 2D QR codes
       const qrboxFunction = (viewfinderWidth: number, viewfinderHeight: number) => {
-        const width = Math.floor(viewfinderWidth * 0.88);
-        const height = Math.floor(Math.min(viewfinderHeight * 0.65, 220));
+        const width = Math.floor(viewfinderWidth * 0.9);
+        const height = Math.floor(Math.min(viewfinderHeight * 0.7, 240));
         return { width, height };
       };
 
       const config = {
-        fps: 25, // Ultra-responsive frame scanning
+        fps: 25,
         qrbox: qrboxFunction,
         aspectRatio: 1.777778,
       };
@@ -86,22 +208,12 @@ export default function ScannerModal({
         { facingMode: 'environment' },
         config,
         (decodedText) => {
-          // Play sound and haptic vibration
-          playSuccessFeedback();
-          setLastScanned(decodedText.trim());
-
-          setTimeout(() => {
-            stopScanner();
-            onScanSuccess(decodedText.trim());
-            onClose();
-          }, 300);
+          handleCodeDetected(decodedText);
         },
-        (errorMessage) => {
-          // Frame errors during scan are ignored
-        }
+        (errorMessage) => {}
       );
 
-      // Check if torch/flashlight is supported
+      // Check torch
       try {
         const capabilities = html5QrCode.getRunningTrackCapabilities();
         if (capabilities && (capabilities as any).torch) {
@@ -109,39 +221,17 @@ export default function ScannerModal({
         }
       } catch (e) {}
 
+      // Start background OCR / Hardware BarcodeDetector
+      setupOcrFallback();
     } catch (err: any) {
       console.error('Scanner start error:', err);
       setIsScanning(false);
       setErrorMsg(
         err.name === 'NotAllowedError'
           ? 'Vui lòng cấp quyền truy cập Camera trên trình duyệt để quét mã IMEI.'
-          : 'Không thể mở Camera. Hãy kiểm tra kết nối thiết bị hoặc nhập mã IMEI trực tiếp bằng bàn phím.'
+          : 'Không thể mở Camera. Hãy kiểm tra kết nối thiết bị hoặc nhập mã IMEI bằng bàn phím.'
       );
     }
-  };
-
-  const playSuccessFeedback = () => {
-    // 1. Audio Beep
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(950, ctx.currentTime);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.15);
-    } catch (e) {}
-
-    // 2. Haptic Vibration
-    try {
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate([100, 50, 100]);
-      }
-    } catch (e) {}
   };
 
   const toggleTorch = async () => {
@@ -158,12 +248,16 @@ export default function ScannerModal({
   };
 
   const stopScanner = async () => {
+    if (ocrIntervalRef.current) {
+      clearInterval(ocrIntervalRef.current);
+      ocrIntervalRef.current = null;
+    }
+
     if (scannerRef.current && isScanning) {
       try {
         await scannerRef.current.stop();
         scannerRef.current.clear();
       } catch (err) {
-        // Ignore stop error
       } finally {
         scannerRef.current = null;
         setIsScanning(false);
@@ -172,6 +266,24 @@ export default function ScannerModal({
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) {
+      stopScanner();
+      setLastScanned(null);
+      isCooldownRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      startScanner();
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      stopScanner();
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -179,14 +291,16 @@ export default function ScannerModal({
       <div className="bg-gray-950 border border-gray-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl text-white flex flex-col">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800/80 bg-gray-950">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 bg-gray-950">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-blue-950/80 text-blue-400 rounded-xl border border-blue-800/50">
+            <div className="p-2 bg-emerald-950 text-emerald-400 rounded-xl border border-emerald-800/50">
               <Camera className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-black uppercase tracking-wide">{title}</h3>
-              <p className="text-[10px] text-gray-400">Đọc siêu nhạy mã vạch 1D & QR Code 2D</p>
+              <p className="text-[10px] text-gray-400">
+                Chống trùng IMEI • Nhận diện Barcode 1D & QR 2D
+              </p>
             </div>
           </div>
 
@@ -215,39 +329,51 @@ export default function ScannerModal({
           </div>
         </div>
 
-        {/* Scanner View Area */}
+        {/* Scanner Viewport */}
         <div className="p-4 sm:p-5 flex flex-col items-center">
           <div className="relative w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden border border-gray-800 flex items-center justify-center shadow-inner">
             <div id={readerElementId} className="w-full h-full object-cover" />
             
-            {/* Dynamic Scanning Laser Animation */}
+            {/* Dynamic Laser & Targeting Box */}
             {isScanning && !lastScanned && (
               <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6">
-                <div className="w-full h-36 border-2 border-emerald-400/70 rounded-2xl relative flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.3)]">
-                  {/* Laser bar moving */}
+                <div className="w-full h-36 border-2 border-emerald-400/80 rounded-2xl relative flex items-center justify-center shadow-[0_0_20px_rgba(52,211,153,0.35)]">
+                  {/* Moving Laser */}
                   <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-bounce" />
                   
-                  {/* Corner accents */}
-                  <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-emerald-300" />
-                  <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-emerald-300" />
-                  <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-emerald-300" />
-                  <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-emerald-300" />
+                  {/* Corners */}
+                  <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-300" />
+                  <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-300" />
+                  <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-300" />
+                  <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-300" />
                   
-                  <span className="text-[10px] font-bold bg-gray-950/80 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                    Căn mã vạch / QR IMEI vào khung
+                  <span className="text-[10px] font-black bg-gray-950/85 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/40 tracking-wide">
+                    Đưa Barcode / QR IMEI vào khung
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Scan Success Overlay */}
+            {/* Success Overlay with 1.5s Pause Feedback */}
             {lastScanned && (
-              <div className="absolute inset-0 bg-emerald-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center space-y-2 animate-in zoom-in">
+              <div className="absolute inset-0 bg-emerald-950/90 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center space-y-2 animate-in zoom-in">
                 <CheckCircle className="w-12 h-12 text-emerald-400 animate-pulse" />
-                <div className="text-sm font-black text-white">ĐÃ QUÉT THÀNH CÔNG!</div>
-                <div className="font-mono text-xs bg-black/60 px-3 py-1.5 rounded-xl border border-emerald-400 text-emerald-200 font-bold">
+                <div className="text-sm font-black text-white">ĐÃ QUÉT IMEI THÀNH CÔNG!</div>
+                <div className="font-mono text-sm bg-black/70 px-4 py-2 rounded-xl border border-emerald-400 text-emerald-200 font-black">
                   {lastScanned}
                 </div>
+                {continuous && (
+                  <div className="text-[10px] text-gray-300 font-bold">
+                    Tạm dừng 1.5s chống quét trùng lặp...
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Duplicate Warning Toast */}
+            {duplicateWarning && (
+              <div className="absolute top-4 left-4 right-4 bg-amber-500/95 text-gray-950 font-black text-xs px-3 py-2 rounded-xl shadow-lg text-center animate-in slide-in-from-top border border-amber-300">
+                ⚠️ {duplicateWarning}
               </div>
             )}
           </div>
@@ -259,12 +385,13 @@ export default function ScannerModal({
             </div>
           )}
 
+          {/* Action Bar */}
           <div className="mt-4 flex items-center space-x-2 w-full">
             <button
               onClick={startScanner}
               className="flex-1 flex items-center justify-center space-x-1.5 py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-bold border border-gray-800 transition active:scale-95"
             >
-              <RefreshCw className="w-4 h-4 text-blue-400" />
+              <RefreshCw className="w-4 h-4 text-emerald-400" />
               <span>Khởi động lại Camera</span>
             </button>
             <button
