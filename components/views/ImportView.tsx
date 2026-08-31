@@ -28,7 +28,8 @@ import { Product, Partner, PaymentMethod } from '@/types/database';
 import {
   getAllMasterColors,
   saveCustomColor,
-  DEFAULT_MASTER_MODELS,
+  getAllMasterModels,
+  saveCustomModel,
   DEFAULT_MASTER_STORAGES,
   DEFAULT_MASTER_CONDITIONS,
   DEFAULT_MASTER_CATEGORIES,
@@ -67,7 +68,7 @@ export default function ImportView({ user }: ImportViewProps) {
     sellingPrice?: string;
   }>({});
 
-  // REQUIREMENT 3: CLEAN INITIAL STATE (NO DRAFT / NO STALE VALUES)
+  // Form state
   const [modelName, setModelName] = useState('');
   const [storage, setStorage] = useState('128GB');
   const [condition, setCondition] = useState('99%');
@@ -84,11 +85,11 @@ export default function ImportView({ user }: ImportViewProps) {
   const [imeiInput, setImeiInput] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // Pricing (Zeroed by default)
+  // Pricing
   const [costPrice, setCostPrice] = useState<number>(0);
   const [sellingPrice, setSellingPrice] = useState<number>(0);
 
-  // Supplier (Clean by default)
+  // Supplier
   const [supplierMode, setSupplierMode] = useState<'existing' | 'new'>('existing');
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [supplierName, setSupplierName] = useState('');
@@ -102,7 +103,8 @@ export default function ImportView({ user }: ImportViewProps) {
   // Combined Clean Model Name suggestions
   const allMasterModelOptions = useMemo(() => {
     const fromDb = products.map((p) => p.name.trim());
-    const combined = Array.from(new Set([...fromDb, ...DEFAULT_MASTER_MODELS]));
+    const master = getAllMasterModels();
+    const combined = Array.from(new Set([...fromDb, ...master]));
     return sortItemsAZ(combined, (item) => item);
   }, [products]);
 
@@ -135,7 +137,7 @@ export default function ImportView({ user }: ImportViewProps) {
   const totalSelling = sellingPrice * parsedImeis.length;
   const debtCreated = Math.max(0, totalCost - paidAmount);
 
-  // REQUIREMENT 3: STRICT RESET STATE FUNCTION
+  // Reset state
   const resetFormState = () => {
     setModelName('');
     setStorage('128GB');
@@ -154,7 +156,7 @@ export default function ImportView({ user }: ImportViewProps) {
     setMessage(null);
   };
 
-  // Load Initial Data & Always Reset on Mount / Navigation
+  // Load Initial Data
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -212,21 +214,18 @@ export default function ImportView({ user }: ImportViewProps) {
     else setCategory('iPhone');
   }, [modelName]);
 
-  // Strict Validation
+  // Validation
   const validateForm = (): boolean => {
     const errors: typeof fieldErrors = {};
 
-    // 1. Model Name
     if (!modelName.trim()) {
       errors.modelName = 'Vui lòng chọn hoặc nhập Tên dòng máy';
     }
 
-    // 2. Color
     if (!color.trim()) {
       errors.color = 'Vui lòng chọn hoặc nhập Màu sắc';
     }
 
-    // 3. Battery Health
     const numBat = typeof batteryHealth === 'string' ? parseInt(batteryHealth, 10) : batteryHealth;
     if (category === 'iPhone' || category === 'iPad' || category === 'Macbook') {
       if (isNaN(numBat) || numBat <= 0 || numBat > 100) {
@@ -234,12 +233,10 @@ export default function ImportView({ user }: ImportViewProps) {
       }
     }
 
-    // 4. IMEI
     if (parsedImeis.length === 0) {
       errors.imei = 'Vui lòng quét hoặc nhập ít nhất 1 mã IMEI máy';
     }
 
-    // 5. Prices
     if (!costPrice || costPrice <= 0) {
       errors.costPrice = 'Vui lòng nhập giá vốn nhập vào lớn hơn 0';
     }
@@ -247,7 +244,6 @@ export default function ImportView({ user }: ImportViewProps) {
       errors.sellingPrice = 'Vui lòng nhập giá niêm yết bán ra';
     }
 
-    // 6. Supplier
     if (supplierMode === 'existing' && !selectedSupplierId) {
       errors.supplier = 'Vui lòng chọn một Nhà Cung Cấp từ danh sách';
     } else if (supplierMode === 'new' && !supplierName.trim()) {
@@ -273,12 +269,13 @@ export default function ImportView({ user }: ImportViewProps) {
       setSubmitting(true);
       setMessage(null);
 
-      // Save custom color if new
       if (color.trim()) {
         saveCustomColor(color.trim());
       }
+      if (modelName.trim()) {
+        saveCustomModel(modelName.trim());
+      }
 
-      // Build supplier payload
       const supplierPayload =
         supplierMode === 'existing'
           ? { id: selectedSupplierId }
@@ -286,7 +283,6 @@ export default function ImportView({ user }: ImportViewProps) {
 
       const numBat = typeof batteryHealth === 'string' ? parseInt(batteryHealth, 10) : batteryHealth;
 
-      // Build clean items list
       const itemsPayload = parsedImeis.map((imei) => ({
         product_name: modelName.trim(),
         category,
@@ -320,7 +316,6 @@ export default function ImportView({ user }: ImportViewProps) {
         text: `Đã nhập thành công ${parsedImeis.length} máy "${modelName} (${storage} - ${condition})" vào kho (Mã phiếu: #${data.code})!`,
       });
 
-      // REQUIREMENT 3: AUTO CLEAR ALL DATA AFTER SUCCESSFUL IMPORT
       invalidateInventoryCache();
       resetFormState();
       fetchData();
@@ -335,17 +330,17 @@ export default function ImportView({ user }: ImportViewProps) {
     <div className="space-y-4 max-w-6xl mx-auto pb-16">
       
       {/* 1. TOP HEADER */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-2.5">
-          <div className="p-2 bg-gray-950 text-white rounded-xl">
-            <Layers className="w-5 h-5 text-emerald-400" />
+      <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-3">
+          <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan">
+            <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-black text-gray-950 uppercase tracking-wide">
+            <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
               Nhập Hàng Vào Kho (Quy Chuẩn Thông Số Độc Lập)
             </h2>
-            <p className="text-xs text-gray-500">
-              Chọn Tên máy mẫu, Dung lượng, Tình trạng, Màu sắc & % Pin linh hoạt • Tự động xóa sạch dữ liệu cũ khi xong.
+            <p className="text-xs text-slate-400">
+              Chọn Tên máy mẫu, Dung lượng, Tình trạng, Màu sắc & % Pin linh hoạt • Hỗ trợ quét hàng loạt.
             </p>
           </div>
         </div>
@@ -353,7 +348,7 @@ export default function ImportView({ user }: ImportViewProps) {
         <button
           type="button"
           onClick={resetFormState}
-          className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 self-start sm:self-auto"
+          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 self-start sm:self-auto border border-slate-700 badge-nowrap"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Làm mới / Xóa Trắng Form</span>
@@ -365,19 +360,19 @@ export default function ImportView({ user }: ImportViewProps) {
         <div
           className={`p-4 rounded-2xl text-xs flex items-center justify-between border shadow-sm animate-in fade-in ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-              : 'bg-red-50 text-red-900 border-red-300'
+              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+              : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
           }`}
         >
           <div className="flex items-center space-x-2">
             {message.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
             ) : (
-              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
             )}
             <span className="font-bold text-xs sm:text-sm">{message.text}</span>
           </div>
-          <button onClick={() => setMessage(null)} className="text-gray-400 hover:text-gray-600 p-1">
+          <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-white p-1">
             ✕
           </button>
         </div>
@@ -391,24 +386,24 @@ export default function ImportView({ user }: ImportViewProps) {
           <div className="lg:col-span-7 space-y-4">
             
             {/* Section 1: Modular Product Specs */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                <span className="text-xs font-black text-gray-950 uppercase tracking-wide flex items-center space-x-1.5">
-                  <Smartphone className="w-4 h-4 text-emerald-600" />
+            <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="text-xs font-black text-white uppercase tracking-wide flex items-center space-x-1.5">
+                  <Smartphone className="w-4 h-4 text-cyan-400" />
                   <span>1. Chọn Dòng Máy & Thông Số Mẫu</span>
                 </span>
-                <span className="text-[10px] text-gray-400 font-bold uppercase">
+                <span className="text-[10px] text-slate-400 font-bold uppercase badge-nowrap">
                   Thông số độc lập
                 </span>
               </div>
 
               {/* Field: Model Name Autocomplete */}
               <div className="relative" ref={modelDropdownRef}>
-                <label className="block text-xs font-black text-gray-900 mb-1">
+                <label className="block text-xs font-bold text-slate-300 mb-1">
                   Tên Dòng Máy (Chọn hoặc gõ tên mới) *
                 </label>
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={modelName}
@@ -419,20 +414,20 @@ export default function ImportView({ user }: ImportViewProps) {
                     }}
                     onFocus={() => setIsModelDropdownOpen(true)}
                     placeholder="VD: iPhone 11, iPhone 13 Pro Max, iPad Pro 11 M2..."
-                    className={`w-full pl-10 pr-9 py-2.5 bg-gray-50 border rounded-xl text-xs font-black text-gray-950 focus:bg-white focus:outline-none transition ${
+                    className={`w-full pl-10 pr-9 py-2.5 bg-slate-950 border rounded-2xl text-xs font-black text-white focus:outline-none transition ${
                       fieldErrors.modelName
-                        ? 'border-red-500 ring-2 ring-red-200'
-                        : 'border-gray-300 focus:ring-2 focus:ring-gray-950'
+                        ? 'border-rose-500 ring-1 ring-rose-500'
+                        : 'border-slate-700 focus:border-cyan-500'
                     }`}
                   />
                   <ChevronDown
-                    className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer"
+                    className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer"
                     onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
                   />
                 </div>
 
                 {fieldErrors.modelName && (
-                  <p className="text-[11px] text-red-600 font-bold mt-1 flex items-center space-x-1">
+                  <p className="text-[11px] text-rose-400 font-bold mt-1 flex items-center space-x-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>{fieldErrors.modelName}</span>
                   </p>
@@ -440,7 +435,7 @@ export default function ImportView({ user }: ImportViewProps) {
 
                 {/* Dropdown Suggestions */}
                 {isModelDropdownOpen && filteredModelOptions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 max-h-56 overflow-y-auto divide-y divide-gray-100">
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-800">
                     {filteredModelOptions.map((m, idx) => (
                       <div
                         key={idx}
@@ -448,10 +443,10 @@ export default function ImportView({ user }: ImportViewProps) {
                           setModelName(m);
                           setIsModelDropdownOpen(false);
                         }}
-                        className="px-4 py-2.5 hover:bg-emerald-50 hover:text-emerald-950 text-xs font-bold text-gray-800 cursor-pointer flex items-center justify-between transition"
+                        className="px-4 py-2.5 hover:bg-slate-800 text-xs font-bold text-slate-200 cursor-pointer flex items-center justify-between transition"
                       >
                         <span>{m}</span>
-                        {modelName === m && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                        {modelName === m && <Check className="w-3.5 h-3.5 text-cyan-400" />}
                       </div>
                     ))}
                   </div>
@@ -460,15 +455,14 @@ export default function ImportView({ user }: ImportViewProps) {
 
               {/* Grid: Storage & Condition Dropdowns */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Storage */}
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
                     Dung lượng lưu trữ *
                   </label>
                   <select
                     value={storage}
                     onChange={(e) => setStorage(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-gray-950 focus:bg-white"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none"
                   >
                     {DEFAULT_MASTER_STORAGES.map((s) => (
                       <option key={s} value={s}>
@@ -478,15 +472,14 @@ export default function ImportView({ user }: ImportViewProps) {
                   </select>
                 </div>
 
-                {/* Condition */}
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
                     Tình trạng Ngoại hình *
                   </label>
                   <select
                     value={condition}
                     onChange={(e) => setCondition(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-gray-950 focus:bg-white"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none"
                   >
                     {DEFAULT_MASTER_CONDITIONS.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -499,9 +492,9 @@ export default function ImportView({ user }: ImportViewProps) {
 
               {/* Preview Formatted Title */}
               {modelName && (
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between text-xs">
-                  <span className="text-gray-500 font-medium">Tên hiển thị bán lẻ:</span>
-                  <span className="font-black text-gray-950 font-mono">
+                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-medium">Tên hiển thị bán lẻ:</span>
+                  <span className="font-black text-cyan-300 font-mono badge-nowrap">
                     {formatProductTitle(modelName, storage, condition)}
                   </span>
                 </div>
@@ -509,17 +502,16 @@ export default function ImportView({ user }: ImportViewProps) {
             </div>
 
             {/* Section 2: Flexible Color & Battery % */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-              <span className="text-xs font-black text-gray-950 uppercase tracking-wide flex items-center space-x-1.5 pb-2 border-b border-gray-100">
-                <Palette className="w-4 h-4 text-purple-600" />
+            <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+              <span className="text-xs font-black text-white uppercase tracking-wide flex items-center space-x-1.5 pb-2 border-b border-slate-800">
+                <Palette className="w-4 h-4 text-purple-400" />
                 <span>2. Màu Sắc & Tình Trạng Pin Thực Tế</span>
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Color Input with quick options */}
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">
-                    Màu sắc máy (Tự do nhập/chọn) *
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Màu sắc máy *
                   </label>
                   <input
                     type="text"
@@ -528,9 +520,9 @@ export default function ImportView({ user }: ImportViewProps) {
                       setColor(e.target.value);
                       setFieldErrors((prev) => ({ ...prev, color: undefined }));
                     }}
-                    placeholder="VD: Titan Tự Nhiên, Midnight, Xanh Sierra..."
-                    className={`w-full px-3 py-2 bg-gray-50 border rounded-xl text-xs font-bold text-gray-950 focus:bg-white ${
-                      fieldErrors.color ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-300'
+                    placeholder="VD: Titan Tự Nhiên, Midnight..."
+                    className={`w-full px-3 py-2 bg-slate-950 border rounded-xl text-xs font-bold text-white focus:outline-none ${
+                      fieldErrors.color ? 'border-rose-500' : 'border-slate-700'
                     }`}
                   />
                   {/* Quick Color Chips */}
@@ -540,7 +532,7 @@ export default function ImportView({ user }: ImportViewProps) {
                         key={c}
                         type="button"
                         onClick={() => setColor(c)}
-                        className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded text-[10px] font-semibold text-gray-700"
+                        className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded text-[10px] font-semibold text-slate-300 border border-slate-700 badge-nowrap"
                       >
                         {c}
                       </button>
@@ -548,9 +540,8 @@ export default function ImportView({ user }: ImportViewProps) {
                   </div>
                 </div>
 
-                {/* Battery % */}
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
                     % Pin thực tế (1 - 100) *
                   </label>
                   <input
@@ -561,32 +552,32 @@ export default function ImportView({ user }: ImportViewProps) {
                       setFieldErrors((prev) => ({ ...prev, batteryHealth: undefined }));
                     }}
                     placeholder="VD: 100, 89, 85..."
-                    className={`w-full px-3 py-2 bg-gray-50 border rounded-xl text-xs font-bold font-mono text-gray-950 focus:bg-white ${
-                      fieldErrors.batteryHealth ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-300'
+                    className={`w-full px-3 py-2 bg-slate-950 border rounded-xl text-xs font-bold font-mono text-white focus:outline-none ${
+                      fieldErrors.batteryHealth ? 'border-rose-500' : 'border-slate-700'
                     }`}
                     min={1}
                     max={100}
                   />
                   {fieldErrors.batteryHealth && (
-                    <p className="text-[10px] text-red-600 font-bold mt-1">{fieldErrors.batteryHealth}</p>
+                    <p className="text-[10px] text-rose-400 font-bold mt-1">{fieldErrors.batteryHealth}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Section 3: IMEI Scanner & Input */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                <span className="text-xs font-black text-gray-950 uppercase tracking-wide flex items-center space-x-1.5">
-                  <Camera className="w-4 h-4 text-blue-600" />
+            <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="text-xs font-black text-white uppercase tracking-wide flex items-center space-x-1.5">
+                  <Camera className="w-4 h-4 text-cyan-400" />
                   <span>3. Danh Sách Mã IMEI Nhập Kho *</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => setIsScannerOpen(true)}
-                  className="px-3 py-1.5 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold flex items-center space-x-1 shadow-sm transition"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center space-x-1 transition badge-nowrap"
                 >
-                  <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                  <Camera className="w-3.5 h-3.5 text-cyan-400" />
                   <span>Quét Camera Liên Tục</span>
                 </button>
               </div>
@@ -599,13 +590,13 @@ export default function ImportView({ user }: ImportViewProps) {
                 }}
                 rows={3}
                 placeholder="Dán hoặc quét danh sách IMEI (cách nhau bởi dấu cách, phẩy hoặc xuống dòng)..."
-                className={`w-full p-3 bg-gray-50 border rounded-xl text-xs font-mono font-bold text-gray-950 focus:bg-white ${
-                  fieldErrors.imei ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-300'
+                className={`w-full p-3 bg-slate-950 border rounded-xl text-xs font-mono font-bold text-white focus:outline-none ${
+                  fieldErrors.imei ? 'border-rose-500' : 'border-slate-700'
                 }`}
               />
 
               {fieldErrors.imei && (
-                <p className="text-[11px] text-red-600 font-bold flex items-center space-x-1">
+                <p className="text-[11px] text-rose-400 font-bold flex items-center space-x-1">
                   <AlertCircle className="w-3.5 h-3.5" />
                   <span>{fieldErrors.imei}</span>
                 </p>
@@ -614,13 +605,13 @@ export default function ImportView({ user }: ImportViewProps) {
               {/* IMEI Count & Badges */}
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-1.5">
-                  <span className="font-bold text-gray-600">Đã nhận diện:</span>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 font-black rounded-full border border-emerald-200">
+                  <span className="font-bold text-slate-400">Đã nhận diện:</span>
+                  <span className="px-2.5 py-0.5 bg-cyan-500/20 text-cyan-300 font-black rounded-full border border-cyan-500/30 badge-nowrap">
                     {parsedImeis.length} máy
                   </span>
                 </div>
                 {hasDuplicateWarning && (
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-lg border border-amber-500/30 badge-nowrap">
                     ⚠️ Đã tự động loại bỏ IMEI trùng lặp
                   </span>
                 )}
@@ -632,18 +623,18 @@ export default function ImportView({ user }: ImportViewProps) {
           <div className="lg:col-span-5 space-y-4">
             
             {/* Supplier Section */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                <span className="text-xs font-black text-gray-950 uppercase tracking-wide flex items-center space-x-1.5">
-                  <Building2 className="w-4 h-4 text-emerald-600" />
+            <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="text-xs font-black text-white uppercase tracking-wide flex items-center space-x-1.5">
+                  <Building2 className="w-4 h-4 text-cyan-400" />
                   <span>4. Nhà Cung Cấp *</span>
                 </span>
-                <div className="flex rounded-lg bg-gray-100 p-0.5 text-[11px] font-bold">
+                <div className="flex rounded-xl bg-slate-950 p-0.5 text-[11px] font-bold border border-slate-800">
                   <button
                     type="button"
                     onClick={() => setSupplierMode('existing')}
-                    className={`px-2 py-1 rounded-md transition ${
-                      supplierMode === 'existing' ? 'bg-white text-gray-950 shadow-xs' : 'text-gray-600'
+                    className={`px-2.5 py-1 rounded-lg transition badge-nowrap ${
+                      supplierMode === 'existing' ? 'bg-cyan-500 text-slate-950 shadow-glow-cyan' : 'text-slate-400'
                     }`}
                   >
                     NCC Có Sẵn
@@ -651,8 +642,8 @@ export default function ImportView({ user }: ImportViewProps) {
                   <button
                     type="button"
                     onClick={() => setSupplierMode('new')}
-                    className={`px-2 py-1 rounded-md transition ${
-                      supplierMode === 'new' ? 'bg-white text-gray-950 shadow-xs' : 'text-gray-600'
+                    className={`px-2.5 py-1 rounded-lg transition badge-nowrap ${
+                      supplierMode === 'new' ? 'bg-cyan-500 text-slate-950 shadow-glow-cyan' : 'text-slate-400'
                     }`}
                   >
                     + Thêm Mới
@@ -668,8 +659,8 @@ export default function ImportView({ user }: ImportViewProps) {
                       setSelectedSupplierId(e.target.value);
                       setFieldErrors((prev) => ({ ...prev, supplier: undefined }));
                     }}
-                    className={`w-full px-3 py-2.5 bg-gray-50 border rounded-xl text-xs font-bold text-gray-950 ${
-                      fieldErrors.supplier ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-300'
+                    className={`w-full px-3 py-2.5 bg-slate-950 border rounded-xl text-xs font-bold text-white focus:outline-none ${
+                      fieldErrors.supplier ? 'border-rose-500' : 'border-slate-700'
                     }`}
                   >
                     <option value="">-- Chọn Nhà Cung Cấp --</option>
@@ -690,8 +681,8 @@ export default function ImportView({ user }: ImportViewProps) {
                       setFieldErrors((prev) => ({ ...prev, supplier: undefined }));
                     }}
                     placeholder="Tên Nhà Cung Cấp mới *"
-                    className={`w-full px-3 py-2 bg-gray-50 border rounded-xl text-xs font-bold text-gray-950 ${
-                      fieldErrors.supplier ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-300'
+                    className={`w-full px-3 py-2 bg-slate-950 border rounded-xl text-xs font-bold text-white focus:outline-none ${
+                      fieldErrors.supplier ? 'border-rose-500' : 'border-slate-700'
                     }`}
                   />
                   <input
@@ -699,74 +690,74 @@ export default function ImportView({ user }: ImportViewProps) {
                     value={supplierPhone}
                     onChange={(e) => setSupplierPhone(e.target.value)}
                     placeholder="Số điện thoại NCC (Tùy chọn)"
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none"
                   />
                 </div>
               )}
 
               {fieldErrors.supplier && (
-                <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.supplier}</p>
+                <p className="text-[11px] text-rose-400 font-bold mt-1">{fieldErrors.supplier}</p>
               )}
             </div>
 
             {/* Pricing Section */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-              <span className="text-xs font-black text-gray-950 uppercase tracking-wide pb-2 border-b border-gray-100 block">
+            <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+              <span className="text-xs font-black text-white uppercase tracking-wide pb-2 border-b border-slate-800 block">
                 5. Đơn Giá & Thanh Toán Đợt Hàng
               </span>
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-rose-800 mb-1">
+                  <label className="block text-xs font-bold text-rose-400 mb-1">
                     Giá vốn nhập vào / 1 máy *
                   </label>
                   <MoneyInput
                     value={costPrice}
                     onValueChange={(num) => setCostPrice(num)}
                     placeholder="0"
-                    className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-black text-rose-700 font-mono"
+                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-black text-rose-400 font-mono focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-emerald-800 mb-1">
+                  <label className="block text-xs font-bold text-cyan-400 mb-1">
                     Giá niêm yết bán lẻ đề xuất *
                   </label>
                   <MoneyInput
                     value={sellingPrice}
                     onValueChange={(num) => setSellingPrice(num)}
                     placeholder="0"
-                    className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-black text-emerald-700 font-mono"
+                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-black text-cyan-300 font-mono focus:outline-none"
                   />
                 </div>
 
                 {/* Financial Overview */}
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5 text-xs">
-                  <div className="flex justify-between text-gray-600">
+                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-400">
                     <span>Tổng tiền nhập ({parsedImeis.length} máy):</span>
-                    <span className="font-black text-rose-700 font-mono">{formatVND(totalCost)}</span>
+                    <span className="font-black text-rose-400 font-mono badge-nowrap">{formatVND(totalCost)}</span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
+                  <div className="flex justify-between text-slate-400">
                     <span>Tổng giá bán dự kiến:</span>
-                    <span className="font-bold text-emerald-700 font-mono">{formatVND(totalSelling)}</span>
+                    <span className="font-bold text-cyan-300 font-mono badge-nowrap">{formatVND(totalSelling)}</span>
                   </div>
                 </div>
 
                 {/* Paid Amount */}
                 <div>
-                  <label className="block text-xs font-bold text-gray-800 mb-1">
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
                     Tiền trả trước cho NCC
                   </label>
                   <MoneyInput
                     value={paidAmount}
                     onValueChange={(num) => setPaidAmount(num)}
                     placeholder="0"
-                    className="px-3 py-2 bg-white border-2 border-gray-950 rounded-xl text-xs font-black font-mono text-gray-950"
+                    className="px-3 py-2 bg-slate-950 border-2 border-cyan-500 rounded-xl text-xs font-black font-mono text-cyan-300 focus:outline-none"
                   />
                 </div>
 
                 {debtCreated > 0 && (
-                  <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg font-bold">
+                  <div className="text-[11px] text-amber-300 bg-amber-500/15 p-2 rounded-xl font-bold border border-amber-500/30">
                     ⚠️ Ghi nhận nợ tiền NCC: +{formatVND(debtCreated)}
                   </div>
                 )}
@@ -777,7 +768,7 @@ export default function ImportView({ user }: ImportViewProps) {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Ghi chú đợt nhập hàng..."
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
                 />
               </div>
             </div>
@@ -786,25 +777,23 @@ export default function ImportView({ user }: ImportViewProps) {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-4 bg-gray-950 hover:bg-black text-white rounded-2xl text-sm font-black shadow-lg shadow-gray-950/20 flex items-center justify-center space-x-2 transition active:scale-[0.99] disabled:opacity-50"
+              className="w-full py-4 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 rounded-2xl text-sm font-black shadow-glow-cyan flex items-center justify-center space-x-2 transition active:scale-[0.99] disabled:opacity-50"
             >
-              <Save className="w-4 h-4 text-emerald-400" />
-              <span>{submitting ? 'ĐANG NHẬP KHO...' : `XÁC NHẬN NHẬP KHO (${parsedImeis.length} MÁY)`}</span>
+              <Save className="w-4 h-4 text-slate-950" />
+              <span className="badge-nowrap">{submitting ? 'ĐANG NHẬP KHO...' : `XÁC NHẬN NHẬP KHO (${parsedImeis.length} MÁY)`}</span>
             </button>
           </div>
         </div>
       </form>
 
-      {/* Barcode Scanner Modal with Continuous Mode & De-duplication */}
+      {/* Barcode Scanner Modal */}
       <ScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={(code) => {
-          setImeiInput((prev) => (prev.trim() ? `${prev}\n${code}` : code));
+          setImeiInput((prev) => (prev ? `${prev}\n${code}` : code));
         }}
-        existingImeis={parsedImeis}
-        continuous={true}
-        title="Quét Mã Barcode / QR IMEI Nhập Kho"
+        title="Quét Mã IMEI Nhập Kho"
       />
     </div>
   );

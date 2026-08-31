@@ -6,9 +6,9 @@
  * Format number to Vietnamese Currency string: e.g. 15.000.000 VNĐ
  */
 export function formatVND(amount: number | string | null | undefined): string {
-  if (amount === null || amount === undefined || amount === '') return '0 VNĐ';
+  if (amount === null || amount === undefined || amount === '') return '0 đ';
   const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]/g, '')) || 0 : amount;
-  return new Intl.NumberFormat('vi-VN').format(Math.round(num)) + ' VNĐ';
+  return new Intl.NumberFormat('vi-VN').format(Math.round(num)) + ' đ';
 }
 
 /**

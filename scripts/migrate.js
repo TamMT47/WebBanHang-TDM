@@ -72,7 +72,7 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS inventory (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-        imei VARCHAR(100) UNIQUE NOT NULL,
+        imei VARCHAR(100) NOT NULL,
         cost_price NUMERIC DEFAULT 0,
         selling_price NUMERIC DEFAULT 0,
         battery_health INT DEFAULT 100,
@@ -80,6 +80,9 @@ async function migrate() {
         supplier_id UUID REFERENCES partners(id) ON DELETE SET NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_active_inventory_imei 
+      ON inventory (imei) 
+      WHERE status = 'in_stock';
     `);
     console.log('  -> Đã tạo bảng inventory');
 

@@ -61,13 +61,13 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
   const changeReturned = excessAmount > 0 && order.debt_added === 0 ? excessAmount : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto animate-in fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[96vh] border border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[96vh]">
         
         {/* Modal Header Bar (Hidden during Print) */}
-        <div className="no-print flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gray-950 text-white border-b border-gray-800">
+        <div className="no-print flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-950 text-white border-b border-slate-800">
           <div className="flex items-center space-x-2.5">
-            <Printer className="w-5 h-5 text-emerald-400" />
+            <Printer className="w-5 h-5 text-cyan-400" />
             <h3 className="text-sm font-extrabold tracking-wide">
               HÓA ĐƠN & PHIẾU BẢO HÀNH #{order.code}
             </h3>
@@ -75,14 +75,14 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
           
           <div className="flex items-center space-x-3">
             {/* Format Toggle */}
-            <div className="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-xs">
+            <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs">
               <button
                 type="button"
                 onClick={() => setPrintFormat('a4')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition badge-nowrap ${
                   printFormat === 'a4'
-                    ? 'bg-white text-gray-950 shadow-sm'
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 📄 Khổ Giấy A4 Chuẩn
@@ -90,10 +90,10 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
               <button
                 type="button"
                 onClick={() => setPrintFormat('k80')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition badge-nowrap ${
                   printFormat === 'k80'
-                    ? 'bg-white text-gray-950 shadow-sm'
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 🧾 Bill Nhiệt K80
@@ -102,7 +102,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
 
             <button
               onClick={handlePrint}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-md transition"
+              className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition badge-nowrap"
             >
               <Printer className="w-4 h-4" />
               <span>In Hóa Đơn</span>
@@ -110,7 +110,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
 
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition"
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
             >
               <X className="w-5 h-5" />
             </button>
@@ -118,13 +118,13 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
         </div>
 
         {/* Printable Receipt Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-gray-100/70 flex justify-center">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-950/60 flex justify-center">
           
           {/* A4 PRINT FORMAT */}
           {printFormat === 'a4' ? (
             <div
               id="printable-receipt"
-              className="w-full max-w-[800px] bg-white p-8 sm:p-10 shadow-lg border border-gray-200 text-gray-900 font-sans min-h-[1050px] flex flex-col justify-between"
+              className="w-full max-w-[800px] bg-white p-8 sm:p-10 shadow-lg border border-gray-200 text-gray-900 font-sans min-h-[1050px] flex flex-col justify-between rounded-xl"
             >
               <div>
                 {/* 1. Header Cửa Hàng Chuẩn */}
@@ -361,7 +361,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
             /* K80 THERMAL BILL FORMAT */
             <div
               id="printable-receipt"
-              className="w-full max-w-[360px] bg-white p-6 shadow-sm border border-gray-200 text-gray-900 font-mono text-xs"
+              className="w-full max-w-[360px] bg-white p-6 shadow-sm border border-gray-200 text-gray-900 font-mono text-xs rounded-xl"
             >
               <div className="text-center pb-3 border-b border-dashed border-gray-300">
                 <div className="text-base font-black tracking-tight uppercase">TD MOBILE STORE</div>
@@ -434,20 +434,20 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
         </div>
 
         {/* Footer Actions (Hidden on Print) */}
-        <div className="no-print p-4 bg-white border-t border-gray-200 flex items-center justify-end space-x-3">
+        <div className="no-print p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-end space-x-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-100 transition"
+            className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition"
           >
             Đóng
           </button>
           <button
             type="button"
             onClick={handlePrint}
-            className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-gray-950 hover:bg-black text-white text-xs font-extrabold shadow-md transition"
+            className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 text-xs font-black shadow-glow-cyan transition badge-nowrap"
           >
-            <Printer className="w-4 h-4 text-emerald-400" />
+            <Printer className="w-4 h-4" />
             <span>In Hóa Đơn Ngay ({printFormat === 'a4' ? 'Khổ A4' : 'K80'})</span>
           </button>
         </div>

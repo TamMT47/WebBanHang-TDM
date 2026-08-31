@@ -64,20 +64,20 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
         
         {/* Header */}
-        <div className={`px-5 py-4 text-white flex items-center justify-between ${isCustomer ? 'bg-emerald-800' : 'bg-blue-900'}`}>
+        <div className={`px-5 py-4 text-white flex items-center justify-between border-b ${isCustomer ? 'bg-emerald-950/80 border-emerald-800/60' : 'bg-blue-950/80 border-blue-800/60'}`}>
           <div className="flex items-center space-x-2">
-            {isCustomer ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+            {isCustomer ? <ArrowDownLeft className="w-5 h-5 text-emerald-400" /> : <ArrowUpRight className="w-5 h-5 text-cyan-400" />}
             <h3 className="text-sm font-bold">
               {isCustomer ? 'Thu Tiền Nợ Khách Hàng' : 'Trả Tiền Nợ Nhà Cung Cấp'}
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -87,25 +87,25 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           
           {/* Partner Info Box */}
-          <div className="bg-gray-50 border border-gray-200 p-3.5 rounded-xl text-xs space-y-1">
+          <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-xs space-y-1.5">
             <div className="flex justify-between">
-              <span className="text-gray-500">Đối tác:</span>
-              <span className="font-bold text-gray-900">{partner.name}</span>
+              <span className="text-slate-400">Đối tác:</span>
+              <span className="font-bold text-white">{partner.name}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Số điện thoại:</span>
-              <span className="font-mono">{partner.phone}</span>
+              <span className="text-slate-400">Số điện thoại:</span>
+              <span className="font-mono text-slate-300">{partner.phone}</span>
             </div>
-            <div className="flex justify-between pt-1 border-t border-gray-200 text-sm">
-              <span className="font-semibold text-gray-700">Công nợ hiện tại:</span>
-              <span className={`font-bold font-mono ${isCustomer ? 'text-red-600' : 'text-blue-700'}`}>
+            <div className="flex justify-between pt-1.5 border-t border-slate-800 text-sm">
+              <span className="font-semibold text-slate-300">Công nợ hiện tại:</span>
+              <span className={`font-black font-mono badge-nowrap ${isCustomer ? 'text-rose-400' : 'text-cyan-400'}`}>
                 {formatVND(currentDebt)}
               </span>
             </div>
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
+            <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs rounded-xl">
               {error}
             </div>
           )}
@@ -113,13 +113,13 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
           {/* Amount input Auto-formatted */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-bold text-gray-700">
+              <label className="block text-xs font-bold text-slate-300">
                 Số tiền {isCustomer ? 'thu nợ' : 'trả nợ'} *
               </label>
               <button
                 type="button"
                 onClick={() => setAmount(currentDebt)}
-                className="px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-[10px] font-bold rounded-md text-gray-800 transition"
+                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold rounded-lg text-cyan-300 border border-slate-700 transition badge-nowrap"
               >
                 Trả hết ({formatVND(currentDebt)})
               </button>
@@ -129,10 +129,10 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
               value={amount}
               onValueChange={(num) => setAmount(num)}
               placeholder="VD: 1.000.000"
-              className="px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-base font-black text-gray-950 focus:ring-2 focus:ring-gray-900 font-mono"
+              className="px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-base font-black text-white focus:outline-none focus:border-cyan-500 font-mono"
             />
             {amount > 0 && (
-              <div className="text-[11px] text-gray-500 mt-1 font-semibold">
+              <div className="text-[11px] text-cyan-400 mt-1 font-semibold badge-nowrap">
                 Bằng chữ: {formatVND(amount)}
               </div>
             )}
@@ -140,17 +140,17 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
 
           {/* Payment Method */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
               Hình thức thanh toán
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setPaymentMethod('cash')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition ${
+                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition badge-nowrap ${
                   paymentMethod === 'cash'
-                    ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'
                 }`}
               >
                 <span>💵 Tiền mặt</span>
@@ -158,10 +158,10 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
               <button
                 type="button"
                 onClick={() => setPaymentMethod('transfer')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition ${
+                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition badge-nowrap ${
                   paymentMethod === 'transfer'
-                    ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'border-cyan-500 bg-cyan-500/20 text-cyan-300'
+                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'
                 }`}
               >
                 <span>💳 Chuyển khoản</span>
@@ -171,7 +171,7 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
 
           {/* Note */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">
+            <label className="block text-xs font-bold text-slate-300 mb-1">
               Ghi chú
             </label>
             <input
@@ -179,7 +179,7 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="VD: Thu nợ đợt 1 / Khách CK Vietcombank..."
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs text-gray-900 focus:ring-2 focus:ring-gray-900 focus:outline-none"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
             />
           </div>
 
@@ -188,15 +188,15 @@ export default function DebtModal({ isOpen, onClose, partner, onSuccess }: DebtM
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-100 transition"
+              className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700 transition"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={loading}
-              className={`flex-1 py-2.5 text-white rounded-xl text-xs font-bold shadow-md transition ${
-                isCustomer ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-blue-800 hover:bg-blue-900'
+              className={`flex-1 py-2.5 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition badge-nowrap ${
+                isCustomer ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-gradient-to-r from-cyan-500 to-blue-500'
               } disabled:opacity-50`}
             >
               {loading ? 'Đang xử lý...' : isCustomer ? 'Xác Nhận Thu Nợ' : 'Xác Nhận Trả Nợ'}

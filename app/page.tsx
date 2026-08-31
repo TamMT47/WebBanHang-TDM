@@ -54,11 +54,11 @@ export default function HomePage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center text-white space-y-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-gray-800 to-gray-700 flex items-center justify-center border border-gray-700 shadow-inner animate-pulse">
-          <span className="text-lg font-black text-white">TD</span>
+      <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center text-white space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center shadow-glow-cyan animate-pulse">
+          <span className="text-xl font-black text-white">TD</span>
         </div>
-        <div className="text-xs font-bold text-gray-400">Đang khởi động TD MOBILE STORE...</div>
+        <div className="text-xs font-bold text-cyan-300">Đang khởi động TD MOBILE STORE...</div>
       </div>
     );
   }
@@ -66,7 +66,7 @@ export default function HomePage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col pb-24 lg:pb-8">
+    <div className="min-h-screen bg-[#080d1a] text-slate-100 flex flex-col pb-24 lg:pb-8">
       {/* Top Header & Desktop Navigation */}
       <Navbar
         activeTab={activeTab}

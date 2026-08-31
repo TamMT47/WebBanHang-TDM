@@ -124,7 +124,6 @@ export default function ScannerModal({
         onClose();
       }, 500);
     } else {
-      // 1.5-second cooldown pause before allowing next scan
       setTimeout(() => {
         isCooldownRef.current = false;
         setLastScanned(null);
@@ -143,7 +142,6 @@ export default function ScannerModal({
         const videoElem = document.querySelector(`#${readerElementId} video`) as HTMLVideoElement;
         if (!videoElem || videoElem.readyState < 2) return;
 
-        // Check if Native BarcodeDetector is supported in browser
         if ('BarcodeDetector' in window) {
           try {
             const barcodeDetector = new (window as any).BarcodeDetector({
@@ -170,7 +168,6 @@ export default function ScannerModal({
       setLastScanned(null);
       setDuplicateWarning(null);
 
-      // Initialize scanned set with existing IMEIs
       scannedImeisSetRef.current = new Set(existingImeis.map((i) => i.toLowerCase().trim()));
 
       const formatsToSupport = [
@@ -191,7 +188,6 @@ export default function ScannerModal({
       });
       scannerRef.current = html5QrCode;
 
-      // Ultra-wide scanning box optimized for 1D bar codes and 2D QR codes
       const qrboxFunction = (viewfinderWidth: number, viewfinderHeight: number) => {
         const width = Math.floor(viewfinderWidth * 0.9);
         const height = Math.floor(Math.min(viewfinderHeight * 0.7, 240));
@@ -213,7 +209,6 @@ export default function ScannerModal({
         (errorMessage) => {}
       );
 
-      // Check torch
       try {
         const capabilities = html5QrCode.getRunningTrackCapabilities();
         if (capabilities && (capabilities as any).torch) {
@@ -221,7 +216,6 @@ export default function ScannerModal({
         }
       } catch (e) {}
 
-      // Start background OCR / Hardware BarcodeDetector
       setupOcrFallback();
     } catch (err: any) {
       console.error('Scanner start error:', err);
@@ -287,18 +281,18 @@ export default function ScannerModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
-      <div className="bg-gray-950 border border-gray-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl text-white flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl text-white flex flex-col">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 bg-gray-950">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-emerald-950 text-emerald-400 rounded-xl border border-emerald-800/50">
+            <div className="p-2 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-xl shadow-glow-cyan">
               <Camera className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-sm font-black uppercase tracking-wide">{title}</h3>
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-slate-400">
                 Chống trùng IMEI • Nhận diện Barcode 1D & QR 2D
               </p>
             </div>
@@ -311,7 +305,7 @@ export default function ScannerModal({
                 onClick={toggleTorch}
                 title={torchOn ? 'Tắt đèn Flash' : 'Bật đèn Flash'}
                 className={`p-2 rounded-xl transition ${
-                  torchOn ? 'bg-amber-400 text-gray-950' : 'bg-gray-800 text-gray-300 hover:text-white'
+                  torchOn ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:text-white'
                 }`}
               >
                 {torchOn ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4" />}
@@ -322,7 +316,7 @@ export default function ScannerModal({
                 stopScanner();
                 onClose();
               }}
-              className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
             >
               <X className="w-5 h-5" />
             </button>
@@ -331,39 +325,37 @@ export default function ScannerModal({
 
         {/* Scanner Viewport */}
         <div className="p-4 sm:p-5 flex flex-col items-center">
-          <div className="relative w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden border border-gray-800 flex items-center justify-center shadow-inner">
+          <div className="relative w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-inner">
             <div id={readerElementId} className="w-full h-full object-cover" />
             
             {/* Dynamic Laser & Targeting Box */}
             {isScanning && !lastScanned && (
               <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6">
-                <div className="w-full h-36 border-2 border-emerald-400/80 rounded-2xl relative flex items-center justify-center shadow-[0_0_20px_rgba(52,211,153,0.35)]">
-                  {/* Moving Laser */}
-                  <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-bounce" />
+                <div className="w-full h-36 border-2 border-cyan-400/80 rounded-2xl relative flex items-center justify-center shadow-glow-cyan">
+                  <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-bounce" />
                   
-                  {/* Corners */}
-                  <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-300" />
-                  <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-300" />
-                  <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-300" />
-                  <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-300" />
+                  <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-cyan-300" />
+                  <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-cyan-300" />
+                  <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-cyan-300" />
+                  <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-cyan-300" />
                   
-                  <span className="text-[10px] font-black bg-gray-950/85 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/40 tracking-wide">
+                  <span className="text-[10px] font-black bg-slate-950/85 text-cyan-300 px-3 py-1 rounded-full border border-cyan-500/40 tracking-wide badge-nowrap">
                     Đưa Barcode / QR IMEI vào khung
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Success Overlay with 1.5s Pause Feedback */}
+            {/* Success Overlay */}
             {lastScanned && (
-              <div className="absolute inset-0 bg-emerald-950/90 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center space-y-2 animate-in zoom-in">
-                <CheckCircle className="w-12 h-12 text-emerald-400 animate-pulse" />
+              <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center space-y-2 animate-in zoom-in">
+                <CheckCircle className="w-12 h-12 text-cyan-400 animate-pulse" />
                 <div className="text-sm font-black text-white">ĐÃ QUÉT IMEI THÀNH CÔNG!</div>
-                <div className="font-mono text-sm bg-black/70 px-4 py-2 rounded-xl border border-emerald-400 text-emerald-200 font-black">
+                <div className="font-mono text-sm bg-black/70 px-4 py-2 rounded-xl border border-cyan-400 text-cyan-200 font-black badge-nowrap">
                   {lastScanned}
                 </div>
                 {continuous && (
-                  <div className="text-[10px] text-gray-300 font-bold">
+                  <div className="text-[10px] text-slate-400 font-bold">
                     Tạm dừng 1.5s chống quét trùng lặp...
                   </div>
                 )}
@@ -372,15 +364,15 @@ export default function ScannerModal({
 
             {/* Duplicate Warning Toast */}
             {duplicateWarning && (
-              <div className="absolute top-4 left-4 right-4 bg-amber-500/95 text-gray-950 font-black text-xs px-3 py-2 rounded-xl shadow-lg text-center animate-in slide-in-from-top border border-amber-300">
+              <div className="absolute top-4 left-4 right-4 bg-amber-500/95 text-slate-950 font-black text-xs px-3 py-2 rounded-xl shadow-lg text-center animate-in slide-in-from-top border border-amber-300 badge-nowrap">
                 ⚠️ {duplicateWarning}
               </div>
             )}
           </div>
 
           {errorMsg && (
-            <div className="mt-3 p-3.5 bg-red-950/80 border border-red-800 text-red-200 rounded-2xl text-xs flex items-start space-x-2.5 w-full">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
+            <div className="mt-3 p-3.5 bg-rose-950/80 border border-rose-800 text-rose-200 rounded-2xl text-xs flex items-start space-x-2.5 w-full">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-400" />
               <span className="leading-relaxed">{errorMsg}</span>
             </div>
           )}
@@ -389,9 +381,9 @@ export default function ScannerModal({
           <div className="mt-4 flex items-center space-x-2 w-full">
             <button
               onClick={startScanner}
-              className="flex-1 flex items-center justify-center space-x-1.5 py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-bold border border-gray-800 transition active:scale-95"
+              className="flex-1 flex items-center justify-center space-x-1.5 py-3 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl text-xs font-bold border border-slate-700 transition active:scale-95 badge-nowrap"
             >
-              <RefreshCw className="w-4 h-4 text-emerald-400" />
+              <RefreshCw className="w-4 h-4 text-cyan-400" />
               <span>Khởi động lại Camera</span>
             </button>
             <button
@@ -399,7 +391,7 @@ export default function ScannerModal({
                 stopScanner();
                 onClose();
               }}
-              className="flex-1 py-3 bg-gray-950 hover:bg-black text-gray-400 hover:text-white rounded-xl text-xs font-bold border border-gray-800 transition"
+              className="flex-1 py-3 bg-slate-950 hover:bg-black text-slate-400 hover:text-white rounded-xl text-xs font-bold border border-slate-800 transition badge-nowrap"
             >
               Đóng & Nhập Phím
             </button>

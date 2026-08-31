@@ -11,8 +11,6 @@ interface BottomNavProps {
 }
 
 export default function BottomNav({ activeTab, setActiveTab, userRole = 'staff' }: BottomNavProps) {
-  const isManagerOrAbove = ['admin', 'owner', 'manager'].includes(userRole);
-
   // 5 Main Tabs for Mobile-First Navigation
   const items = [
     { id: 'pos', label: 'Bán hàng', icon: ShoppingCart },
@@ -25,7 +23,7 @@ export default function BottomNav({ activeTab, setActiveTab, userRole = 'staff' 
   const isUtilitySubTab = ['partners', 'cash-flow', 'reports', 'orders', 'users'].includes(activeTab);
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-xl px-1.5 py-1.5 flex items-center justify-around safe-area-pb">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/90 backdrop-blur-2xl border-t border-slate-800/90 shadow-2xl px-1.5 py-1.5 flex items-center justify-around safe-area-pb">
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id || (item.id === 'utilities' && isUtilitySubTab);
@@ -33,22 +31,22 @@ export default function BottomNav({ activeTab, setActiveTab, userRole = 'staff' 
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 ${
               isActive
-                ? 'text-gray-950 font-black scale-105'
-                : 'text-gray-500 hover:text-gray-900 font-semibold'
+                ? 'text-cyan-300 font-black scale-105'
+                : 'text-slate-400 hover:text-slate-200 font-semibold'
             }`}
           >
             <div
               className={`p-1.5 rounded-xl transition-all ${
                 isActive
-                  ? 'bg-gray-950 text-white shadow-md shadow-black/20'
-                  : 'text-gray-600'
+                  ? 'bg-gradient-to-tr from-cyan-600 to-blue-600 text-white shadow-glow-cyan'
+                  : 'text-slate-400'
               }`}
             >
               <Icon className="w-5 h-5" />
             </div>
-            <span className="text-[10px] mt-1 tracking-tight leading-none whitespace-nowrap">
+            <span className="text-[10px] mt-1 tracking-tight leading-none badge-nowrap">
               {item.label}
             </span>
           </button>

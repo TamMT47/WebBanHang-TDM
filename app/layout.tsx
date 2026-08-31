@@ -26,7 +26,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#111827',
+  themeColor: '#080d1a',
 };
 
 export default function RootLayout({
@@ -35,8 +35,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={`${nunito.variable} ${robotoMono.variable}`}>
-      <body className="min-h-screen bg-gray-100 text-gray-900 font-sans antialiased selection:bg-gray-900 selection:text-white">
+    <html lang="vi" className={`${nunito.variable} ${robotoMono.variable} dark`}>
+      <body className="min-h-screen bg-[#080d1a] text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-black">
         {children}
       </body>
     </html>

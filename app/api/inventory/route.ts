@@ -94,13 +94,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if IMEI already exists
-    const existing = await query('SELECT id, imei, status FROM inventory WHERE imei = $1', [
-      imei.trim(),
-    ]);
+    // Check if IMEI is currently active in stock
+    const existing = await query(
+      "SELECT id, imei, status FROM inventory WHERE imei = $1 AND status = 'in_stock'",
+      [imei.trim()]
+    );
     if (existing.rows.length > 0) {
       return NextResponse.json(
-        { error: `Mã IMEI ${imei} đã tồn tại trong hệ thống (Trạng thái: ${existing.rows[0].status})` },
+        { error: `Mã IMEI ${imei} hiện đang có trong kho (Trạng thái: Còn Hàng)! Không thể nhập trùng.` },
         { status: 400 }
       );
     }
@@ -137,6 +138,20 @@ export async function PATCH(request: NextRequest) {
     const { id, selling_price, cost_price, battery_health, status, imei } = await request.json();
     if (!id) {
       return NextResponse.json({ error: 'Thiếu ID kho' }, { status: 400 });
+    }
+
+    // If imei is updated, verify it is not duplicated with another in_stock item
+    if (imei !== undefined) {
+      const checkDup = await query(
+        "SELECT id FROM inventory WHERE imei = $1 AND status = 'in_stock' AND id != $2",
+        [imei.trim(), id]
+      );
+      if (checkDup.rows.length > 0) {
+        return NextResponse.json(
+          { error: `Mã IMEI ${imei} đã có một máy khác đang Còn Hàng trong kho!` },
+          { status: 400 }
+        );
+      }
     }
 
     const hasFinancialAccess = canViewSensitiveFinancials(user.role);

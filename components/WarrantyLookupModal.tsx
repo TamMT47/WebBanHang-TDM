@@ -62,41 +62,41 @@ export default function WarrantyLookupModal({ isOpen, onClose }: WarrantyLookupM
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl border border-gray-200 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="px-5 py-4 bg-gray-900 text-white flex items-center justify-between">
+        <div className="px-5 py-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center space-x-2">
-            <ShieldCheck className="w-5 h-5 text-blue-400" />
+            <ShieldCheck className="w-5 h-5 text-cyan-400" />
             <h3 className="text-sm font-bold">Tra Cứu Thông Tin & Bảo Hành IMEI</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Search Bar */}
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
+        <div className="p-4 bg-slate-950/80 border-b border-slate-800">
           <form onSubmit={handleSearch} className="flex items-center space-x-2">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchKey}
                 onChange={(e) => setSearchKey(e.target.value)}
                 placeholder="Nhập mã IMEI, Số điện thoại khách hoặc Mã đơn..."
-                className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:ring-2 focus:ring-gray-900 focus:outline-none"
+                className="w-full pl-10 pr-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-cyan-500"
                 autoFocus
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition"
+              className="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 text-xs font-black rounded-xl shadow-glow-cyan transition badge-nowrap"
             >
               {loading ? 'Đang tìm...' : 'Tra cứu'}
             </button>
@@ -106,16 +106,16 @@ export default function WarrantyLookupModal({ isOpen, onClose }: WarrantyLookupM
         {/* Results List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {loading && (
-            <div className="text-center py-10 text-xs text-gray-500">
+            <div className="text-center py-10 text-xs text-slate-400 animate-pulse">
               Đang kiểm tra dữ liệu bảo hành...
             </div>
           )}
 
           {!loading && searched && results.length === 0 && (
             <div className="text-center py-10">
-              <ShieldAlert className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-              <p className="text-xs font-bold text-gray-700">Không tìm thấy thông tin bảo hành</p>
-              <p className="text-[11px] text-gray-500 mt-0.5">
+              <ShieldAlert className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+              <p className="text-xs font-bold text-slate-300">Không tìm thấy thông tin bảo hành</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 Vui lòng kiểm tra lại mã IMEI hoặc số điện thoại đã mua hàng tại TD Mobile Store.
               </p>
             </div>
@@ -127,55 +127,55 @@ export default function WarrantyLookupModal({ isOpen, onClose }: WarrantyLookupM
               return (
                 <div
                   key={idx}
-                  className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm hover:border-gray-300 transition space-y-2"
+                  className="p-4 rounded-2xl border border-slate-800 bg-slate-950/80 shadow-xl space-y-2.5"
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="font-bold text-sm text-gray-900">{item.product_name}</div>
-                      <div className="text-xs font-mono text-gray-600 mt-0.5">
-                        Mã IMEI: <span className="font-bold text-gray-900">{item.imei}</span>
+                      <div className="font-black text-sm text-white">{item.product_name}</div>
+                      <div className="text-xs font-mono text-slate-400 mt-0.5">
+                        Mã IMEI: <span className="font-bold text-cyan-300">{item.imei}</span>
                       </div>
                     </div>
                     {active ? (
-                      <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold rounded-full flex items-center space-x-1">
+                      <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold rounded-full flex items-center space-x-1 badge-nowrap">
                         <CheckCircle2 className="w-3 h-3" />
                         <span>CÒN BẢO HÀNH</span>
                       </span>
                     ) : (
-                      <span className="px-2.5 py-1 bg-red-100 text-red-700 border border-red-300 text-[10px] font-bold rounded-full">
+                      <span className="px-2.5 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold rounded-full badge-nowrap">
                         HẾT HẠN BẢO HÀNH
                       </span>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900 p-2.5 rounded-xl border border-slate-800">
                     <div>
-                      <span className="text-gray-500">Khách hàng: </span>
-                      <span className="font-semibold text-gray-800">{item.partner_name}</span>
+                      <span className="text-slate-500 badge-nowrap">Khách hàng: </span>
+                      <span className="font-semibold text-white">{item.partner_name}</span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Số ĐT: </span>
-                      <span className="font-mono">{item.partner_phone}</span>
+                      <span className="text-slate-500 badge-nowrap">Số ĐT: </span>
+                      <span className="font-mono text-slate-300 badge-nowrap">{item.partner_phone}</span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Ngày mua: </span>
-                      <span>{new Date(item.order_date).toLocaleDateString('vi-VN')}</span>
+                      <span className="text-slate-500 badge-nowrap">Ngày mua: </span>
+                      <span className="text-slate-300 badge-nowrap">{new Date(item.order_date).toLocaleDateString('vi-VN')}</span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Hạn bảo hành: </span>
-                      <span className="font-bold text-gray-900">
+                      <span className="text-slate-500 badge-nowrap">Hạn bảo hành: </span>
+                      <span className={`font-bold badge-nowrap ${active ? 'text-emerald-400' : 'text-slate-400'}`}>
                         {item.warranty_until
                           ? new Date(item.warranty_until).toLocaleDateString('vi-VN')
                           : 'N/A'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Thời hạn gói: </span>
-                      <span className="font-bold">{item.warranty_months} tháng</span>
+                      <span className="text-slate-500 badge-nowrap">Thời hạn gói: </span>
+                      <span className="font-bold text-slate-200 badge-nowrap">{item.warranty_months} tháng</span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Mã hóa đơn: </span>
-                      <span className="font-bold text-blue-700">#{item.order_code}</span>
+                      <span className="text-slate-500 badge-nowrap">Mã hóa đơn: </span>
+                      <span className="font-bold text-cyan-400 font-mono badge-nowrap">#{item.order_code}</span>
                     </div>
                   </div>
                 </div>
@@ -184,10 +184,10 @@ export default function WarrantyLookupModal({ isOpen, onClose }: WarrantyLookupM
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-gray-50 border-t border-gray-200 text-right">
+        <div className="p-3 bg-slate-950 border-t border-slate-800 text-right">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold rounded-xl transition"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
           >
             Đóng
           </button>

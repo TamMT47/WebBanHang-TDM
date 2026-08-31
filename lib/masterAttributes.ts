@@ -153,15 +153,51 @@ export function saveCustomColor(colorName: string): string[] {
   } catch (e) {
     return [];
   }
-}
-
-/**
- * Get all available colors combined
- */
-export function getAllMasterColors(): string[] {
+}export function getAllMasterColors(): string[] {
   const custom = getSavedCustomColors();
   return Array.from(new Set([...DEFAULT_MASTER_COLORS, ...custom]));
 }
+
+/**
+ * Get custom saved models from LocalStorage (browser-safe)
+ */
+export function getSavedCustomModels(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('tdm_custom_models');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Save new custom model to Master list
+ */
+export function saveCustomModel(modelName: string): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const existing = getSavedCustomModels();
+    const clean = modelName.trim();
+    if (clean && !existing.includes(clean) && !DEFAULT_MASTER_MODELS.includes(clean)) {
+      const updated = [...existing, clean];
+      localStorage.setItem('tdm_custom_models', JSON.stringify(updated));
+      return updated;
+    }
+    return existing;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Get all available models combined
+ */
+export function getAllMasterModels(): string[] {
+  const custom = getSavedCustomModels();
+  return Array.from(new Set([...DEFAULT_MASTER_MODELS, ...custom]));
+}
+
 
 /**
  * Helper to sort array A-Z by Vietnamese locale

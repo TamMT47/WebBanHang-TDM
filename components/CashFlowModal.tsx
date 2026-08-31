@@ -60,19 +60,19 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className={`px-5 py-4 text-white flex items-center justify-between ${type === 'thu' ? 'bg-emerald-800' : 'bg-rose-800'}`}>
+        <div className={`px-5 py-4 text-white flex items-center justify-between border-b ${type === 'thu' ? 'bg-emerald-950/80 border-emerald-800/60' : 'bg-rose-950/80 border-rose-800/60'}`}>
           <div className="flex items-center space-x-2">
-            {type === 'thu' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+            {type === 'thu' ? <ArrowDownLeft className="w-5 h-5 text-emerald-400" /> : <ArrowUpRight className="w-5 h-5 text-rose-400" />}
             <h3 className="text-sm font-bold">
               {type === 'thu' ? 'Lập Phiếu Thu Ngoài' : 'Lập Phiếu Chi Ngoài'}
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -81,7 +81,7 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
+            <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs rounded-xl">
               {error}
             </div>
           )}
@@ -94,10 +94,10 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
                 setType('thu');
                 setCategory('chi_phi_khac');
               }}
-              className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition ${
+              className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition badge-nowrap ${
                 type === 'thu'
-                  ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm'
-                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-glow-emerald'
+                  : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'
               }`}
             >
               <ArrowDownLeft className="w-4 h-4" />
@@ -109,10 +109,10 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
                 setType('chi');
                 setCategory('chi_phi_khac');
               }}
-              className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition ${
+              className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition badge-nowrap ${
                 type === 'chi'
-                  ? 'border-rose-700 bg-rose-700 text-white shadow-sm'
-                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'border-rose-500 bg-rose-500/20 text-rose-300 shadow-sm'
+                  : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'
               }`}
             >
               <ArrowUpRight className="w-4 h-4" />
@@ -122,17 +122,17 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
 
           {/* Amount Auto-formatted */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">
+            <label className="block text-xs font-bold text-slate-300 mb-1">
               Số tiền *
             </label>
             <MoneyInput
               value={amount}
               onValueChange={(num) => setAmount(num)}
               placeholder="VD: 500.000"
-              className="px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-base font-black text-gray-950 focus:ring-2 focus:ring-gray-900 font-mono"
+              className="px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-base font-black text-white focus:outline-none focus:border-cyan-500 font-mono"
             />
             {amount > 0 && (
-              <div className="text-[11px] text-gray-500 mt-1 font-semibold">
+              <div className="text-[11px] text-cyan-400 mt-1 font-semibold badge-nowrap">
                 Bằng chữ: {formatVND(amount)}
               </div>
             )}
@@ -140,13 +140,13 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
 
           {/* Category */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">
+            <label className="block text-xs font-bold text-slate-300 mb-1">
               Hạng mục thu / chi
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-gray-900"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-medium text-slate-200 focus:outline-none"
             >
               <option value="chi_phi_khac">Chi phí điện, nước, internet, mặt bằng</option>
               <option value="chi_phi_khac">Tiền ăn uống, tiếp khách, sinh hoạt</option>
@@ -158,17 +158,17 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
 
           {/* Payment Method */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
               Nguồn tiền quỹ
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setPaymentMethod('cash')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition ${
+                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition badge-nowrap ${
                   paymentMethod === 'cash'
-                    ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'
                 }`}
               >
                 <span>💵 Quỹ Tiền Mặt</span>
@@ -176,10 +176,10 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
               <button
                 type="button"
                 onClick={() => setPaymentMethod('transfer')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition ${
+                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 transition badge-nowrap ${
                   paymentMethod === 'transfer'
-                    ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'border-cyan-500 bg-cyan-500/20 text-cyan-300'
+                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800'
                 }`}
               >
                 <span>💳 Quỹ Chuyển Khoản</span>
@@ -189,7 +189,7 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
 
           {/* Note */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">
+            <label className="block text-xs font-bold text-slate-300 mb-1">
               Ghi chú nội dung thu chi *
             </label>
             <input
@@ -197,7 +197,7 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="VD: Thanh toán tiền điện tháng 8 / Mua văn phòng phẩm..."
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs text-gray-900 focus:ring-2 focus:ring-gray-900 focus:outline-none"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
               required
             />
           </div>
@@ -207,15 +207,15 @@ export default function CashFlowModal({ isOpen, onClose, onSuccess }: CashFlowMo
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-100 transition"
+              className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700 transition"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={loading}
-              className={`flex-1 py-2.5 text-white rounded-xl text-xs font-bold shadow-md transition ${
-                type === 'thu' ? 'bg-emerald-800 hover:bg-emerald-900' : 'bg-rose-800 hover:bg-rose-900'
+              className={`flex-1 py-2.5 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition badge-nowrap ${
+                type === 'thu' ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-rose-500 hover:bg-rose-400 text-white'
               } disabled:opacity-50`}
             >
               {loading ? 'Đang lưu...' : 'Lưu Phiếu'}

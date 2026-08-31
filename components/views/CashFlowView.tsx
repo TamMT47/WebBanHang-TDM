@@ -141,20 +141,20 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
   const isPeriodic = Boolean(dateFrom || dateTo);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-7xl mx-auto pb-16">
       
       {/* 1. Time Filter Bar Card */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+      <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-gray-950 text-white rounded-xl">
-              <Wallet className="w-5 h-5 text-emerald-400" />
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan">
+              <Wallet className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-gray-950 uppercase tracking-wide">
+              <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
                 Sổ Quỹ Thu Chi & Dòng Tiền
               </h2>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-slate-400">
                 Theo dõi số dư đầu kỳ, tổng thu, tổng chi và số dư cuối kỳ theo ngày hoặc toàn thời gian.
               </p>
             </div>
@@ -174,10 +174,10 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
                 key={p.id}
                 type="button"
                 onClick={() => setTimePreset(p.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition badge-nowrap ${
                   timePreset === p.id
-                    ? 'bg-gray-950 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
                 }`}
               >
                 {p.label}
@@ -186,133 +186,131 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
           </div>
         </div>
 
-        {/* Date Pickers (Shown if custom or specific range) */}
+        {/* Date Pickers */}
         {timePreset === 'custom' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-gray-100 max-w-md animate-in fade-in">
-            <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
-              <span className="text-xs font-bold text-gray-500">Từ ngày:</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-800 max-w-md animate-in fade-in">
+            <div className="flex items-center space-x-2 bg-slate-950 p-2 rounded-xl border border-slate-700">
+              <span className="text-xs font-bold text-slate-400 badge-nowrap">Từ ngày:</span>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none flex-1"
+                className="bg-transparent text-xs font-bold text-white focus:outline-none flex-1"
               />
             </div>
-            <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
-              <span className="text-xs font-bold text-gray-500">Đến ngày:</span>
+            <div className="flex items-center space-x-2 bg-slate-950 p-2 rounded-xl border border-slate-700">
+              <span className="text-xs font-bold text-slate-400 badge-nowrap">Đến ngày:</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none flex-1"
+                className="bg-transparent text-xs font-bold text-white focus:outline-none flex-1"
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* 2. Top Statistics Cards: Periodic vs All-time */}
+      {/* 2. Top Statistics Cards */}
       {isPeriodic ? (
-        /* DÒNG TIỀN THEO NGÀY / KHOẢNG NGÀY */
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {/* Số Dư Đầu Kỳ */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-1">
-            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center space-x-1">
-              <History className="w-3.5 h-3.5 text-blue-600" />
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl space-y-1">
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+              <History className="w-3.5 h-3.5 text-blue-400" />
               <span>Số Dư Đầu Kỳ</span>
             </div>
-            <div className="text-xl font-black text-gray-900 font-mono">
+            <div className="text-xl font-black text-white font-mono badge-nowrap">
               {formatVND(summary.opening_balance)}
             </div>
-            <p className="text-[10px] text-gray-400">Tồn quỹ trước ngày {dateFrom || 'N/A'}</p>
+            <p className="text-[10px] text-slate-500">Tồn quỹ trước ngày {dateFrom || 'N/A'}</p>
           </div>
 
           {/* Tổng Thu Trong Kỳ */}
-          <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-sm space-y-1">
-            <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center space-x-1">
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 shadow-xl space-y-1">
+            <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center space-x-1">
+              <TrendingUp className="w-3.5 h-3.5" />
               <span>Tổng Thu Trong Kỳ</span>
             </div>
-            <div className="text-xl font-black text-emerald-700 font-mono">
+            <div className="text-xl font-black text-emerald-300 font-mono badge-nowrap">
               +{formatVND(summary.period_thu)}
             </div>
-            <p className="text-[10px] text-emerald-600 font-medium">Bán hàng, thu nợ, thu khác</p>
+            <p className="text-[10px] text-emerald-400/80 font-medium">Bán hàng, thu nợ, thu khác</p>
           </div>
 
           {/* Tổng Chi Trong Kỳ */}
-          <div className="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-sm space-y-1">
-            <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center space-x-1">
-              <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-rose-500/30 bg-rose-500/10 shadow-xl space-y-1">
+            <div className="text-[11px] font-bold text-rose-400 uppercase tracking-wider flex items-center space-x-1">
+              <TrendingDown className="w-3.5 h-3.5" />
               <span>Tổng Chi Trong Kỳ</span>
             </div>
-            <div className="text-xl font-black text-rose-700 font-mono">
+            <div className="text-xl font-black text-rose-300 font-mono badge-nowrap">
               -{formatVND(summary.period_chi)}
             </div>
-            <p className="text-[10px] text-rose-600 font-medium">Nhập hàng, trả nợ, chi phí</p>
+            <p className="text-[10px] text-rose-400/80 font-medium">Nhập hàng, trả nợ, chi phí</p>
           </div>
 
           {/* Số Dư Cuối Kỳ */}
-          <div className="bg-white p-4 rounded-2xl border-2 border-gray-950 shadow-md space-y-1 bg-gradient-to-br from-white to-gray-50">
-            <div className="text-[11px] font-black text-gray-950 uppercase tracking-wider flex items-center space-x-1">
-              <Scale className="w-3.5 h-3.5 text-gray-900" />
+          <div className="bg-slate-900/90 backdrop-blur-xl p-4 rounded-3xl border-2 border-cyan-500/50 shadow-glow-cyan space-y-1">
+            <div className="text-[11px] font-black text-cyan-300 uppercase tracking-wider flex items-center space-x-1">
+              <Scale className="w-3.5 h-3.5" />
               <span>Số Dư Cuối Kỳ</span>
             </div>
-            <div className="text-xl font-black text-gray-950 font-mono">
+            <div className="text-xl font-black text-cyan-300 font-mono badge-nowrap">
               {formatVND(summary.closing_balance)}
             </div>
-            <p className="text-[10px] text-gray-500 font-semibold">= Đầu kỳ + Thu - Chi</p>
+            <p className="text-[10px] text-slate-400 font-semibold">= Đầu kỳ + Thu - Chi</p>
           </div>
         </div>
       ) : (
-        /* TOÀN THỜI GIAN */
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Quỹ Tiền Mặt */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl flex items-center justify-between">
             <div>
-              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center space-x-1">
-                <Wallet className="w-3.5 h-3.5 text-amber-600" />
+              <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center space-x-1">
+                <Wallet className="w-3.5 h-3.5" />
                 <span>Quỹ Tiền Mặt (Tại Két)</span>
               </div>
-              <div className="text-xl font-black text-gray-950 mt-1 font-mono">
+              <div className="text-xl font-black text-white mt-1 font-mono badge-nowrap">
                 {formatVND(summary.total_cash)}
               </div>
             </div>
-            <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl">
+            <span className="text-xs font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2.5 py-1 rounded-xl badge-nowrap">
               💵 Tiền mặt
             </span>
           </div>
 
           {/* Quỹ Chuyển Khoản */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl flex items-center justify-between">
             <div>
-              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center space-x-1">
-                <Building className="w-3.5 h-3.5 text-blue-600" />
+              <div className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center space-x-1">
+                <Building className="w-3.5 h-3.5" />
                 <span>Quỹ Ngân Hàng (Chuyển Khoản)</span>
               </div>
-              <div className="text-xl font-black text-gray-950 mt-1 font-mono">
+              <div className="text-xl font-black text-white mt-1 font-mono badge-nowrap">
                 {formatVND(summary.total_transfer)}
               </div>
             </div>
-            <span className="text-xs font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-xl">
+            <span className="text-xs font-bold text-cyan-300 bg-cyan-500/20 border border-cyan-500/30 px-2.5 py-1 rounded-xl badge-nowrap">
               💳 Tài khoản
             </span>
           </div>
 
           {/* Tổng Quỹ Hiện Có */}
-          <div className="bg-white p-4 rounded-2xl border-2 border-gray-950 shadow-md flex items-center justify-between">
+          <div className="bg-slate-900/90 backdrop-blur-xl p-4 rounded-3xl border-2 border-cyan-500/50 shadow-glow-cyan flex items-center justify-between">
             <div>
-              <div className="text-[11px] font-black text-gray-900 uppercase tracking-wider">
+              <div className="text-[11px] font-black text-slate-300 uppercase tracking-wider">
                 Tổng Tiền Quỹ Hiện Có
               </div>
-              <div className="text-xl font-black text-emerald-700 mt-1 font-mono">
+              <div className="text-xl font-black text-cyan-300 mt-1 font-mono badge-nowrap">
                 {formatVND(summary.total_balance)}
               </div>
             </div>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-3.5 py-2 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1"
+              className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition flex items-center space-x-1 badge-nowrap"
             >
-              <Plus className="w-3.5 h-3.5 text-emerald-400" />
+              <Plus className="w-3.5 h-3.5 text-slate-950 font-black" />
               <span>+ Lập Phiếu</span>
             </button>
           </div>
@@ -320,18 +318,18 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
       )}
 
       {/* 3. Filter Bar & Quick Create */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+      <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 flex-1">
             {/* Search */}
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchKey}
                 onChange={(e) => setSearchKey(e.target.value)}
                 placeholder="Mã phiếu, đối tác, ghi chú..."
-                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none"
+                className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -340,7 +338,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:bg-white focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
               >
                 <option value="all">Tất cả Loại phiếu</option>
                 <option value="thu">Phiếu Thu (Tiền vào)</option>
@@ -353,7 +351,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-medium text-slate-200 focus:outline-none"
               >
                 <option value="all">Tất cả Hạng mục</option>
                 <option value="ban_hang">Thu bán hàng</option>
@@ -369,7 +367,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <select
                 value={methodFilter}
                 onChange={(e) => setMethodFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-medium text-slate-200 focus:outline-none"
               >
                 <option value="all">Tất cả Hình thức</option>
                 <option value="cash">Tiền mặt</option>
@@ -380,94 +378,94 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
 
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 bg-gray-950 hover:bg-black text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5 self-start sm:self-auto"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5 self-start sm:self-auto badge-nowrap"
           >
-            <Plus className="w-4 h-4 text-emerald-400" />
+            <Plus className="w-4 h-4 text-cyan-400" />
             <span>+ Lập Phiếu Thu/Chi Ngoài</span>
           </button>
         </div>
       </div>
 
       {/* 4. Records Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden">
         {loading ? (
-          <div className="text-center py-16 text-xs text-gray-400">Đang tải sổ quỹ...</div>
+          <div className="text-center py-16 text-xs text-slate-400 animate-pulse">Đang tải sổ quỹ...</div>
         ) : records.length === 0 ? (
-          <div className="text-center py-16 text-xs text-gray-500">
+          <div className="text-center py-16 text-xs text-slate-400">
             Không có phiếu thu chi nào trong khoảng thời gian này.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase text-[10px]">
+              <thead className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
                 <tr>
-                  <th className="px-4 py-3">Mã phiếu</th>
-                  <th className="px-4 py-3">Thời gian</th>
-                  <th className="px-4 py-3">Hạng mục</th>
-                  <th className="px-4 py-3">Số tiền</th>
-                  <th className="px-4 py-3">Hình thức</th>
-                  <th className="px-4 py-3">Đối tác / Ghi chú</th>
-                  <th className="px-4 py-3">Người lập</th>
-                  {isOwnerOrAdmin && <th className="px-4 py-3 text-right">Xóa</th>}
+                  <th className="px-4 py-3.5">Mã phiếu</th>
+                  <th className="px-4 py-3.5">Thời gian</th>
+                  <th className="px-4 py-3.5">Hạng mục</th>
+                  <th className="px-4 py-3.5">Số tiền</th>
+                  <th className="px-4 py-3.5">Hình thức</th>
+                  <th className="px-4 py-3.5">Đối tác / Ghi chú</th>
+                  <th className="px-4 py-3.5">Người lập</th>
+                  {isOwnerOrAdmin && <th className="px-4 py-3.5 text-right">Xóa</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-800/80">
                 {records.map((r) => {
                   const isThu = r.type === 'thu';
                   return (
-                    <tr key={r.id} className="hover:bg-gray-50/80 transition">
-                      <td className="px-4 py-3 font-extrabold text-gray-950 font-mono">
-                        <div className="flex items-center space-x-1.5">
+                    <tr key={r.id} className="hover:bg-slate-800/50 transition duration-150">
+                      <td className="px-4 py-3.5 font-extrabold text-white font-mono">
+                        <div className="flex items-center space-x-1.5 badge-nowrap">
                           {isThu ? (
-                            <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />
+                            <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" />
                           ) : (
-                            <ArrowUpRight className="w-3.5 h-3.5 text-rose-600" />
+                            <ArrowUpRight className="w-3.5 h-3.5 text-rose-400" />
                           )}
                           <span>{r.code}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <div>{new Date(r.created_at).toLocaleDateString('vi-VN')}</div>
-                        <div className="text-[10px] text-gray-400">
+                      <td className="px-4 py-3.5 text-slate-300">
+                        <div className="badge-nowrap">{new Date(r.created_at).toLocaleDateString('vi-VN')}</div>
+                        <div className="text-[10px] text-slate-500 badge-nowrap">
                           {new Date(r.created_at).toLocaleTimeString('vi-VN', {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-semibold text-gray-800">
+                      <td className="px-4 py-3.5 font-semibold text-slate-200 badge-nowrap">
                         {getCategoryName(r.category)}
                       </td>
-                      <td className="px-4 py-3 font-black text-sm font-mono">
-                        <span className={isThu ? 'text-emerald-700' : 'text-rose-700'}>
+                      <td className="px-4 py-3.5 font-black text-sm font-mono badge-nowrap">
+                        <span className={isThu ? 'text-emerald-400' : 'text-rose-400'}>
                           {isThu ? '+' : '-'}{formatVND(r.amount)}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3.5">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold badge-nowrap ${
                             r.payment_method === 'cash'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-blue-100 text-blue-800'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                           }`}
                         >
                           {r.payment_method === 'cash' ? '💵 Tiền mặt' : '💳 Chuyển khoản'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3.5 text-slate-300">
                         {r.partner_name && (
-                          <div className="font-bold text-gray-950">{r.partner_name}</div>
+                          <div className="font-bold text-white">{r.partner_name}</div>
                         )}
-                        <div className="text-[11px] text-gray-500">{r.note || 'N/A'}</div>
+                        <div className="text-[11px] text-slate-400">{r.note || 'N/A'}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-[11px]">
+                      <td className="px-4 py-3.5 text-slate-400 text-[11px] badge-nowrap">
                         {r.creator_name || 'Hệ thống'}
                       </td>
                       {isOwnerOrAdmin && (
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3.5 text-right">
                           <button
                             onClick={() => handleDelete(r.id, r.code)}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

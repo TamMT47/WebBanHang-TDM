@@ -264,6 +264,21 @@ export async function POST(request: NextRequest) {
       // 5. Process Trade-in Machine if available
       let tradeInCreatedItem = null;
       if (trade_in && tradeInVal > 0 && trade_in.imei) {
+        const cleanImei = trade_in.imei.trim();
+
+        // Check if IMEI is currently active in stock
+        const checkActive = await client.query(
+          "SELECT id FROM inventory WHERE imei = $1 AND status = 'in_stock'",
+          [cleanImei]
+        );
+        if (checkActive.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return NextResponse.json(
+            { error: `Máy thu cũ có IMEI ${cleanImei} hiện đang có sẵn trong kho (Còn Hàng)! Không thể thu lại máy đang tồn kho.` },
+            { status: 400 }
+          );
+        }
+
         // Clean product name - prevent creating junk suffixes like [Hàng Trade-in]
         const cleanModelName = (trade_in.name || 'iPhone 11').replace(/\[.*?\]/g, '').trim();
         const tradeInStorage = (trade_in.storage || '').trim();
@@ -320,7 +335,7 @@ export async function POST(request: NextRequest) {
            RETURNING *`,
           [
             tradeInProdId,
-            trade_in.imei.trim(),
+            cleanImei,
             tradeInVal,
             Math.round(tradeInVal * 1.15), // suggested selling price
             trade_in.battery_health || 85,
@@ -448,6 +463,21 @@ export async function POST(request: NextRequest) {
 
       // 3. Process items into products and inventory
       for (const item of items) {
+        const cleanImei = item.imei.trim();
+
+        // Check if IMEI is currently active in stock
+        const checkActive = await client.query(
+          "SELECT id FROM inventory WHERE imei = $1 AND status = 'in_stock'",
+          [cleanImei]
+        );
+        if (checkActive.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return NextResponse.json(
+            { error: `Mã IMEI ${cleanImei} hiện đang có trong kho (Trạng thái: Còn Hàng)! Không thể nhập trùng.` },
+            { status: 400 }
+          );
+        }
+
         let prodId = item.product_id;
 
         if (!prodId) {
@@ -475,7 +505,7 @@ export async function POST(request: NextRequest) {
            RETURNING id`,
           [
             prodId,
-            item.imei.trim(),
+            cleanImei,
             parseFloat(item.cost_price as any) || 0,
             parseFloat(item.selling_price as any) || 0,
             parseInt(item.battery_health as any, 10) || 100,

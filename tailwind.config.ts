@@ -11,20 +11,31 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        brand: {
-          50: '#F9FAFB',
-          100: '#F3F4F6',
-          200: '#E5E7EB',
-          300: '#D1D5DB',
-          400: '#9CA3AF',
-          500: '#6B7280',
-          600: '#4B5563',
-          700: '#374151',
-          800: '#1F2937',
-          900: '#111827',
-          950: '#030712',
+        navy: {
+          850: '#0c1322',
+          900: '#080d1a',
+          950: '#040711',
+        },
+        cyber: {
+          cyan: '#06b6d4',
+          blue: '#3b82f6',
+          emerald: '#10b981',
+          amber: '#f59e0b',
+          purple: '#8b5cf6',
         }
       },
+      boxShadow: {
+        'glow-cyan': '0 0 20px -3px rgba(6, 182, 212, 0.35)',
+        'glow-blue': '0 0 20px -3px rgba(59, 130, 246, 0.35)',
+        'glow-emerald': '0 0 20px -3px rgba(16, 185, 129, 0.35)',
+        'glow-amber': '0 0 20px -3px rgba(245, 158, 11, 0.35)',
+        'glow-purple': '0 0 20px -3px rgba(139, 92, 246, 0.35)',
+        'glass-card': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+      },
+      backgroundImage: {
+        'radial-glow': 'radial-gradient(ellipse at top, rgba(14, 165, 233, 0.15), transparent 70%)',
+        'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)',
+      }
     },
   },
   plugins: [],
