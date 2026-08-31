@@ -715,7 +715,7 @@ export default function ImportView({ user }: ImportViewProps) {
                     value={costPrice}
                     onValueChange={(num) => setCostPrice(num)}
                     placeholder="0"
-                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-black text-rose-400 font-mono focus:outline-none"
+                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-black text-rose-400 font-sans tracking-tight focus:outline-none"
                   />
                 </div>
 
@@ -727,7 +727,7 @@ export default function ImportView({ user }: ImportViewProps) {
                     value={sellingPrice}
                     onValueChange={(num) => setSellingPrice(num)}
                     placeholder="0"
-                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-black text-cyan-300 font-mono focus:outline-none"
+                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-black text-cyan-300 font-sans tracking-tight focus:outline-none"
                   />
                 </div>
 
@@ -735,11 +735,11 @@ export default function ImportView({ user }: ImportViewProps) {
                 <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-400">
                     <span>Tổng tiền nhập ({parsedImeis.length} máy):</span>
-                    <span className="font-black text-rose-400 font-mono badge-nowrap">{formatVND(totalCost)}</span>
+                    <span className="font-black text-rose-400 font-sans tracking-tight badge-nowrap">{formatVND(totalCost)}</span>
                   </div>
                   <div className="flex justify-between text-slate-400">
                     <span>Tổng giá bán dự kiến:</span>
-                    <span className="font-bold text-cyan-300 font-mono badge-nowrap">{formatVND(totalSelling)}</span>
+                    <span className="font-bold text-cyan-300 font-sans tracking-tight badge-nowrap">{formatVND(totalSelling)}</span>
                   </div>
                 </div>
 
@@ -752,7 +752,7 @@ export default function ImportView({ user }: ImportViewProps) {
                     value={paidAmount}
                     onValueChange={(num) => setPaidAmount(num)}
                     placeholder="0"
-                    className="px-3 py-2 bg-slate-950 border-2 border-cyan-500 rounded-xl text-xs font-black font-mono text-cyan-300 focus:outline-none"
+                    className="px-3 py-2 bg-slate-950 border-2 border-cyan-500 rounded-xl text-xs font-black font-sans tracking-tight text-cyan-300 focus:outline-none"
                   />
                 </div>
 

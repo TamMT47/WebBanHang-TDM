@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Printer, CheckCircle2, Phone, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Printer, CheckCircle2, Phone, MapPin, ShieldCheck, Sparkles, Settings, Save, RotateCcw, Plus, Trash2 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
+import { getInvoiceSettings, saveInvoiceSettings, InvoiceSettings, DEFAULT_INVOICE_SETTINGS } from '@/lib/invoiceSettings';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -46,11 +47,38 @@ interface InvoiceModalProps {
 
 export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalProps) {
   const [printFormat, setPrintFormat] = useState<'a4' | 'k80'>('a4');
+  const [settings, setSettings] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
+  const [isEditSettingsOpen, setIsEditSettingsOpen] = useState(false);
+  const [editForm, setEditForm] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
+
+  useEffect(() => {
+    if (isOpen) {
+      const current = getInvoiceSettings();
+      setSettings(current);
+      setEditForm(current);
+    }
+  }, [isOpen]);
 
   if (!isOpen || !order) return null;
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = saveInvoiceSettings(editForm);
+    setSettings(updated);
+    setIsEditSettingsOpen(false);
+  };
+
+  const handleResetSettings = () => {
+    if (confirm('Khôi phục mẫu in về thiết lập mặc định của TD Mobile Store?')) {
+      const reset = saveInvoiceSettings(DEFAULT_INVOICE_SETTINGS);
+      setSettings(reset);
+      setEditForm(reset);
+      setIsEditSettingsOpen(false);
+    }
   };
 
   const orderDate = order.created_at
@@ -73,7 +101,17 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
             </h3>
           </div>
           
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Customize Invoice Template Button */}
+            <button
+              type="button"
+              onClick={() => setIsEditSettingsOpen(true)}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 badge-nowrap"
+            >
+              <Settings className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Chỉnh Mẫu In</span>
+            </button>
+
             {/* Format Toggle */}
             <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs">
               <button
@@ -85,7 +123,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                📄 Khổ Giấy A4 Chuẩn
+                📄 Khổ A4
               </button>
               <button
                 type="button"
@@ -96,13 +134,13 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                🧾 Bill Nhiệt K80
+                🧾 Bill K80
               </button>
             </div>
 
             <button
               onClick={handlePrint}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition badge-nowrap"
+              className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition badge-nowrap active:scale-95"
             >
               <Printer className="w-4 h-4" />
               <span>In Hóa Đơn</span>
@@ -127,30 +165,30 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
               className="w-full max-w-[800px] bg-white p-8 sm:p-10 shadow-lg border border-gray-200 text-gray-900 font-sans min-h-[1050px] flex flex-col justify-between rounded-xl"
             >
               <div>
-                {/* 1. Header Cửa Hàng Chuẩn */}
+                {/* 1. Header Cửa Hàng Chuẩn (Customizable) */}
                 <div className="flex items-start justify-between pb-6 border-b-2 border-gray-900">
                   <div className="space-y-1.5">
-                    <div className="flex items-center space-x-2.5">
-                      <div className="w-10 h-10 rounded-xl bg-gray-950 text-white flex items-center justify-center font-black text-xl tracking-tighter">
-                        TD
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 rounded-xl bg-gray-950 flex items-center justify-center p-1 border border-gray-300 overflow-hidden flex-shrink-0">
+                        <img src={settings.shopLogoUrl || '/logo.png'} alt={settings.shopName} className="w-full h-full object-contain" />
                       </div>
                       <div>
                         <h1 className="text-2xl font-black tracking-tight text-gray-950 uppercase">
-                          TD MOBILE STORE
+                          {settings.shopName}
                         </h1>
                         <p className="text-xs font-bold text-gray-700 italic tracking-wide">
-                          Giá tốt - Dịch vụ đỉnh cao
+                          {settings.shopSlogan}
                         </p>
                       </div>
                     </div>
                     <div className="text-xs text-gray-600 space-y-0.5 pt-1">
                       <div className="flex items-center space-x-1">
                         <MapPin className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                        <span><b>Địa chỉ:</b> 06 Nguyễn Trãi, Phường Gò Công, Đồng Tháp</span>
+                        <span><b>Địa chỉ:</b> {settings.shopAddress}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Phone className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                        <span><b>Hotline / Zalo:</b> <span className="font-bold text-gray-950 font-mono">0364848960</span></span>
+                        <span><b>Hotline / Zalo:</b> <span className="font-bold text-gray-950 font-sans">{settings.shopHotline}</span></span>
                       </div>
                     </div>
                   </div>
@@ -160,7 +198,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                     <div className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">
                       Mã Hóa Đơn
                     </div>
-                    <div className="text-lg font-black text-gray-950 font-mono">
+                    <div className="text-lg font-black text-gray-950 font-sans">
                       #{order.code}
                     </div>
                     <div className="text-[11px] text-gray-600">
@@ -179,71 +217,62 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                   </p>
                 </div>
 
-                {/* 2. Thông Tin Khách Hàng */}
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
-                  <div>
-                    <span className="text-gray-500 font-medium">Khách hàng: </span>
-                    <span className="font-bold text-gray-950 text-sm">{order.partner_name || 'Khách lẻ'}</span>
+                {/* 2. Thông tin khách hàng & Nhân viên lập */}
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 text-xs mb-6">
+                  <div className="space-y-1">
+                    <div><b>Khách hàng:</b> <span className="font-black text-gray-950 text-sm uppercase">{order.partner_name || 'Khách Vãng Lai'}</span></div>
+                    <div><b>Số điện thoại:</b> <span className="font-bold text-gray-950 font-sans text-sm">{order.partner_phone || 'N/A'}</span></div>
+                    {order.partner_address && (
+                      <div><b>Địa chỉ:</b> <span className="text-gray-800">{order.partner_address}</span></div>
+                    )}
+                    {order.partner_cccd && (
+                      <div><b>Số CCCD:</b> <span className="font-sans text-gray-800">{order.partner_cccd}</span></div>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-gray-500 font-medium">Số điện thoại: </span>
-                    <span className="font-bold text-gray-950 font-mono text-sm">{order.partner_phone || 'N/A'}</span>
+
+                  <div className="space-y-1 text-right sm:text-left sm:pl-6 sm:border-l border-gray-200">
+                    <div><b>Nhân viên bán:</b> <span className="font-bold text-gray-950">{order.creator_name || 'Admin'}</span></div>
+                    <div><b>Hình thức:</b> <span className="font-bold text-gray-950 uppercase">{order.payment_method === 'cash' ? 'Tiền mặt' : order.payment_method === 'transfer' ? 'Chuyển khoản' : 'Kết hợp'}</span></div>
+                    <div><b>Trạng thái đơn:</b> <span className="text-emerald-700 font-bold">✓ Đã Hoàn Tất Giao Máy</span></div>
                   </div>
-                  <div>
-                    <span className="text-gray-500 font-medium">Địa chỉ: </span>
-                    <span className="text-gray-800">{order.partner_address || 'Tại cửa hàng'}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 font-medium">Số CCCD / CMND: </span>
-                    <span className="font-mono text-gray-800">{order.partner_cccd || 'N/A'}</span>
-                  </div>
-                  {order.creator_name && (
-                    <div className="col-span-2 pt-1 border-t border-gray-200 text-gray-600">
-                      <span>Nhân viên tư vấn & lập đơn: </span>
-                      <span className="font-bold text-gray-900">{order.creator_name}</span>
-                    </div>
-                  )}
                 </div>
 
-                {/* 3. Bảng Sản Phẩm Mua */}
+                {/* 3. Bảng chi tiết sản phẩm mua */}
                 <div className="mb-6 overflow-hidden rounded-xl border border-gray-300">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-gray-900 text-white font-bold uppercase text-[11px]">
-                      <tr>
-                        <th className="py-2.5 px-3 w-10 text-center">STT</th>
-                        <th className="py-2.5 px-3">Tên Sản Phẩm & Quy Cách</th>
-                        <th className="py-2.5 px-3">Mã IMEI / Serial</th>
-                        <th className="py-2.5 px-3 text-center">Tình Trạng / Pin</th>
-                        <th className="py-2.5 px-3 text-center">Bảo Hành</th>
+                    <thead>
+                      <tr className="bg-gray-100 border-b border-gray-300 text-gray-700 font-bold uppercase text-[10px]">
+                        <th className="py-2.5 px-3">STT</th>
+                        <th className="py-2.5 px-3">Dòng Sản Phẩm</th>
+                        <th className="py-2.5 px-3">Mã IMEI / Số Serial</th>
+                        <th className="py-2.5 px-3 text-center">Gói Bảo Hành</th>
                         <th className="py-2.5 px-3 text-right">Đơn Giá</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
+                    <tbody className="divide-y divide-gray-200">
                       {order.items?.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50/60">
-                          <td className="py-3 px-3 text-center font-bold text-gray-600">{idx + 1}</td>
+                        <tr key={idx}>
+                          <td className="py-3 px-3 font-bold text-gray-500">{idx + 1}</td>
                           <td className="py-3 px-3">
-                            <div className="font-bold text-gray-950 text-sm">
-                              {item.product_name || item.name}
-                            </div>
-                            <div className="text-[11px] text-gray-500">
-                              {item.color && <span>Màu: {item.color} • </span>}
-                              {item.storage && <span>Dung lượng: {item.storage}</span>}
+                            <div className="font-black text-gray-950 text-sm">{item.product_name || item.name}</div>
+                            <div className="text-[11px] text-gray-600 font-medium">
+                              {item.color ? `${item.color} • ` : ''}{item.storage ? `${item.storage} • ` : ''}{item.condition || '99%'}{item.battery_health ? ` • Pin ${item.battery_health}%` : ''}
                             </div>
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-gray-900 text-xs">
+                          <td className="py-3 px-3 font-sans font-bold text-gray-900 text-xs">
                             {item.imei || 'N/A'}
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <div className="font-semibold text-gray-800">{item.condition || '99%'}</div>
-                            {item.battery_health && (
-                              <div className="text-[10px] text-emerald-700 font-bold">🔋 {item.battery_health}%</div>
+                            <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md font-bold text-[10px]">
+                              {item.warranty_months || 12} Tháng
+                            </span>
+                            {item.warranty_until && (
+                              <div className="text-[10px] text-gray-500 mt-0.5">
+                                Đến: {new Date(item.warranty_until).toLocaleDateString('vi-VN')}
+                              </div>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-gray-900">
-                            {item.warranty_months || 12} Tháng
-                          </td>
-                          <td className="py-3 px-3 text-right font-black text-sm text-gray-950 font-mono">
+                          <td className="py-3 px-3 text-right font-black text-sm text-gray-950 font-sans">
                             {formatVND(item.price)}
                           </td>
                         </tr>
@@ -252,205 +281,317 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                   </table>
                 </div>
 
-                {/* 4. Mục Thu Cũ Đổi Mới (Trade-in) nếu có */}
-                {order.trade_in_value > 0 && (
-                  <div className="mb-6 p-4 rounded-xl border border-amber-300 bg-amber-50/50 space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-bold text-amber-950">
-                      <span className="uppercase tracking-wider">🔄 MÁY THU CŨ ĐỔI MỚI (TRADE-IN)</span>
-                      <span className="text-sm font-black text-amber-900 font-mono">
-                        -{formatVND(order.trade_in_value)}
-                      </span>
-                    </div>
-                    {order.trade_in_item && (
-                      <div className="text-xs text-gray-700 font-medium flex items-center justify-between">
-                        <span>Máy thu: <b>{order.trade_in_item.name}</b> (IMEI: <span className="font-mono">{order.trade_in_item.imei}</span>)</span>
-                        {order.trade_in_item.battery_health && (
-                          <span className="text-emerald-800 text-[11px] font-bold">Pin: {order.trade_in_item.battery_health}%</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 5. Tổng Kết Thanh Toán */}
-                <div className="flex justify-end mb-6">
-                  <div className="w-full max-w-sm space-y-2 text-xs bg-gray-50 p-4 rounded-xl border border-gray-200">
+                {/* 4. Tổng Kết Tài Chính Hóa Đơn */}
+                <div className="flex justify-end mb-8">
+                  <div className="w-72 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-xs">
                     <div className="flex justify-between text-gray-600">
                       <span>Tổng tiền hàng:</span>
-                      <span className="font-bold text-gray-950 font-mono">{formatVND(order.total_amount)}</span>
+                      <span className="font-bold text-gray-950 font-sans">{formatVND(order.total_amount)}</span>
                     </div>
 
                     {order.discount > 0 && (
-                      <div className="flex justify-between text-emerald-700 font-semibold">
-                        <span>Chiết khấu / Giảm giá:</span>
-                        <span className="font-mono">-{formatVND(order.discount)}</span>
+                      <div className="flex justify-between text-rose-600 font-bold">
+                        <span>Giảm giá / Voucher:</span>
+                        <span className="font-sans">-{formatVND(order.discount)}</span>
                       </div>
                     )}
 
                     {order.trade_in_value > 0 && (
-                      <div className="flex justify-between text-amber-800 font-semibold">
-                        <span>Trừ máy thu cũ (Trade-in):</span>
-                        <span className="font-mono">-{formatVND(order.trade_in_value)}</span>
+                      <div className="flex justify-between text-amber-800 font-bold">
+                        <span>Khấu trừ thu cũ:</span>
+                        <span className="font-sans">-{formatVND(order.trade_in_value)}</span>
                       </div>
                     )}
 
-                    <div className="flex justify-between text-base font-black text-gray-950 pt-2 border-t border-gray-300">
-                      <span>TỔNG CẦN THANH TOÁN:</span>
-                      <span className="font-mono text-lg">{formatVND(order.final_payment)}</span>
+                    <div className="flex justify-between text-sm font-black text-gray-950 pt-2 border-t border-gray-300">
+                      <span>TỔNG THANH TOÁN:</span>
+                      <span className="font-sans text-base font-black text-cyan-700">{formatVND(order.final_payment)}</span>
                     </div>
 
-                    <div className="flex justify-between font-bold text-gray-800 pt-1">
-                      <span>Khách đã thanh toán ({order.payment_method === 'cash' ? 'Tiền mặt' : order.payment_method === 'transfer' ? 'Chuyển khoản' : 'Kết hợp'}):</span>
-                      <span className="text-emerald-700 font-mono">{formatVND(order.paid_amount)}</span>
+                    <div className="flex justify-between text-gray-700 font-bold pt-1">
+                      <span>Tiền khách đưa:</span>
+                      <span className="text-emerald-700 font-sans">{formatVND(order.paid_amount)}</span>
                     </div>
 
                     {changeReturned > 0 && (
-                      <div className="flex justify-between font-extrabold text-blue-700 pt-1 bg-blue-50/80 p-2 rounded-lg border border-blue-200">
-                        <span>Tiền thối lại cho khách:</span>
-                        <span className="font-mono">{formatVND(changeReturned)}</span>
+                      <div className="flex justify-between text-blue-700 font-bold">
+                        <span>Tiền thối lại khách:</span>
+                        <span className="font-sans">{formatVND(changeReturned)}</span>
                       </div>
                     )}
 
                     {order.debt_added > 0 && (
-                      <div className="flex justify-between font-extrabold text-red-600 pt-1 bg-red-50 p-2 rounded-lg border border-red-200">
-                        <span>Số tiền còn nợ cửa hàng:</span>
-                        <span className="font-mono">+{formatVND(order.debt_added)}</span>
+                      <div className="flex justify-between text-rose-600 font-black">
+                        <span>Ghi nợ đơn hàng:</span>
+                        <span className="font-sans">+{formatVND(order.debt_added)}</span>
                       </div>
                     )}
 
                     {order.debt_added < 0 && (
-                      <div className="flex justify-between font-extrabold text-emerald-700 pt-1 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                        <span>Số tiền trừ vào nợ / trả thừa:</span>
-                        <span className="font-mono">-{formatVND(Math.abs(order.debt_added))}</span>
+                      <div className="flex justify-between text-emerald-700 font-bold">
+                        <span>Nợ thừa tài khoản khách:</span>
+                        <span className="font-sans">-{formatVND(Math.abs(order.debt_added))}</span>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* 6. Chính Sách Bảo Hành & Cam Kết */}
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-[11px] text-gray-600 space-y-1 mb-8">
-                  <div className="font-bold text-gray-900 uppercase text-[11px] mb-1">
-                    🛡️ CHÍNH SÁCH BẢO HÀNH & ĐỔI TRẢ TD MOBILE STORE:
+                {/* 5. Điều Khoản & Chính Sách Bảo Hành (Customizable) */}
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-[11px] text-gray-700 space-y-1.5 mb-8">
+                  <div className="font-black text-gray-950 uppercase flex items-center space-x-1 mb-1">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>CHÍNH SÁCH BẢO HÀNH & CAM KẾT CHẤT LƯỢNG:</span>
                   </div>
-                  <div>• <b>Bao test 30 ngày 1 đổi 1</b> nếu phát sinh lỗi từ nhà sản xuất (nguồn, màn hình cảm ứng, mainboard).</div>
-                  <div>• Bảo hành phần cứng toàn diện theo gói ghi trên hóa đơn. Hỗ trợ phần mềm, vệ sinh máy trọn đời.</div>
-                  <div>• Không bảo hành trong các trường hợp: Rơi vỡ cấn móp, ngấm nước, chập cháy do nguồn điện không ổn định, mất tem niêm phong.</div>
-                  <div>• Quý khách vui lòng giữ hóa đơn hoặc cung cấp số điện thoại/IMEI khi đến bảo hành tại cửa hàng.</div>
+                  {settings.warrantyPolicies?.map((policy, pIdx) => (
+                    <p key={pIdx} className="leading-relaxed">• {policy}</p>
+                  ))}
+                  <p className="text-[10px] text-gray-500 italic pt-1 text-center border-t border-gray-200 mt-2">
+                    {settings.footerNote}
+                  </p>
                 </div>
               </div>
 
-              {/* 7. Chữ Ký 2 Bên */}
-              <div className="pt-4 border-t border-gray-300 grid grid-cols-2 text-center text-xs">
-                <div className="space-y-1">
-                  <div className="font-extrabold text-gray-950 uppercase">KHÁCH HÀNG</div>
-                  <div className="text-[10px] text-gray-500 italic">(Ký, ghi rõ họ tên và xác nhận nhận đủ máy)</div>
-                  <div className="h-20 flex items-end justify-center font-bold text-gray-800">
-                    {order.partner_name}
+              {/* 6. Chữ Ký Các Bên */}
+              <div className="grid grid-cols-2 gap-4 text-center text-xs text-gray-800 pt-4 border-t border-gray-300">
+                <div className="space-y-14">
+                  <div>
+                    <div className="font-black uppercase text-gray-950">Khách Hàng Ký Tên</div>
+                    <div className="text-[10px] text-gray-500">(Ký và ghi rõ họ tên)</div>
                   </div>
+                  <div className="font-bold text-gray-950">{order.partner_name || 'Khách Hàng'}</div>
                 </div>
-                <div className="space-y-1">
-                  <div className="font-extrabold text-gray-950 uppercase">ĐẠI DIỆN CỬA HÀNG TD MOBILE STORE</div>
-                  <div className="text-[10px] text-gray-500 italic">(Ký và đóng dấu)</div>
-                  <div className="h-20 flex items-end justify-center font-bold text-gray-800">
-                    {order.creator_name || 'TD Mobile Store'}
+
+                <div className="space-y-14">
+                  <div>
+                    <div className="font-black uppercase text-gray-950">Đại Diện {settings.shopName}</div>
+                    <div className="text-[10px] text-gray-500">(Ký tên và đóng dấu)</div>
                   </div>
+                  <div className="font-bold text-gray-950">{order.creator_name || 'Quản lý cửa hàng'}</div>
                 </div>
               </div>
             </div>
           ) : (
-            /* K80 THERMAL BILL FORMAT */
+            /* K80 THERMAL RECEIPT FORMAT */
             <div
               id="printable-receipt"
-              className="w-full max-w-[360px] bg-white p-6 shadow-sm border border-gray-200 text-gray-900 font-mono text-xs rounded-xl"
+              className="w-full max-w-[360px] bg-white p-6 shadow-sm border border-gray-200 text-gray-900 font-sans text-xs rounded-xl"
             >
-              <div className="text-center pb-3 border-b border-dashed border-gray-300">
-                <div className="text-base font-black tracking-tight uppercase">TD MOBILE STORE</div>
-                <div className="text-[10px] text-gray-600 font-medium">Giá tốt - Dịch vụ đỉnh cao</div>
-                <div className="text-[10px] text-gray-500 mt-1">06 Nguyễn Trãi, P. Gò Công, Đồng Tháp</div>
-                <div className="text-[10px] text-gray-600 font-bold">Hotline: 0364848960</div>
+              <div className="text-center space-y-1 pb-4 border-b border-dashed border-gray-300">
+                <div className="font-black text-base uppercase text-gray-950">{settings.shopName}</div>
+                <div className="text-[10px] text-gray-500">{settings.shopAddress}</div>
+                <div className="text-[10px] font-bold text-gray-700">Hotline: {settings.shopHotline}</div>
+                <div className="text-xs font-black text-gray-950 pt-2 uppercase">HÓA ĐƠN THANH TOÁN</div>
+                <div className="text-[10px] text-gray-500">#{order.code} • {orderDate}</div>
               </div>
 
-              <div className="py-2.5 border-b border-dashed border-gray-300 space-y-1 text-xs">
-                <div className="text-center font-bold uppercase my-1">HÓA ĐƠN BÁN HÀNG</div>
-                <div className="flex justify-between"><span>Mã đơn:</span><span className="font-bold">#{order.code}</span></div>
-                <div className="flex justify-between"><span>Thời gian:</span><span>{orderDate}</span></div>
-                <div className="flex justify-between"><span>Khách hàng:</span><span className="font-bold">{order.partner_name || 'Khách lẻ'}</span></div>
-                {order.partner_phone && <div className="flex justify-between"><span>SĐT:</span><span>{order.partner_phone}</span></div>}
+              <div className="py-3 border-b border-dashed border-gray-300 space-y-1 text-[11px]">
+                <div><b>Khách:</b> {order.partner_name || 'Khách lẻ'} ({order.partner_phone || 'N/A'})</div>
+                <div><b>Thu ngân:</b> {order.creator_name || 'Admin'}</div>
               </div>
 
-              <div className="py-2.5 border-b border-dashed border-gray-300 space-y-2">
+              {/* Items */}
+              <div className="py-3 border-b border-dashed border-gray-300 space-y-2">
                 {order.items?.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-start text-xs">
-                    <div className="flex-1 pr-2">
-                      <div className="font-bold">{item.product_name || item.name}</div>
-                      <div className="text-[10px] text-gray-500">IMEI: {item.imei}</div>
-                      <div className="text-[10px] text-emerald-800">BH: {item.warranty_months || 12}T</div>
+                  <div key={idx} className="space-y-0.5">
+                    <div className="font-black text-gray-950 flex justify-between">
+                      <span>{item.product_name || item.name}</span>
+                      <span className="font-sans font-bold">{formatVND(item.price)}</span>
                     </div>
-                    <div className="text-right font-bold">{formatVND(item.price)}</div>
+                    <div className="text-[10px] text-gray-500 font-sans">
+                      IMEI: {item.imei} • BH: {item.warranty_months}T
+                    </div>
                   </div>
                 ))}
               </div>
 
-              {order.trade_in_value > 0 && (
-                <div className="py-2 border-b border-dashed border-gray-300 text-xs">
-                  <div className="flex justify-between font-bold text-amber-900">
-                    <span>Trừ máy thu cũ:</span>
-                    <span>-{formatVND(order.trade_in_value)}</span>
+              {/* Totals */}
+              <div className="py-3 border-b border-dashed border-gray-300 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span>Tổng tiền:</span>
+                  <span className="font-bold font-sans">{formatVND(order.total_amount)}</span>
+                </div>
+                {order.discount > 0 && (
+                  <div className="flex justify-between text-rose-600">
+                    <span>Giảm giá:</span>
+                    <span className="font-sans">-{formatVND(order.discount)}</span>
                   </div>
+                )}
+                {order.trade_in_value > 0 && (
+                  <div className="flex justify-between text-amber-800">
+                    <span>Trừ thu cũ:</span>
+                    <span className="font-sans">-{formatVND(order.trade_in_value)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-black text-sm pt-1">
+                  <span>THANH TOÁN:</span>
+                  <span className="font-sans text-cyan-800">{formatVND(order.final_payment)}</span>
                 </div>
-              )}
-
-              <div className="py-2.5 border-b border-dashed border-gray-300 space-y-1 text-xs">
-                <div className="flex justify-between"><span>Tổng hàng:</span><span>{formatVND(order.total_amount)}</span></div>
-                {order.discount > 0 && <div className="flex justify-between"><span>Giảm giá:</span><span>-{formatVND(order.discount)}</span></div>}
-                <div className="flex justify-between font-extrabold text-sm pt-1 border-t border-gray-200">
-                  <span>Khách cần trả:</span>
-                  <span>{formatVND(order.final_payment)}</span>
-                </div>
-                <div className="flex justify-between font-bold">
-                  <span>Đã thanh toán:</span>
-                  <span>{formatVND(order.paid_amount)}</span>
+                <div className="flex justify-between text-[11px]">
+                  <span>Tiền khách đưa:</span>
+                  <span className="font-sans font-bold text-emerald-700">{formatVND(order.paid_amount)}</span>
                 </div>
                 {changeReturned > 0 && (
-                  <div className="flex justify-between font-bold text-blue-700">
-                    <span>Thối lại:</span>
-                    <span>{formatVND(changeReturned)}</span>
+                  <div className="flex justify-between text-[11px] text-blue-700">
+                    <span>Tiền thối lại:</span>
+                    <span className="font-sans">{formatVND(changeReturned)}</span>
                   </div>
                 )}
                 {order.debt_added > 0 && (
-                  <div className="flex justify-between font-bold text-red-600">
-                    <span>Còn nợ:</span>
-                    <span>+{formatVND(order.debt_added)}</span>
+                  <div className="flex justify-between text-[11px] text-rose-600 font-bold">
+                    <span>Ghi nợ:</span>
+                    <span className="font-sans">+{formatVND(order.debt_added)}</span>
                   </div>
                 )}
               </div>
 
-              <div className="pt-3 text-center text-[10px] text-gray-500 space-y-1">
-                <div>Bao test 30 ngày 1 đổi 1. Bảo hành chính hãng.</div>
-                <div className="font-bold text-xs text-gray-800 mt-1">CẢM ƠN QUÝ KHÁCH VÀ HẸN GẶP LẠI! ❤️</div>
+              <div className="text-center pt-4 space-y-1 text-[10px] text-gray-500">
+                <p className="font-bold text-gray-700">{settings.footerNote}</p>
+                <p>Quý khách vui lòng giữ hóa đơn để được phục vụ tốt nhất!</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer Actions (Hidden on Print) */}
-        <div className="no-print p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition"
-          >
-            Đóng
-          </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 text-xs font-black shadow-glow-cyan transition badge-nowrap"
-          >
-            <Printer className="w-4 h-4" />
-            <span>In Hóa Đơn Ngay ({printFormat === 'a4' ? 'Khổ A4' : 'K80'})</span>
-          </button>
-        </div>
+        {/* Modal Customize Invoice Template Settings */}
+        {isEditSettingsOpen && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+              <div className="px-5 py-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center space-x-2">
+                  <Settings className="w-4 h-4 text-cyan-400" />
+                  <h3 className="text-sm font-black uppercase">Tùy Biến Mẫu In Hóa Đơn</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditSettingsOpen(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSettings} className="p-5 space-y-3.5 text-xs overflow-y-auto flex-1">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Tên cửa hàng / Thương hiệu</label>
+                  <input
+                    type="text"
+                    value={editForm.shopName}
+                    onChange={(e) => setEditForm({ ...editForm, shopName: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Slogan / Khẩu hiệu</label>
+                  <input
+                    type="text"
+                    value={editForm.shopSlogan}
+                    onChange={(e) => setEditForm({ ...editForm, shopSlogan: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Hotline / Zalo liên hệ</label>
+                    <input
+                      type="text"
+                      value={editForm.shopHotline}
+                      onChange={(e) => setEditForm({ ...editForm, shopHotline: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Đường dẫn Logo</label>
+                    <input
+                      type="text"
+                      value={editForm.shopLogoUrl}
+                      onChange={(e) => setEditForm({ ...editForm, shopLogoUrl: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Địa chỉ cửa hàng</label>
+                  <input
+                    type="text"
+                    value={editForm.shopAddress}
+                    onChange={(e) => setEditForm({ ...editForm, shopAddress: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Chính sách bảo hành (Từng dòng)</label>
+                  <div className="space-y-1.5">
+                    {editForm.warrantyPolicies.map((p, idx) => (
+                      <div key={idx} className="flex items-center space-x-1.5">
+                        <input
+                          type="text"
+                          value={p}
+                          onChange={(e) => {
+                            const copy = [...editForm.warrantyPolicies];
+                            copy[idx] = e.target.value;
+                            setEditForm({ ...editForm, warrantyPolicies: copy });
+                          }}
+                          className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const copy = editForm.warrantyPolicies.filter((_, i) => i !== idx);
+                            setEditForm({ ...editForm, warrantyPolicies: copy });
+                          }}
+                          className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, warrantyPolicies: [...editForm.warrantyPolicies, ''] })}
+                      className="text-[11px] text-cyan-400 font-bold hover:underline flex items-center space-x-1 pt-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Thêm dòng chính sách</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Lời cảm ơn chân trang (Footer)</label>
+                  <input
+                    type="text"
+                    value={editForm.footerNote}
+                    onChange={(e) => setEditForm({ ...editForm, footerNote: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="pt-3 flex items-center space-x-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={handleResetSettings}
+                    className="py-2.5 px-3 bg-slate-800 text-rose-300 border border-slate-700 rounded-xl text-xs font-bold hover:bg-slate-700 transition"
+                  >
+                    Mặc Định
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition"
+                  >
+                    Lưu Mẫu In Này
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

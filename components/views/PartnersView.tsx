@@ -199,7 +199,7 @@ export default function PartnersView({ user }: PartnersViewProps) {
               {stats.customer_debtors_count} khách nợ
             </span>
           </div>
-          <div className="text-2xl font-black text-rose-400 font-mono tracking-wide badge-nowrap">
+          <div className="text-2xl font-black text-rose-400 font-sans tracking-tight badge-nowrap">
             {formatVND(stats.total_customer_debt)}
           </div>
           <div className="text-[11px] text-slate-400 font-medium">
@@ -218,7 +218,7 @@ export default function PartnersView({ user }: PartnersViewProps) {
               {stats.supplier_debtors_count} NCC
             </span>
           </div>
-          <div className="text-2xl font-black text-amber-300 font-mono tracking-wide badge-nowrap">
+          <div className="text-2xl font-black text-amber-300 font-sans tracking-tight badge-nowrap">
             {formatVND(stats.total_supplier_debt)}
           </div>
           <div className="text-[11px] text-slate-400 font-medium">
@@ -236,7 +236,7 @@ export default function PartnersView({ user }: PartnersViewProps) {
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-cyan-300 font-mono badge-nowrap">
+          <div className="text-2xl font-black text-cyan-300 font-sans tracking-tight badge-nowrap">
             {stats.total_debtors_count} <span className="text-xs font-bold text-slate-400">đối tác có nợ</span>
           </div>
           <div className="text-[11px] text-slate-400 font-semibold">
@@ -432,14 +432,14 @@ export default function PartnersView({ user }: PartnersViewProps) {
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 font-mono">
+                      <td className="px-4 py-3.5 font-sans">
                         {debt === 0 ? (
                           <span className="text-emerald-400 font-bold text-xs bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-lg badge-nowrap">
                             ✓ 0 đ (Hết nợ)
                           </span>
                         ) : debt > 0 ? (
                           <div>
-                            <div className="font-black text-sm text-rose-400 tracking-wide badge-nowrap">
+                            <div className="font-black text-sm text-rose-400 tracking-tight font-sans badge-nowrap">
                               +{formatVND(debt)}
                             </div>
                             <div className="text-[10px] font-bold text-rose-400/80 badge-nowrap">
@@ -448,7 +448,7 @@ export default function PartnersView({ user }: PartnersViewProps) {
                           </div>
                         ) : (
                           <div>
-                            <div className="font-black text-sm text-amber-400 tracking-wide badge-nowrap">
+                            <div className="font-black text-sm text-amber-400 tracking-tight font-sans badge-nowrap">
                               -{formatVND(Math.abs(debt))}
                             </div>
                             <div className="text-[10px] font-bold text-amber-400/80 badge-nowrap">

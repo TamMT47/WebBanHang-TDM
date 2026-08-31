@@ -220,7 +220,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <History className="w-3.5 h-3.5 text-blue-400" />
               <span>Số Dư Đầu Kỳ</span>
             </div>
-            <div className="text-xl font-black text-white font-mono badge-nowrap">
+            <div className="text-xl font-black text-white font-sans tracking-tight badge-nowrap">
               {formatVND(summary.opening_balance)}
             </div>
             <p className="text-[10px] text-slate-500">Tồn quỹ trước ngày {dateFrom || 'N/A'}</p>
@@ -232,7 +232,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <TrendingUp className="w-3.5 h-3.5" />
               <span>Tổng Thu Trong Kỳ</span>
             </div>
-            <div className="text-xl font-black text-emerald-300 font-mono badge-nowrap">
+            <div className="text-xl font-black text-emerald-300 font-sans tracking-tight badge-nowrap">
               +{formatVND(summary.period_thu)}
             </div>
             <p className="text-[10px] text-emerald-400/80 font-medium">Bán hàng, thu nợ, thu khác</p>
@@ -244,7 +244,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <TrendingDown className="w-3.5 h-3.5" />
               <span>Tổng Chi Trong Kỳ</span>
             </div>
-            <div className="text-xl font-black text-rose-300 font-mono badge-nowrap">
+            <div className="text-xl font-black text-rose-300 font-sans tracking-tight badge-nowrap">
               -{formatVND(summary.period_chi)}
             </div>
             <p className="text-[10px] text-rose-400/80 font-medium">Nhập hàng, trả nợ, chi phí</p>
@@ -256,7 +256,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <Scale className="w-3.5 h-3.5" />
               <span>Số Dư Cuối Kỳ</span>
             </div>
-            <div className="text-xl font-black text-cyan-300 font-mono badge-nowrap">
+            <div className="text-xl font-black text-cyan-300 font-sans tracking-tight badge-nowrap">
               {formatVND(summary.closing_balance)}
             </div>
             <p className="text-[10px] text-slate-400 font-semibold">= Đầu kỳ + Thu - Chi</p>
@@ -271,7 +271,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
                 <Wallet className="w-3.5 h-3.5" />
                 <span>Quỹ Tiền Mặt (Tại Két)</span>
               </div>
-              <div className="text-xl font-black text-white mt-1 font-mono badge-nowrap">
+              <div className="text-xl font-black text-white mt-1 font-sans tracking-tight badge-nowrap">
                 {formatVND(summary.total_cash)}
               </div>
             </div>
@@ -287,7 +287,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
                 <Building className="w-3.5 h-3.5" />
                 <span>Quỹ Ngân Hàng (Chuyển Khoản)</span>
               </div>
-              <div className="text-xl font-black text-white mt-1 font-mono badge-nowrap">
+              <div className="text-xl font-black text-white mt-1 font-sans tracking-tight badge-nowrap">
                 {formatVND(summary.total_transfer)}
               </div>
             </div>
@@ -302,7 +302,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
               <div className="text-[11px] font-black text-slate-300 uppercase tracking-wider">
                 Tổng Tiền Quỹ Hiện Có
               </div>
-              <div className="text-xl font-black text-cyan-300 mt-1 font-mono badge-nowrap">
+              <div className="text-xl font-black text-cyan-300 mt-1 font-sans tracking-tight badge-nowrap">
                 {formatVND(summary.total_balance)}
               </div>
             </div>
@@ -436,7 +436,7 @@ export default function CashFlowView({ user }: CashFlowViewProps) {
                       <td className="px-4 py-3.5 font-semibold text-slate-200 badge-nowrap">
                         {getCategoryName(r.category)}
                       </td>
-                      <td className="px-4 py-3.5 font-black text-sm font-mono badge-nowrap">
+                      <td className="px-4 py-3.5 font-black text-sm font-sans tracking-tight badge-nowrap">
                         <span className={isThu ? 'text-emerald-400' : 'text-rose-400'}>
                           {isThu ? '+' : '-'}{formatVND(r.amount)}
                         </span>

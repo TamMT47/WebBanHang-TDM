@@ -169,7 +169,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
                   <DollarSign className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-white font-mono badge-nowrap">
+              <div className="text-2xl font-black text-white font-sans tracking-tight badge-nowrap">
                 {formatVND(reportData.kpis?.total_revenue || 0)}
               </div>
               <div className="text-[11px] text-slate-400">
@@ -187,7 +187,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
                   <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-cyan-300 font-mono badge-nowrap">
+              <div className="text-2xl font-black text-cyan-300 font-sans tracking-tight badge-nowrap">
                 {formatVND(reportData.kpis?.gross_profit || 0)}
               </div>
               <div className="text-[11px] text-slate-400 font-semibold">
@@ -205,11 +205,11 @@ export default function ReportsView({ user }: ReportsViewProps) {
                   <ShoppingCart className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-white font-mono badge-nowrap">
+              <div className="text-2xl font-black text-white font-sans tracking-tight badge-nowrap">
                 {totalUnitsSold} <span className="text-sm font-bold text-slate-400">máy ({reportData.kpis?.total_orders || 0} đơn)</span>
               </div>
               <div className="text-[11px] text-slate-400">
-                Thực thu: <b className="text-emerald-400 font-mono badge-nowrap">{formatVND(reportData.kpis?.total_collected || 0)}</b>
+                Thực thu: <b className="text-emerald-400 font-sans font-bold badge-nowrap">{formatVND(reportData.kpis?.total_collected || 0)}</b>
               </div>
             </div>
 
@@ -223,7 +223,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
                   <Coins className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-amber-300 font-mono badge-nowrap">
+              <div className="text-2xl font-black text-amber-300 font-sans tracking-tight badge-nowrap">
                 {formatVND(reportData.kpis?.total_trade_in || 0)}
               </div>
               <div className="text-[11px] text-amber-400/80 font-semibold">
@@ -284,10 +284,10 @@ export default function ReportsView({ user }: ReportsViewProps) {
                                 {item.quantity_sold} máy
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-right font-black text-white font-mono badge-nowrap">
+                            <td className="py-3 px-3 text-right font-black text-white font-sans tracking-tight badge-nowrap">
                               {formatVND(item.total_revenue)}
                             </td>
-                            <td className="py-3 px-3 text-right font-bold text-cyan-300 font-mono badge-nowrap">
+                            <td className="py-3 px-3 text-right font-bold text-cyan-300 font-sans tracking-tight badge-nowrap">
                               {formatVND(item.gross_profit)}
                             </td>
                             <td className="py-3 px-3 text-right font-bold text-slate-400 font-mono badge-nowrap">
@@ -353,7 +353,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
                         <div className="font-black text-emerald-400 font-mono text-sm badge-nowrap">
                           {p.quantity_sold} máy
                         </div>
-                        <div className="text-[11px] font-mono text-slate-300 font-bold badge-nowrap">
+                        <div className="text-[11px] font-sans font-bold text-slate-300 badge-nowrap">
                           {formatVND(p.total_sales)}
                         </div>
                       </div>
@@ -397,10 +397,10 @@ export default function ReportsView({ user }: ReportsViewProps) {
                         <td className="py-2.5 px-3 text-slate-300 font-semibold badge-nowrap">
                           {d.order_count} đơn
                         </td>
-                        <td className="py-2.5 px-3 text-right font-extrabold text-white font-mono badge-nowrap">
+                        <td className="py-2.5 px-3 text-right font-extrabold text-white font-sans tracking-tight badge-nowrap">
                           {formatVND(d.revenue)}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-black text-cyan-300 font-mono badge-nowrap">
+                        <td className="py-2.5 px-3 text-right font-black text-cyan-300 font-sans tracking-tight badge-nowrap">
                           {formatVND(d.profit)}
                         </td>
                       </tr>

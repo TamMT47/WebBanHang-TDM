@@ -249,13 +249,33 @@ export default function InventoryView({ user }: InventoryViewProps) {
     e.preventDefault();
     if (!itemToEdit) return;
 
+    const prevInv = [...inventory];
+    const editedId = itemToEdit.id;
+    const editedImei = itemToEdit.imei;
+
+    // Optimistically update local array immediately
+    setInventory((prev) =>
+      prev.map((item) =>
+        item.id === editedId
+          ? {
+              ...item,
+              selling_price: editSellingPrice,
+              cost_price: canSeeCost ? editCostPrice : item.cost_price,
+              battery_health: editBattery,
+            }
+          : item
+      )
+    );
+    setItemToEdit(null);
+    setMessage({ type: 'success', text: `Đã cập nhật máy IMEI ${editedImei} thành công!` });
+
     try {
       setSavingEdit(true);
       const res = await fetch('/api/inventory', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: itemToEdit.id,
+          id: editedId,
           selling_price: editSellingPrice,
           cost_price: canSeeCost ? editCostPrice : undefined,
           battery_health: editBattery,
@@ -265,11 +285,9 @@ export default function InventoryView({ user }: InventoryViewProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi khi cập nhật giá');
 
-      setMessage({ type: 'success', text: `Đã cập nhật máy IMEI ${itemToEdit.imei} thành công!` });
       invalidateInventoryCache();
-      setItemToEdit(null);
-      fetchData();
     } catch (err: any) {
+      setInventory(prevInv);
       alert(err.message);
     } finally {
       setSavingEdit(false);
@@ -279,13 +297,17 @@ export default function InventoryView({ user }: InventoryViewProps) {
   const handleDeleteImei = async (id: string, imei: string) => {
     if (!confirm(`Bạn có chắc muốn xóa mã máy IMEI ${imei} khỏi kho?`)) return;
 
+    const prevInv = [...inventory];
+    // Optimistically remove from local array immediately
+    setInventory((prev) => prev.filter((item) => item.id !== id));
+    setMessage({ type: 'success', text: `Đã xóa mã máy IMEI ${imei} khỏi kho` });
+
     try {
       const res = await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Không thể xóa');
-      setMessage({ type: 'success', text: `Đã xóa mã máy IMEI ${imei} khỏi kho` });
       invalidateInventoryCache();
-      fetchData();
     } catch (err: any) {
+      setInventory(prevInv);
       setMessage({ type: 'error', text: err.message });
     }
   };
@@ -415,7 +437,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
         </div>
       </div>
 
-      {/* Inventory List Table */}
+      {/* Inventory List (Responsive: Mobile Cards + Desktop Table) */}
       <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden">
         {loading ? (
           <div className="text-center py-16 text-xs text-slate-400 animate-pulse">Đang tải kho máy...</div>
@@ -424,109 +446,197 @@ export default function InventoryView({ user }: InventoryViewProps) {
             Không tìm thấy máy nào phù hợp với bộ lọc.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
-                <tr>
-                  <th className="px-4 py-3.5">Mã IMEI</th>
-                  <th className="px-4 py-3.5">Dòng Sản Phẩm</th>
-                  <th className="px-4 py-3.5">Thông Số & Thuộc Tính</th>
-                  <th className="px-4 py-3.5">Giá Niêm Yết</th>
-                  {canSeeCost && <th className="px-4 py-3.5">Giá Vốn Nhập</th>}
-                  <th className="px-4 py-3.5">Trạng Thái</th>
-                  <th className="px-4 py-3.5 text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {filteredInventory.map((item) => {
-                  const isInStock = item.status === 'in_stock';
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-800/50 transition duration-150">
-                      <td className="px-4 py-3.5 font-extrabold text-white font-mono">
-                        {item.imei}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="font-black text-white text-xs sm:text-sm">{item.product_name}</div>
-                        <div className="text-[10px] text-slate-400 uppercase font-bold">
-                          {item.category}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-300 min-w-[190px]">
-                        <div className="space-y-1.5">
-                          {/* 2 Trên: Dung lượng & Ngoại hình */}
-                          <div className="flex items-center space-x-1.5">
-                            <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-black border border-cyan-500/30 badge-nowrap min-w-[50px] text-center">
-                              {item.storage || 'N/A'}
-                            </span>
-                            <span className="px-2 py-0.5 bg-amber-500/15 text-amber-300 rounded-md text-[10px] font-bold border border-amber-500/30 badge-nowrap text-center">
-                              {item.condition || '99%'}
-                            </span>
-                          </div>
-
-                          {/* 2 Dưới: Màu sắc & % Pin */}
-                          <div className="flex items-center space-x-1.5">
-                            <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md text-[10px] font-bold border border-slate-700 badge-nowrap max-w-[100px] truncate" title={item.color}>
-                              {item.color || 'Mặc định'}
-                            </span>
-                            <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-[10px] font-bold border border-emerald-500/30 badge-nowrap">
-                              {item.battery_health ? `🔋 ${item.battery_health}%` : '🔋 N/A'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 font-bold text-sm text-cyan-300 font-sans tracking-tight badge-nowrap">
-                        {formatVND(item.selling_price)}
-                      </td>
-                      {canSeeCost && (
-                        <td className="px-4 py-3.5 font-bold text-xs text-rose-400 font-sans tracking-tight badge-nowrap">
-                          {formatVND(item.cost_price)}
-                        </td>
-                      )}
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold badge-nowrap ${
-                            isInStock
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : item.status === 'sold'
-                              ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          }`}
-                        >
-                          {isInStock
-                            ? '● Còn hàng'
+          <div>
+            {/* 1. Mobile Cards View (< 640px) */}
+            <div className="block sm:hidden divide-y divide-slate-800/80">
+              {filteredInventory.map((item) => {
+                const isInStock = item.status === 'in_stock';
+                return (
+                  <div key={item.id} className="p-4 space-y-2.5 hover:bg-slate-850/50 transition">
+                    {/* Top: Product Name + Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-black text-white text-sm">{item.product_name}</div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">{item.category}</div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold badge-nowrap ${
+                          isInStock
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                             : item.status === 'sold'
-                            ? 'Đã bán'
-                            : 'Đang bảo hành'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end space-x-1">
-                          {canSeeCost && isInStock && (
-                            <button
-                              onClick={() => openEditModal(item)}
-                              title="Sửa giá bán / giá vốn"
-                              className="p-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800 rounded-lg transition"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                            ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
+                        {isInStock ? '● Còn hàng' : item.status === 'sold' ? 'Đã bán' : 'Bảo hành'}
+                      </span>
+                    </div>
 
-                          {isAdminOrOwner && isInStock && (
-                            <button
-                              onClick={() => handleDeleteImei(item.id, item.imei)}
-                              title="Xóa máy khỏi kho"
-                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                    {/* IMEI */}
+                    <div className="text-xs font-mono font-bold text-slate-300 flex items-center space-x-1.5">
+                      <span className="text-slate-500 text-[10px] uppercase font-sans">IMEI:</span>
+                      <span className="text-cyan-300 font-mono tracking-wider">{item.imei}</span>
+                    </div>
+
+                    {/* 2x2 Attributes */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-black border border-cyan-500/30 badge-nowrap">
+                        {item.storage || 'N/A'}
+                      </span>
+                      <span className="px-2 py-0.5 bg-amber-500/15 text-amber-300 rounded-md text-[10px] font-bold border border-amber-500/30 badge-nowrap">
+                        {item.condition || '99%'}
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md text-[10px] font-bold border border-slate-700 badge-nowrap max-w-[120px] truncate">
+                        {item.color || 'Mặc định'}
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-[10px] font-bold border border-emerald-500/30 badge-nowrap">
+                        {item.battery_health ? `🔋 ${item.battery_health}%` : '🔋 N/A'}
+                      </span>
+                    </div>
+
+                    {/* Bottom: Pricing & Actions */}
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-bold uppercase">Giá Niêm Yết</div>
+                        <div className="text-sm font-black text-cyan-300 font-sans tracking-tight">
+                          {formatVND(item.selling_price)}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        {canSeeCost && (
+                          <div className="text-[11px] font-bold text-rose-400 font-sans">
+                            Vốn: {formatVND(item.cost_price)}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-1.5">
+                        {canSeeCost && isInStock && (
+                          <button
+                            onClick={() => openEditModal(item)}
+                            className="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl transition"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        {isAdminOrOwner && isInStock && (
+                          <button
+                            onClick={() => handleDeleteImei(item.id, item.imei)}
+                            className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 2. Desktop Table View (>= 640px) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                  <tr>
+                    <th className="px-4 py-3.5">Mã IMEI</th>
+                    <th className="px-4 py-3.5">Dòng Sản Phẩm</th>
+                    <th className="px-4 py-3.5">Thông Số & Thuộc Tính</th>
+                    <th className="px-4 py-3.5">Giá Niêm Yết</th>
+                    {canSeeCost && <th className="px-4 py-3.5">Giá Vốn Nhập</th>}
+                    <th className="px-4 py-3.5">Trạng Thái</th>
+                    <th className="px-4 py-3.5 text-right">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {filteredInventory.map((item) => {
+                    const isInStock = item.status === 'in_stock';
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-800/50 transition duration-150">
+                        <td className="px-4 py-3.5 font-extrabold text-white font-mono">
+                          {item.imei}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="font-black text-white text-xs sm:text-sm">{item.product_name}</div>
+                          <div className="text-[10px] text-slate-400 uppercase font-bold">
+                            {item.category}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-300 min-w-[190px]">
+                          <div className="space-y-1.5">
+                            {/* 2 Trên: Dung lượng & Ngoại hình */}
+                            <div className="flex items-center space-x-1.5">
+                              <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-black border border-cyan-500/30 badge-nowrap min-w-[50px] text-center">
+                                {item.storage || 'N/A'}
+                              </span>
+                              <span className="px-2 py-0.5 bg-amber-500/15 text-amber-300 rounded-md text-[10px] font-bold border border-amber-500/30 badge-nowrap text-center">
+                                {item.condition || '99%'}
+                              </span>
+                            </div>
+
+                            {/* 2 Dưới: Màu sắc & % Pin */}
+                            <div className="flex items-center space-x-1.5">
+                              <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md text-[10px] font-bold border border-slate-700 badge-nowrap max-w-[100px] truncate" title={item.color}>
+                                {item.color || 'Mặc định'}
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-[10px] font-bold border border-emerald-500/30 badge-nowrap">
+                                {item.battery_health ? `🔋 ${item.battery_health}%` : '🔋 N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 font-bold text-sm text-cyan-300 font-sans tracking-tight badge-nowrap">
+                          {formatVND(item.selling_price)}
+                        </td>
+                        {canSeeCost && (
+                          <td className="px-4 py-3.5 font-bold text-xs text-rose-400 font-sans tracking-tight badge-nowrap">
+                            {formatVND(item.cost_price)}
+                          </td>
+                        )}
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold badge-nowrap ${
+                              isInStock
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : item.status === 'sold'
+                                ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {isInStock
+                              ? '● Còn hàng'
+                              : item.status === 'sold'
+                              ? 'Đã bán'
+                              : 'Đang bảo hành'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right">
+                          <div className="flex items-center justify-end space-x-1">
+                            {canSeeCost && isInStock && (
+                              <button
+                                onClick={() => openEditModal(item)}
+                                title="Sửa giá bán / giá vốn"
+                                className="p-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800 rounded-lg transition"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {isAdminOrOwner && isInStock && (
+                              <button
+                                onClick={() => handleDeleteImei(item.id, item.imei)}
+                                title="Xóa máy khỏi kho"
+                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

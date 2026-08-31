@@ -90,22 +90,28 @@ export default function OrdersView({ user }: OrdersViewProps) {
 
   const handleDeleteConfirm = async () => {
     if (!orderToDelete) return;
+    const prevOrders = [...orders];
+    const deletedId = orderToDelete.id;
+
+    // Optimistically remove from list immediately
+    setOrders((prev) => prev.filter((o) => o.id !== deletedId));
+    setOrderToDelete(null);
+
     try {
       setDeleting(true);
       setDeleteError(null);
 
-      const res = await fetch(`/api/orders?id=${orderToDelete.id}`, {
+      const res = await fetch(`/api/orders?id=${deletedId}`, {
         method: 'DELETE',
       });
       const data = await res.json();
       if (!res.ok) {
+        setOrders(prevOrders);
         throw new Error(data.error || 'Có lỗi xảy ra khi xóa đơn');
       }
-
-      setOrderToDelete(null);
-      fetchOrders();
     } catch (err: any) {
-      setDeleteError(err.message);
+      setOrders(prevOrders);
+      alert(err.message);
     } finally {
       setDeleting(false);
     }

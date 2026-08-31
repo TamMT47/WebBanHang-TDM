@@ -130,38 +130,50 @@ export async function POST(request: NextRequest) {
       // ----------------------------------------------------
       // POS BÁN HÀNG
       // ----------------------------------------------------
-      const payload = body as POSSalePayload;
-      const { customer, items, discount = 0, trade_in, paid_amount, payment_method, note } = payload;
+      const payload = body as any;
+      const { items, discount = 0, paid_amount, payment_method, note } = payload;
 
       if (!items || items.length === 0) {
         await client.query('ROLLBACK');
         return NextResponse.json({ error: 'Đơn hàng không có sản phẩm nào' }, { status: 400 });
       }
 
-      if (!customer || !customer.phone) {
+      // Robust customer payload parsing (handles both object and flat properties)
+      const customerObj = payload.customer || {
+        id: payload.partner_id,
+        name: payload.partner_name || 'Khách lẻ',
+        phone: payload.partner_phone || '',
+        address: payload.partner_address || '',
+        cccd: payload.partner_cccd || '',
+      };
+
+      if (!customerObj || !customerObj.phone || !customerObj.phone.toString().trim()) {
         await client.query('ROLLBACK');
         return NextResponse.json({ error: 'Vui lòng cung cấp thông tin số điện thoại khách hàng' }, { status: 400 });
       }
 
       // 1. Partner handling (Find or Create customer)
-      let partnerId = customer.id;
+      let partnerId = customerObj.id;
+      const cleanPhone = customerObj.phone.toString().trim();
+      const cleanName = (customerObj.name || 'Khách lẻ').toString().trim();
+
       if (!partnerId) {
         const pRes = await client.query('SELECT id, name, phone, debt FROM partners WHERE phone = $1', [
-          customer.phone.trim(),
+          cleanPhone,
         ]);
         if (pRes.rows.length > 0) {
           partnerId = pRes.rows[0].id;
           // Update customer name/address/cccd if changed
           await client.query(
             'UPDATE partners SET name = COALESCE($1, name), address = COALESCE($2, address), cccd = COALESCE($3, cccd) WHERE id = $4',
-            [customer.name?.trim() || pRes.rows[0].name, customer.address, customer.cccd, partnerId]
+            [cleanName || pRes.rows[0].name, customerObj.address, customerObj.cccd, partnerId]
           );
         } else {
           const newP = await client.query(
             `INSERT INTO partners (name, phone, address, cccd, type, debt)
              VALUES ($1, $2, $3, $4, 'customer', 0)
              RETURNING id`,
-            [customer.name.trim(), customer.phone.trim(), customer.address || '', customer.cccd || '']
+            [cleanName, cleanPhone, customerObj.address || '', customerObj.cccd || '']
           );
           partnerId = newP.rows[0].id;
         }
@@ -175,7 +187,12 @@ export async function POST(request: NextRequest) {
         totalAmount += parseFloat(item.price as any) || 0;
       }
 
-      const tradeInVal = trade_in ? parseFloat(trade_in.trade_in_value as any) || 0 : 0;
+      // Parse trade-in object
+      const tradeInObj = payload.trade_in || payload.trade_in_item || null;
+      const tradeInVal = tradeInObj
+        ? parseFloat((tradeInObj.trade_in_value ?? tradeInObj.value) as any) || 0
+        : parseFloat(payload.trade_in_value as any) || 0;
+
       const discountVal = parseFloat(discount as any) || 0;
       const finalPayment = Math.max(0, totalAmount - discountVal - tradeInVal);
       const paidAmount = parseFloat(paid_amount as any) || 0;
@@ -263,8 +280,8 @@ export async function POST(request: NextRequest) {
 
       // 5. Process Trade-in Machine if available
       let tradeInCreatedItem = null;
-      if (trade_in && tradeInVal > 0 && trade_in.imei) {
-        const cleanImei = trade_in.imei.trim();
+      if (tradeInObj && tradeInVal > 0 && tradeInObj.imei) {
+        const cleanImei = tradeInObj.imei.trim();
 
         // Check if IMEI is currently active in stock
         const checkActive = await client.query(
@@ -280,10 +297,13 @@ export async function POST(request: NextRequest) {
         }
 
         // Clean product name - prevent creating junk suffixes like [Hàng Trade-in]
-        const cleanModelName = (trade_in.name || 'iPhone 11').replace(/\[.*?\]/g, '').trim();
-        const tradeInStorage = (trade_in.storage || '').trim();
-        const tradeInCondition = (trade_in.condition || '99%').trim();
-        const tradeInColor = (trade_in.color || '').trim();
+        const cleanModelName = (tradeInObj.model_name || tradeInObj.name || 'iPhone 11').replace(/\[.*?\]/g, '').trim();
+        const tradeInStorage = (tradeInObj.storage || '').trim();
+        const tradeInCondition = (tradeInObj.condition || '99%').trim();
+        const tradeInColor = (tradeInObj.color || 'Mặc định').trim();
+        const tradeInSelling = tradeInObj.selling_price
+          ? parseFloat(tradeInObj.selling_price as any)
+          : Math.round(tradeInVal * 1.15);
 
         // 1. Find or create fixed partner "Khách Trade-in"
         let tradeInSupplierId = partnerId;
@@ -319,7 +339,7 @@ export async function POST(request: NextRequest) {
              RETURNING id`,
             [
               cleanModelName,
-              trade_in.category || 'iPhone',
+              tradeInObj.category || 'iPhone',
               tradeInCondition,
               tradeInColor,
               tradeInStorage,
@@ -337,8 +357,8 @@ export async function POST(request: NextRequest) {
             tradeInProdId,
             cleanImei,
             tradeInVal,
-            Math.round(tradeInVal * 1.15), // suggested selling price
-            trade_in.battery_health || 85,
+            tradeInSelling,
+            tradeInObj.battery_health || 85,
             tradeInSupplierId,
           ]
         );
@@ -374,8 +394,8 @@ export async function POST(request: NextRequest) {
       // 8. Trigger Telegram notification asynchronously
       notifySaleOrder({
         orderCode: code,
-        customerName: customer.name,
-        customerPhone: customer.phone,
+        customerName: cleanName,
+        customerPhone: cleanPhone,
         sellerName: user.full_name,
         items: telegramItems,
         totalAmount,
@@ -386,8 +406,8 @@ export async function POST(request: NextRequest) {
         debtAdded,
         paymentMethod: payment_method,
         tradeInItem:
-          trade_in && tradeInVal > 0
-            ? { name: trade_in.name, imei: trade_in.imei, value: tradeInVal }
+          tradeInObj && tradeInVal > 0
+            ? { name: tradeInObj.name || tradeInObj.model_name || 'iPhone', imei: tradeInObj.imei, value: tradeInVal }
             : null,
       }).catch((err) => console.error('Telegram background error:', err));
 
