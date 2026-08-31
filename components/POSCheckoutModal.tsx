@@ -302,40 +302,64 @@ export default function POSCheckoutModal({
     setIsTiModelDropdownOpen(false);
   };
 
-  const handleFinalSubmit = async () => {
-    const numBat = typeof tiBattery === 'string' ? parseInt(tiBattery, 10) : tiBattery;
+  // Next Step Handlers
+  const handleNextFromStep1 = () => {
+    if (validateStep1()) {
+      setStep(2);
+    }
+  };
 
+  const handleNextFromStep2 = () => {
+    if (validateStep2()) {
+      setStep(3);
+    }
+  };
+
+  const handleNextFromStep3 = () => {
+    setStep(4);
+  };
+
+  // Submit Handler
+  const handleSubmitFinalOrder = async () => {
     const payload = {
-      orderType: 'sell',
-      customer: {
-        id: customerId || undefined,
-        name: customerName.trim(),
-        phone: customerPhone.trim(),
-        address: customerAddress.trim(),
-        cccd: customerCccd.trim(),
-      },
-      items: cart.map((c) => ({
-        inventory_id: c.inventory.id,
-        price: c.price,
-        warranty_months: c.warranty_months,
-      })),
+      partner_id: customerId,
+      partner_name: customerName.trim(),
+      partner_phone: customerPhone.trim(),
+      partner_address: customerAddress.trim() || undefined,
+      partner_cccd: customerCccd.trim() || undefined,
+      total_amount: totalAmount,
       discount,
-      trade_in: hasTradeIn
+      trade_in_value: tradeInVal,
+      final_payment: finalPayment,
+      paid_amount: paidAmount,
+      debt_added: debtAdded,
+      payment_method: paymentMethod,
+      overpaid_action: isOverpaid ? overpaidAction : undefined,
+      note: note.trim() || undefined,
+      items: cart.map((item) => ({
+        inventory_id: item.inventory.id,
+        product_name: item.inventory.product_name,
+        imei: item.inventory.imei,
+        price: item.price,
+        cost_price: item.inventory.cost_price,
+        warranty_months: item.warranty_months,
+        color: item.inventory.color,
+        storage: item.inventory.storage,
+        condition: item.inventory.condition,
+        battery_health: item.inventory.battery_health,
+      })),
+      trade_in_item: hasTradeIn
         ? {
-            name: tiModelName.trim(),
-            category: 'iPhone',
+            name: `${tiModelName} ${tiStorage} (${tiCondition})`,
+            model_name: tiModelName,
             storage: tiStorage,
             condition: tiCondition,
-            color: tiColor.trim(),
+            color: tiColor,
+            battery_health: typeof tiBattery === 'number' ? tiBattery : parseInt(tiBattery, 10) || 80,
             imei: tiImei.trim(),
-            battery_health: isNaN(numBat) ? 85 : numBat,
-            trade_in_value: tiValue,
+            value: tiValue,
           }
         : null,
-      paid_amount: paidAmount,
-      overpaid_action: isOverpaid ? overpaidAction : undefined,
-      payment_method: paymentMethod,
-      note,
     };
 
     await onCompleteOrder(payload);
@@ -344,34 +368,39 @@ export default function POSCheckoutModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl shadow-black/80 flex flex-col max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         
-        {/* Header with Step Wizard Indicator */}
-        <div className="bg-slate-950 text-white px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="px-2.5 py-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-md text-[10px] font-black uppercase shadow-glow-cyan badge-nowrap">
-                Bước {step}/4
-              </span>
-              <h3 className="text-sm sm:text-base font-black uppercase tracking-wide text-white">
-                {step === 1 && '1. Thông Tin Khách Hàng'}
-                {step === 2 && '2. Thu Cũ Đổi Mới (Trade-in)'}
-                {step === 3 && '3. Phương Thức Thanh Toán'}
-                {step === 4 && '4. Xác Nhận & Hoàn Tất Đơn Hàng'}
-              </h3>
+        {/* Header */}
+        <div className="px-5 py-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-xl shadow-glow-cyan">
+              <Sparkles className="w-4 h-4" />
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              {step === 1 && 'Tra cứu khách quen hoặc tạo nhanh khách hàng mới'}
-              {step === 2 && 'Khách mua thẳng hoặc thu lại máy cũ (Gán NCC: Khách Trade-in)'}
-              {step === 3 && 'Chọn hình thức thanh toán, chiết khấu và tiền khách đưa'}
-              {step === 4 && 'Kiểm tra thông số đơn hàng trước khi xuất hóa đơn'}
-            </p>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 font-extrabold text-[10px] rounded-md border border-cyan-500/30 badge-nowrap">
+                  BƯỚC {step}/4
+                </span>
+                <h3 className="text-sm font-black uppercase tracking-wide">
+                  {step === 1 && '1. THÔNG TIN KHÁCH HÀNG'}
+                  {step === 2 && '2. THU CŨ ĐỔI MỚI (TRADE-IN)'}
+                  {step === 3 && '3. THANH TOÁN & CHIẾT KHẤU'}
+                  {step === 4 && '4. XÁC NHẬN ĐƠN HÀNG'}
+                </h3>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">
+                {step === 1 && 'Tra cứu khách quen hoặc tạo nhanh khách hàng mới'}
+                {step === 2 && 'Định giá máy cũ để trừ trực tiếp vào hóa đơn (Tùy chọn)'}
+                {step === 3 && 'Phương thức thanh toán, giảm giá và xử lý nợ'}
+                {step === 4 && 'Kiểm tra toàn bộ thông tin trước khi in hóa đơn'}
+              </p>
+            </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -402,48 +431,41 @@ export default function POSCheckoutModal({
 
               {/* Customer Selected Card */}
               {isCustomerFound ? (
-                <div className="p-4 bg-slate-850 border border-emerald-500/40 rounded-2xl space-y-3 animate-in fade-in shadow-inner">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-base font-black text-white">{customerName}</span>
-                        <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 badge-nowrap">
-                          ✓ Đã Chọn Khách Hàng
-                        </span>
-                      </div>
-                      <div className="text-xs font-mono font-bold text-slate-300 mt-1 flex items-center space-x-1.5">
-                        <Phone className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>{customerPhone}</span>
-                      </div>
-                      {customerAddress && (
-                        <div className="text-[11px] text-slate-400 mt-0.5 flex items-center space-x-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{customerAddress}</span>
-                        </div>
-                      )}
-                      {existingDebt !== 0 && (
-                        <div className="text-[11px] font-black text-rose-400 mt-1">
-                          Công nợ hiện tại: {formatVND(existingDebt)}
-                        </div>
-                      )}
+                <div className="p-3.5 bg-slate-850 border border-emerald-500/40 rounded-2xl animate-in fade-in shadow-inner flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center space-x-2 flex-wrap">
+                      <span className="text-sm sm:text-base font-black text-white truncate max-w-[180px]">{customerName}</span>
+                      <span className="text-[9px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 badge-nowrap">
+                        ✓ Đã Chọn Khách Hàng
+                      </span>
                     </div>
+                    <div className="text-xs font-bold text-slate-300 flex items-center space-x-1.5 truncate">
+                      <Phone className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                      <span>{customerPhone}</span>
+                      {customerAddress && <span className="text-slate-400 text-[11px] font-normal truncate">• {customerAddress}</span>}
+                    </div>
+                    {existingDebt !== 0 && (
+                      <div className="text-[11px] font-black text-rose-400 font-sans">
+                        Công nợ hiện tại: {formatVND(existingDebt)}
+                      </div>
+                    )}
+                  </div>
 
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={handleChangeCustomer}
-                        className="px-3 py-1.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition badge-nowrap"
-                      >
-                        Đổi khách hàng
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearCustomer}
-                        className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition badge-nowrap"
-                      >
-                        Xóa / Clear
-                      </button>
-                    </div>
+                  <div className="flex flex-col space-y-1.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleChangeCustomer}
+                      className="px-2.5 py-1 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-cyan-300 rounded-xl text-[11px] font-bold transition badge-nowrap text-center"
+                    >
+                      Đổi khách hàng
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearCustomer}
+                      className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl text-[11px] font-bold transition badge-nowrap text-center"
+                    >
+                      Xóa
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -791,7 +813,7 @@ export default function POSCheckoutModal({
                       placeholder="0"
                       className="px-3.5 py-2.5 bg-slate-900 border-2 border-amber-500 rounded-xl text-sm font-black text-amber-300 font-mono focus:outline-none"
                     />
-                    <div className="text-right text-xs font-black text-amber-300 mt-1 font-mono badge-nowrap">
+                    <div className="text-right text-xs font-bold text-amber-300 mt-1 font-sans badge-nowrap">
                       Khấu trừ: -{formatVND(tiValue)}
                     </div>
                   </div>
@@ -808,7 +830,7 @@ export default function POSCheckoutModal({
               <div className="p-4 bg-slate-850 rounded-2xl border border-slate-700/60 space-y-2.5">
                 <div className="flex justify-between text-slate-400">
                   <span>Tổng giá niêm yết ({cart.length} máy):</span>
-                  <span className="font-bold text-white font-mono">{formatVND(totalAmount)}</span>
+                  <span className="font-bold text-white font-sans">{formatVND(totalAmount)}</span>
                 </div>
 
                 {/* Discount */}
@@ -828,14 +850,14 @@ export default function POSCheckoutModal({
                 {hasTradeIn && tradeInVal > 0 && (
                   <div className="flex justify-between text-amber-300 font-bold pt-1">
                     <span>Trừ máy thu cũ ({tiModelName}):</span>
-                    <span className="font-mono">-{formatVND(tradeInVal)}</span>
+                    <span className="font-sans font-bold">-{formatVND(tradeInVal)}</span>
                   </div>
                 )}
 
                 {/* Final Payment Due */}
                 <div className="flex justify-between text-base font-black text-white pt-2 border-t border-slate-700/60">
                   <span>TỔNG CẦN THANH TOÁN:</span>
-                  <span className="font-mono text-lg text-cyan-400">{formatVND(finalPayment)}</span>
+                  <span className="font-sans text-lg text-cyan-400 font-black tracking-tight">{formatVND(finalPayment)}</span>
                 </div>
               </div>
 
@@ -875,7 +897,7 @@ export default function POSCheckoutModal({
                       value={paidAmount}
                       onValueChange={(num) => setCustomPaidAmount(num)}
                       placeholder={formatNumberDots(finalPayment)}
-                      className="px-3 py-2 text-right bg-slate-900 border-2 border-cyan-500 rounded-xl text-sm font-black text-cyan-300 font-mono focus:outline-none"
+                      className="px-3 py-2 text-right bg-slate-900 border-2 border-cyan-500 rounded-xl text-sm font-black text-cyan-300 font-sans focus:outline-none"
                     />
                   </div>
                 </div>
@@ -885,7 +907,7 @@ export default function POSCheckoutModal({
                   <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-2 animate-in fade-in">
                     <div className="flex items-center justify-between text-blue-300 font-black text-xs">
                       <span>Khách đưa dư:</span>
-                      <span className="font-mono text-sm">+{formatVND(overpaidDifference)}</span>
+                      <span className="font-sans font-black text-sm">+{formatVND(overpaidDifference)}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -918,7 +940,7 @@ export default function POSCheckoutModal({
                 {isUnderpaid && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 font-bold flex justify-between items-center animate-in fade-in">
                     <span>⚠️ Tự động ghi nợ khách hàng:</span>
-                    <span className="font-mono text-sm font-black">+{formatVND(underpaidDifference)}</span>
+                    <span className="font-sans text-sm font-black">+{formatVND(underpaidDifference)}</span>
                   </div>
                 )}
               </div>
@@ -964,7 +986,7 @@ export default function POSCheckoutModal({
                           IMEI: {item.inventory.imei} • {item.inventory.color} • BH {item.warranty_months}T
                         </div>
                       </div>
-                      <div className="font-black text-cyan-300 font-mono badge-nowrap">{formatVND(item.price)}</div>
+                      <div className="font-black text-cyan-300 font-sans tracking-tight badge-nowrap">{formatVND(item.price)}</div>
                     </div>
                   ))}
                 </div>
@@ -978,7 +1000,7 @@ export default function POSCheckoutModal({
                         IMEI: {tiImei} • {tiColor} (Pin {tiBattery}%)
                       </div>
                     </div>
-                    <div className="font-black text-amber-300 font-mono badge-nowrap">-{formatVND(tiValue)}</div>
+                    <div className="font-black text-amber-300 font-sans tracking-tight badge-nowrap">-{formatVND(tiValue)}</div>
                   </div>
                 )}
 
@@ -986,26 +1008,26 @@ export default function POSCheckoutModal({
                 <div className="pt-2 border-t border-slate-700/60 space-y-1.5">
                   <div className="flex justify-between text-slate-400">
                     <span>Tổng tiền hàng:</span>
-                    <span className="font-mono font-bold text-white">{formatVND(totalAmount)}</span>
+                    <span className="font-sans font-bold text-white">{formatVND(totalAmount)}</span>
                   </div>
                   {discount > 0 && (
                     <div className="flex justify-between text-rose-400 font-bold">
                       <span>Giảm giá / Voucher:</span>
-                      <span className="font-mono">-{formatVND(discount)}</span>
+                      <span className="font-sans font-bold">-{formatVND(discount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm font-black text-white pt-1 border-t border-slate-700/60">
                     <span>TỔNG TIỀN PHẢI TRẢ:</span>
-                    <span className="font-mono text-base text-cyan-400 badge-nowrap">{formatVND(finalPayment)}</span>
+                    <span className="font-sans text-base text-cyan-400 font-black tracking-tight badge-nowrap">{formatVND(finalPayment)}</span>
                   </div>
                   <div className="flex justify-between text-xs font-bold text-slate-300">
                     <span>Tiền khách đưa ({paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'}):</span>
-                    <span className="font-mono text-emerald-400">{formatVND(paidAmount)}</span>
+                    <span className="font-sans font-bold text-emerald-400">{formatVND(paidAmount)}</span>
                   </div>
                   {debtAdded !== 0 && (
                     <div className={`flex justify-between text-xs font-black ${debtAdded > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                       <span>{debtAdded > 0 ? 'Ghi nợ khách hàng:' : 'Nợ thừa tài khoản khách:'}</span>
-                      <span className="font-mono">{debtAdded > 0 ? `+${formatVND(debtAdded)}` : formatVND(debtAdded)}</span>
+                      <span className="font-sans font-bold">{debtAdded > 0 ? `+${formatVND(debtAdded)}` : formatVND(debtAdded)}</span>
                     </div>
                   )}
                 </div>
@@ -1047,7 +1069,7 @@ export default function POSCheckoutModal({
           ) : (
             <button
               type="button"
-              onClick={handleFinalSubmit}
+              onClick={handleSubmitFinalOrder}
               disabled={submitting}
               className="flex-1 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 rounded-2xl text-sm font-black flex items-center justify-center space-x-2 shadow-glow-emerald transition active:scale-[0.99] disabled:opacity-50"
             >

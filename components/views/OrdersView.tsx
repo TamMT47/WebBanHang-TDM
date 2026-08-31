@@ -275,19 +275,19 @@ export default function OrdersView({ user }: OrdersViewProps) {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 font-black text-sm font-mono text-cyan-300 badge-nowrap">
+                      <td className="px-4 py-3.5 font-black text-sm font-sans text-cyan-300 tracking-tight badge-nowrap">
                         {formatVND(order.final_payment)}
                       </td>
-                      <td className="px-4 py-3.5 font-bold text-emerald-400 font-mono badge-nowrap">
+                      <td className="px-4 py-3.5 font-bold text-emerald-400 font-sans tracking-tight badge-nowrap">
                         {formatVND(order.paid_amount)}
                       </td>
                       <td className="px-4 py-3.5">
                         {order.debt_added > 0 ? (
-                          <span className="text-rose-400 font-bold font-mono badge-nowrap">
+                          <span className="text-rose-400 font-bold font-sans tracking-tight badge-nowrap">
                             +{formatVND(order.debt_added)}
                           </span>
                         ) : order.debt_added < 0 ? (
-                          <span className="text-emerald-400 font-bold font-mono badge-nowrap">
+                          <span className="text-emerald-400 font-bold font-sans tracking-tight badge-nowrap">
                             -{formatVND(Math.abs(order.debt_added))}
                           </span>
                         ) : (

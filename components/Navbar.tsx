@@ -78,8 +78,8 @@ export default function Navbar({
           
           {/* Logo & Brand */}
           <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setActiveTab('pos')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center border border-cyan-400/40 shadow-glow-cyan group-hover:scale-105 transition duration-200">
-              <span className="text-lg font-black tracking-tighter text-white drop-shadow">TD</span>
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center p-1 border border-slate-700 shadow-glow-cyan group-hover:scale-105 transition duration-200 overflow-hidden">
+              <img src="/logo.png" alt="TD Mobile Store" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center space-x-1.5">
@@ -88,9 +88,6 @@ export default function Navbar({
                 </span>
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-glow-emerald"></span>
               </div>
-              <span className="text-[10px] text-slate-400 block -mt-1 font-semibold tracking-wider">
-                APPLE RESELLER & SERVICE
-              </span>
             </div>
           </div>
 

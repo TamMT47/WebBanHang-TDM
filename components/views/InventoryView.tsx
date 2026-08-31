@@ -430,7 +430,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                 <tr>
                   <th className="px-4 py-3.5">Mã IMEI</th>
                   <th className="px-4 py-3.5">Dòng Sản Phẩm</th>
-                  <th className="px-4 py-3.5">Thuộc Tính & Pin</th>
+                  <th className="px-4 py-3.5">Thông Số & Thuộc Tính</th>
                   <th className="px-4 py-3.5">Giá Niêm Yết</th>
                   {canSeeCost && <th className="px-4 py-3.5">Giá Vốn Nhập</th>}
                   <th className="px-4 py-3.5">Trạng Thái</th>
@@ -451,35 +451,34 @@ export default function InventoryView({ user }: InventoryViewProps) {
                           {item.category}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-300">
-                        <div className="flex flex-wrap items-center gap-1">
-                          {item.color && (
-                            <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md text-[10px] font-bold border border-slate-700 badge-nowrap">
-                              {item.color}
+                      <td className="px-4 py-3 text-slate-300 min-w-[190px]">
+                        <div className="space-y-1.5">
+                          {/* 2 Trên: Dung lượng & Ngoại hình */}
+                          <div className="flex items-center space-x-1.5">
+                            <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-black border border-cyan-500/30 badge-nowrap min-w-[50px] text-center">
+                              {item.storage || 'N/A'}
                             </span>
-                          )}
-                          {item.storage && (
-                            <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-bold font-mono border border-cyan-500/30 badge-nowrap">
-                              {item.storage}
+                            <span className="px-2 py-0.5 bg-amber-500/15 text-amber-300 rounded-md text-[10px] font-bold border border-amber-500/30 badge-nowrap text-center">
+                              {item.condition || '99%'}
                             </span>
-                          )}
-                          {item.condition && (
-                            <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-300 rounded-md text-[10px] font-bold border border-amber-500/30 badge-nowrap">
-                              {item.condition}
-                            </span>
-                          )}
-                        </div>
-                        {item.battery_health && (
-                          <div className="text-[10px] text-emerald-400 font-bold mt-1 badge-nowrap">
-                            🔋 Pin: {item.battery_health}%
                           </div>
-                        )}
+
+                          {/* 2 Dưới: Màu sắc & % Pin */}
+                          <div className="flex items-center space-x-1.5">
+                            <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md text-[10px] font-bold border border-slate-700 badge-nowrap max-w-[100px] truncate" title={item.color}>
+                              {item.color || 'Mặc định'}
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-[10px] font-bold border border-emerald-500/30 badge-nowrap">
+                              {item.battery_health ? `🔋 ${item.battery_health}%` : '🔋 N/A'}
+                            </span>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3.5 font-black text-sm text-cyan-300 font-mono badge-nowrap">
+                      <td className="px-4 py-3.5 font-bold text-sm text-cyan-300 font-sans tracking-tight badge-nowrap">
                         {formatVND(item.selling_price)}
                       </td>
                       {canSeeCost && (
-                        <td className="px-4 py-3.5 font-bold text-rose-400 font-mono badge-nowrap">
+                        <td className="px-4 py-3.5 font-bold text-xs text-rose-400 font-sans tracking-tight badge-nowrap">
                           {formatVND(item.cost_price)}
                         </td>
                       )}
@@ -744,7 +743,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                       value={newCostPrice}
                       onValueChange={(num) => setNewCostPrice(num)}
                       placeholder="0"
-                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-rose-400 font-mono focus:outline-none"
+                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-rose-400 font-sans focus:outline-none"
                     />
                   </div>
                   <div>
@@ -753,7 +752,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                       value={newSellingPrice}
                       onValueChange={(num) => setNewSellingPrice(num)}
                       placeholder="0"
-                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 font-mono focus:outline-none"
+                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 font-sans focus:outline-none"
                     />
                   </div>
                 </div>
@@ -811,7 +810,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                   value={editSellingPrice}
                   onValueChange={(num) => setEditSellingPrice(num)}
                   placeholder="0"
-                  className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm font-black text-cyan-300 font-mono focus:outline-none"
+                  className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm font-black text-cyan-300 font-sans focus:outline-none"
                 />
               </div>
 
@@ -824,7 +823,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
                     value={editCostPrice}
                     onValueChange={(num) => setEditCostPrice(num)}
                     placeholder="0"
-                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm font-black text-rose-400 font-mono focus:outline-none"
+                    className="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm font-black text-rose-400 font-sans focus:outline-none"
                   />
                 </div>
               )}

@@ -444,7 +444,7 @@ export default function TradeInModal({
                 setErrors((prev) => ({ ...prev, tradeInValue: undefined }));
               }}
               placeholder="0"
-              className="px-3.5 py-2.5 bg-slate-900 border-2 border-amber-500 rounded-xl text-sm font-black text-amber-300 font-mono focus:outline-none"
+              className="px-3.5 py-2.5 bg-slate-900 border-2 border-amber-500 rounded-xl text-sm font-black text-amber-300 font-sans focus:outline-none"
             />
             <div className="flex justify-between items-center text-xs font-bold text-amber-200/80 pt-1">
               <span>Nguồn hàng tự động:</span>

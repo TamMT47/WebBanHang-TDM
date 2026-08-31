@@ -65,6 +65,9 @@ export default function POSView({ user }: POSViewProps) {
     }>
   >([]);
 
+  // Cart Drawer Popup State
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+
   // Customer Management on POS
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{
@@ -109,12 +112,11 @@ export default function POSView({ user }: POSViewProps) {
 
       const res = await fetch('/api/inventory?status=in_stock');
       const data = await res.json();
-      const raw = data.inventory || [];
-      const sorted = sortItemsAZ(raw, (item: InventoryItem) => item.product_name || '');
-      setInventory(sorted);
-      setCachedInventory(sorted);
+      const inStock = (data.inventory || []).filter((i: any) => i.status === 'in_stock');
+      setCachedInventory(data.inventory || []);
+      setInventory(sortItemsAZ(inStock, (item) => item.product_name || ''));
     } catch (err) {
-      console.error('POS fetch inventory error:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -220,6 +222,7 @@ export default function POSView({ user }: POSViewProps) {
       });
       return;
     }
+    setIsCartDrawerOpen(false);
     setIsCheckoutOpen(true);
   };
 
@@ -248,51 +251,48 @@ export default function POSView({ user }: POSViewProps) {
       setCompletedOrder({
         code: data.code || 'HD000000',
         created_at: new Date().toISOString(),
-        customer: payload.customer,
-        seller_name: user?.full_name || 'Nhân viên TD Mobile',
-        total_amount: cart.reduce((s, i) => s + i.price, 0),
-        discount: payload.discount || 0,
-        trade_in_value: payload.trade_in?.trade_in_value || 0,
-        final_payment: Math.max(
-          0,
-          cart.reduce((s, i) => s + i.price, 0) -
-            (payload.discount || 0) -
-            (payload.trade_in?.trade_in_value || 0)
-        ),
+        partner_name: payload.partner_name,
+        partner_phone: payload.partner_phone,
+        partner_address: payload.partner_address,
+        partner_cccd: payload.partner_cccd,
+        creator_name: user?.full_name || 'TD Mobile Store',
+        total_amount: payload.total_amount,
+        discount: payload.discount,
+        trade_in_value: payload.trade_in_value,
+        final_payment: payload.final_payment,
         paid_amount: payload.paid_amount,
+        debt_added: payload.debt_added,
         payment_method: payload.payment_method,
-        items: cart.map((c) => ({
-          product_name: c.inventory.product_name,
-          imei: c.inventory.imei,
-          price: c.price,
-          warranty_months: c.warranty_months,
-          battery_health: c.inventory.battery_health,
-          color: c.inventory.color,
-          storage: c.inventory.storage,
-          condition: c.inventory.condition,
+        overpaid_action: payload.overpaid_action,
+        items: payload.items.map((i: any) => ({
+          product_name: i.product_name,
+          imei: i.imei,
+          price: i.price,
+          warranty_months: i.warranty_months,
+          color: i.color,
+          storage: i.storage,
+          condition: i.condition,
+          battery_health: i.battery_health,
         })),
-        trade_in_item: payload.trade_in,
+        trade_in_item: payload.trade_in_item || null,
       });
 
       setIsCheckoutOpen(false);
       setIsInvoiceOpen(true);
-
-      // Auto Reset State
       resetAllPOSState();
       invalidateInventoryCache();
       fetchInventory();
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-      throw err;
+      alert(err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Quick Customer Creation Handler
+  // Create & Select new customer inline
   const handleSaveNewCustomer = () => {
     if (!newCustName.trim() || !newCustPhone.trim()) {
-      alert('Vui lòng nhập Tên và Số điện thoại khách hàng');
+      alert('Vui lòng nhập tên và số điện thoại khách');
       return;
     }
 
@@ -419,43 +419,46 @@ export default function POSView({ user }: POSViewProps) {
           </div>
         </div>
 
-        {/* Selected Customer Card with Change & Clear */}
+        {/* Selected Customer Card (Compact, Neat & Stacked Buttons) */}
         {selectedCustomer && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between animate-in fade-in text-xs shadow-inner">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-emerald-500 text-slate-950 rounded-xl shadow-xs">
-                <User className="w-4 h-4 font-black" />
+          <div className="p-2.5 sm:p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between animate-in fade-in text-xs shadow-inner gap-2">
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="p-2 bg-emerald-500 text-slate-950 rounded-xl shadow-xs flex-shrink-0">
+                <User className="w-3.5 h-3.5 font-black" />
               </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-black text-white text-sm">{selectedCustomer.name}</span>
-                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 badge-nowrap">
-                    Khách Hàng Đã Chọn
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5 flex-wrap">
+                  <span className="font-black text-white text-xs sm:text-sm truncate max-w-[160px]">
+                    {selectedCustomer.name}
+                  </span>
+                  <span className="text-[9px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded-full border border-emerald-500/30 badge-nowrap">
+                    Đã Chọn
                   </span>
                 </div>
-                <div className="text-slate-400 font-mono font-bold text-[11px]">
+                <div className="text-slate-400 font-bold text-[11px] truncate">
                   SĐT: {selectedCustomer.phone} {selectedCustomer.address ? `• ${selectedCustomer.address}` : ''}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
+            {/* Stacked Vertical Actions: Đổi khách on top, Xóa on bottom */}
+            <div className="flex flex-col space-y-1 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setIsCustomerModalOpen(true);
                   setCustomerQuery('');
                 }}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl font-bold text-[11px] transition badge-nowrap"
+                className="px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 rounded-lg font-bold text-[10px] transition badge-nowrap text-center"
               >
                 Đổi khách
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedCustomer(null)}
-                className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl font-bold text-[11px] transition badge-nowrap"
+                className="px-2.5 py-0.5 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/25 text-rose-300 rounded-lg font-bold text-[10px] transition badge-nowrap text-center"
               >
-                Xóa / Clear
+                Xóa
               </button>
             </div>
           </div>
@@ -467,10 +470,10 @@ export default function POSView({ user }: POSViewProps) {
             <button
               key={c.id}
               onClick={() => setSelectedCategory(c.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition badge-nowrap ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition duration-200 badge-nowrap ${
                 selectedCategory === c.id
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan font-black'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                  : 'bg-slate-950/60 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800'
               }`}
             >
               {c.label}
@@ -479,7 +482,7 @@ export default function POSView({ user }: POSViewProps) {
         </div>
       </div>
 
-      {/* Message Alert */}
+      {/* Action Notification Message */}
       {message && (
         <div
           className={`p-3.5 rounded-2xl text-xs flex items-center justify-between border shadow-sm animate-in fade-in ${
@@ -490,13 +493,13 @@ export default function POSView({ user }: POSViewProps) {
         >
           <div className="flex items-center space-x-2">
             {message.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 text-rose-400" />
             )}
             <span className="font-bold">{message.text}</span>
           </div>
-          <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-white p-1">
+          <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-white">
             ✕
           </button>
         </div>
@@ -583,7 +586,7 @@ export default function POSView({ user }: POSViewProps) {
                                 </span>
                               )}
                               {item.storage && (
-                                <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-bold font-mono border border-cyan-500/30 badge-nowrap">
+                                <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-bold border border-cyan-500/30 badge-nowrap">
                                   {item.storage}
                                 </span>
                               )}
@@ -605,9 +608,9 @@ export default function POSView({ user }: POSViewProps) {
                             </div>
                           </div>
 
-                          {/* Price & Add Action */}
+                          {/* Price & Add Action (Clean Bold Sans Typography) */}
                           <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between">
-                            <div className="text-sm font-black text-cyan-300 font-mono badge-nowrap">
+                            <div className="text-sm font-black text-cyan-300 font-sans tracking-tight badge-nowrap">
                               {formatVND(item.selling_price)}
                             </div>
 
@@ -642,7 +645,7 @@ export default function POSView({ user }: POSViewProps) {
           )}
         </div>
 
-        {/* RIGHT: CART SECTION (STICKY) */}
+        {/* RIGHT: CART SECTION (DESKTOP STICKY) */}
         <div className="lg:col-span-5 sticky top-20 z-30 space-y-4">
           <div className="bg-slate-900/90 backdrop-blur-2xl rounded-3xl border border-slate-800 shadow-2xl p-4 sm:p-5 space-y-4">
             
@@ -698,6 +701,7 @@ export default function POSView({ user }: POSViewProps) {
                       </div>
                       {/* Warranty Selector */}
                       <div className="flex items-center space-x-1.5 text-[11px] text-slate-400 pt-0.5">
+                        <Shield className="w-3.5 h-3.5 text-cyan-400" />
                         <span>Bảo hành:</span>
                         <select
                           value={item.warranty_months}
@@ -707,7 +711,7 @@ export default function POSView({ user }: POSViewProps) {
                               prev.map((c, i) => (i === idx ? { ...c, warranty_months: val } : c))
                             );
                           }}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5 text-[10px] font-bold text-slate-200 focus:outline-none"
+                          className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold text-[11px] rounded-lg px-2 py-0.5 focus:outline-none"
                         >
                           <option value={1}>1 Tháng</option>
                           <option value={3}>3 Tháng</option>
@@ -718,14 +722,14 @@ export default function POSView({ user }: POSViewProps) {
                       </div>
                     </div>
 
-                    <div className="text-right flex flex-col justify-between items-end">
-                      <div className="font-black text-cyan-300 font-mono text-sm badge-nowrap">
+                    <div className="text-right space-y-1.5">
+                      <div className="font-black text-cyan-300 font-sans text-sm tracking-tight badge-nowrap">
                         {formatVND(item.price)}
                       </div>
                       <button
                         type="button"
                         onClick={() => removeFromCart(item.inventory.id)}
-                        className="text-slate-500 hover:text-rose-400 p-1 mt-2 inline-block rounded-lg transition"
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -739,12 +743,14 @@ export default function POSView({ user }: POSViewProps) {
             <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2 text-xs">
               <div className="flex justify-between text-slate-400">
                 <span>Số lượng sản phẩm:</span>
-                <span className="font-bold text-white font-mono">{cart.length} máy</span>
+                <span className="font-bold text-white font-sans">{cart.length} máy</span>
               </div>
 
               <div className="flex justify-between text-base font-black text-white pt-2 border-t border-slate-800">
                 <span>TỔNG TIỀN THANH TOÁN:</span>
-                <span className="font-mono text-lg text-cyan-400 badge-nowrap">{formatVND(totalCartAmount)}</span>
+                <span className="font-sans font-black text-lg text-cyan-400 tracking-tight badge-nowrap">
+                  {formatVND(totalCartAmount)}
+                </span>
               </div>
             </div>
 
@@ -770,27 +776,172 @@ export default function POSView({ user }: POSViewProps) {
         </div>
       </div>
 
-      {/* MOBILE STICKY BOTTOM CHECKOUT BAR */}
+      {/* MOBILE STICKY BOTTOM CHECKOUT BAR (Clicking opens Cart Drawer) */}
       <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800 text-white px-4 py-3 shadow-2xl flex items-center justify-between">
-        <div>
-          <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center space-x-1">
+        <div
+          onClick={() => setIsCartDrawerOpen(true)}
+          className="cursor-pointer active:opacity-80 flex-1 pr-2"
+        >
+          <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center space-x-1.5">
             <span>Giỏ hàng:</span>
-            <b className="text-white">{cart.length} máy</b>
+            <b className="text-white font-bold">{cart.length} máy</b>
+            <span className="text-cyan-400 text-[10px] font-bold underline">Xem chi tiết</span>
           </div>
-          <div className="text-sm font-black text-cyan-400 font-mono badge-nowrap">
+          <div className="text-sm font-black text-cyan-400 font-sans tracking-tight badge-nowrap">
             {formatVND(totalCartAmount)}
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleProceedToCheckout}
-          className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black text-xs rounded-xl shadow-glow-cyan flex items-center space-x-2 active:scale-95 transition"
-        >
-          <span>Thanh Toán ({cart.length})</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex items-center space-x-2">
+          {cart.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsCartDrawerOpen(true)}
+              className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Giỏ ({cart.length})</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleProceedToCheckout}
+            disabled={cart.length === 0}
+            className="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black text-xs rounded-xl shadow-glow-cyan flex items-center space-x-1.5 active:scale-95 disabled:opacity-40 transition"
+          >
+            <span>Thanh Toán ({cart.length})</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
+
+      {/* MOBILE / QUICK POPUP CART DRAWER MODAL */}
+      {isCartDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-200">
+            
+            {/* Header */}
+            <div className="px-5 py-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-xl shadow-glow-cyan">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wide">
+                    Chi Tiết Giỏ Hàng ({cart.length} máy)
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold">
+                    Quản lý sản phẩm, gói bảo hành & thanh toán ngay
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCartDrawerOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body: Items List */}
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto text-xs">
+              {cart.length === 0 ? (
+                <div className="text-center py-10 bg-slate-950/60 rounded-2xl border border-dashed border-slate-800 p-4 space-y-2">
+                  <Smartphone className="w-10 h-10 text-slate-600 mx-auto" />
+                  <p className="text-xs font-black text-slate-300">Giỏ hàng đang trống</p>
+                  <p className="text-[11px] text-slate-500">
+                    Hãy bấm &ldquo;Chọn máy&rdquo; trên danh sách sản phẩm để thêm vào giỏ.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {cart.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-2xl flex items-start justify-between text-xs"
+                    >
+                      <div className="flex-1 pr-2 space-y-1.5">
+                        <div className="font-black text-white text-sm">
+                          {item.inventory.product_name}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-400 font-bold">
+                          IMEI: <span className="text-cyan-300 font-bold">{item.inventory.imei}</span>
+                          {item.inventory.color ? ` • ${item.inventory.color}` : ''}
+                        </div>
+                        <div className="flex items-center space-x-1.5 text-[11px] text-slate-300 pt-0.5">
+                          <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Gói bảo hành:</span>
+                          <select
+                            value={item.warranty_months}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              setCart((prev) =>
+                                prev.map((c, i) => (i === idx ? { ...c, warranty_months: val } : c))
+                              );
+                            }}
+                            className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold text-[11px] rounded-lg px-2 py-0.5 focus:outline-none"
+                          >
+                            <option value={1}>1 Tháng</option>
+                            <option value={3}>3 Tháng</option>
+                            <option value={6}>6 Tháng</option>
+                            <option value={12}>12 Tháng</option>
+                            <option value={24}>24 Tháng</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="text-right space-y-2 flex flex-col items-end">
+                        <div className="font-black text-cyan-300 font-sans text-sm tracking-tight badge-nowrap">
+                          {formatVND(item.price)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.inventory.id)}
+                          className="px-2.5 py-1 text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition text-[11px] font-bold flex items-center space-x-1"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Xóa</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Summary & Checkout Action */}
+            {cart.length > 0 && (
+              <div className="p-4 bg-slate-950 border-t border-slate-800 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-400">Tổng cộng ({cart.length} máy):</span>
+                  <span className="text-lg font-black text-cyan-400 font-sans tracking-tight badge-nowrap">
+                    {formatVND(totalCartAmount)}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setCart([])}
+                    className="py-3 px-3 bg-slate-850 hover:bg-slate-800 text-rose-300 border border-slate-700 rounded-xl text-xs font-bold transition badge-nowrap"
+                  >
+                    Xóa tất cả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProceedToCheckout}
+                    className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black text-xs rounded-xl shadow-glow-cyan flex items-center justify-center space-x-2 active:scale-95 transition"
+                  >
+                    <span>Tiến Hành Thanh Toán</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Customer Modal (Search / Create) */}
       {isCustomerModalOpen && (
@@ -841,10 +992,10 @@ export default function POSView({ user }: POSViewProps) {
                         >
                           <div>
                             <div className="font-black text-white">{c.name}</div>
-                            <div className="text-slate-400 font-mono text-[11px]">{c.phone}</div>
+                            <div className="text-slate-400 text-[11px] font-bold">{c.phone}</div>
                           </div>
                           {c.debt !== 0 && (
-                            <span className="text-[10px] font-bold text-rose-400 badge-nowrap">
+                            <span className="text-[10px] font-bold text-rose-400 font-sans badge-nowrap">
                               Nợ: {formatVND(c.debt)}
                             </span>
                           )}
@@ -881,7 +1032,7 @@ export default function POSView({ user }: POSViewProps) {
                       value={newCustPhone}
                       onChange={(e) => setNewCustPhone(e.target.value)}
                       placeholder="VD: 0912345678"
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500"
                       autoFocus
                     />
                   </div>
@@ -915,7 +1066,7 @@ export default function POSView({ user }: POSViewProps) {
                       value={newCustCccd}
                       onChange={(e) => setNewCustCccd(e.target.value)}
                       placeholder="VD: 079..."
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none"
                     />
                   </div>
 

@@ -55,8 +55,8 @@ export default function HomePage() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center text-white space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center shadow-glow-cyan animate-pulse">
-          <span className="text-xl font-black text-white">TD</span>
+        <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center p-1.5 border border-slate-700 shadow-glow-cyan animate-pulse overflow-hidden">
+          <img src="/logo.png" alt="TD Mobile Store" className="w-full h-full object-contain" />
         </div>
         <div className="text-xs font-bold text-cyan-300">Đang khởi động TD MOBILE STORE...</div>
       </div>

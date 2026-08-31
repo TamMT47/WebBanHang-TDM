@@ -52,8 +52,8 @@ export default function LoginPage() {
         
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-tr from-cyan-600 to-blue-600 border border-cyan-400/40 shadow-glow-cyan">
-            <span className="text-2xl font-black text-white tracking-tighter">TD</span>
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white border border-slate-700 shadow-glow-cyan p-2 overflow-hidden">
+            <img src="/logo.png" alt="TD Mobile Store" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white uppercase">
             TD MOBILE STORE
