@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || ''; // 'sell', 'import', 'all'
     const search = searchParams.get('search') || '';
+    const partnerIdParam = searchParams.get('partner_id') || '';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo = searchParams.get('dateTo') || '';
     const limit = parseInt(searchParams.get('limit') || '50', 10);
@@ -50,9 +51,23 @@ export async function GET(request: NextRequest) {
       sql += ` AND o.type = $${params.length}`;
     }
 
+    if (partnerIdParam) {
+      params.push(partnerIdParam);
+      sql += ` AND o.partner_id = $${params.length}`;
+    }
+
     if (search.trim()) {
       params.push(`%${search.trim()}%`);
-      sql += ` AND (o.code ILIKE $${params.length} OR p.name ILIKE $${params.length} OR p.phone ILIKE $${params.length})`;
+      sql += ` AND (
+        o.code ILIKE $${params.length} 
+        OR p.name ILIKE $${params.length} 
+        OR p.phone ILIKE $${params.length}
+        OR EXISTS (
+          SELECT 1 FROM order_items oi 
+          JOIN inventory inv ON oi.inventory_id = inv.id 
+          WHERE oi.order_id = o.id AND inv.imei ILIKE $${params.length}
+        )
+      )`;
     }
 
     if (dateFrom) {
@@ -659,6 +674,164 @@ export async function DELETE(request: NextRequest) {
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Order DELETE error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const client = await getClient();
+  try {
+    const user = getUserFromRequest(request);
+    if (!user || !['admin', 'owner', 'manager'].includes(user.role)) {
+      return NextResponse.json(
+        { error: 'Chỉ Quản lý, Chủ cửa hàng hoặc Admin mới có quyền chỉnh sửa hóa đơn' },
+        { status: 403 }
+      );
+    }
+
+    const payload = await request.json();
+    const {
+      order_id,
+      partner_name,
+      partner_phone,
+      partner_address,
+      partner_cccd,
+      note,
+      items,
+      discount,
+      paid_amount,
+      payment_method,
+    } = payload;
+
+    if (!order_id) {
+      return NextResponse.json({ error: 'Thiếu ID hóa đơn cần chỉnh sửa' }, { status: 400 });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Fetch Order details
+    const orderRes = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [order_id]);
+    if (orderRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return NextResponse.json({ error: 'Không tìm thấy hóa đơn' }, { status: 404 });
+    }
+    const order = orderRes.rows[0];
+
+    // 2. Update Partner Info if provided
+    if (
+      order.partner_id &&
+      (partner_name !== undefined ||
+        partner_phone !== undefined ||
+        partner_address !== undefined ||
+        partner_cccd !== undefined)
+    ) {
+      await client.query(
+        `UPDATE partners SET
+          name = COALESCE($2, name),
+          phone = COALESCE($3, phone),
+          address = COALESCE($4, address),
+          cccd = COALESCE($5, cccd)
+        WHERE id = $1`,
+        [
+          order.partner_id,
+          partner_name !== undefined ? partner_name.trim() : null,
+          partner_phone !== undefined ? partner_phone.trim() : null,
+          partner_address !== undefined ? partner_address.trim() : null,
+          partner_cccd !== undefined ? partner_cccd.trim() : null,
+        ]
+      );
+    }
+
+    // 3. Update order_items (warranty_months, warranty_until, price)
+    if (items && Array.isArray(items)) {
+      for (const it of items) {
+        if (it.id) {
+          let calculatedUntil = it.warranty_until;
+          if (!calculatedUntil && it.warranty_months !== undefined) {
+            const orderDate = new Date(order.created_at || new Date());
+            orderDate.setMonth(orderDate.getMonth() + parseInt(it.warranty_months, 10));
+            calculatedUntil = orderDate.toISOString();
+          }
+
+          await client.query(
+            `UPDATE order_items SET
+              warranty_months = COALESCE($2, warranty_months),
+              warranty_until = COALESCE($3, warranty_until),
+              price = COALESCE($4, price)
+            WHERE id = $1 AND order_id = $5`,
+            [
+              it.id,
+              it.warranty_months !== undefined ? parseInt(it.warranty_months, 10) : null,
+              calculatedUntil || null,
+              it.price !== undefined ? parseFloat(it.price) : null,
+              order_id,
+            ]
+          );
+        }
+      }
+    }
+
+    // 4. Recalculate totals
+    const sumRes = await client.query(
+      'SELECT COALESCE(SUM(price), 0) AS total_items_price FROM order_items WHERE order_id = $1',
+      [order_id]
+    );
+    const newTotalAmount = parseFloat(sumRes.rows[0].total_items_price);
+    const newDiscount = discount !== undefined ? parseFloat(discount) : parseFloat(order.discount || 0);
+    const tradeInVal = parseFloat(order.trade_in_value || 0);
+    const newFinalPayment = Math.max(0, newTotalAmount - newDiscount - tradeInVal);
+
+    const newPaidAmount =
+      paid_amount !== undefined ? parseFloat(paid_amount) : parseFloat(order.paid_amount || 0);
+    const newDebtAdded = newFinalPayment - newPaidAmount;
+    const oldDebtAdded = parseFloat(order.debt_added || 0);
+    const debtDiff = newDebtAdded - oldDebtAdded;
+
+    // 5. Update Order record
+    await client.query(
+      `UPDATE orders SET
+        total_amount = $2,
+        discount = $3,
+        final_payment = $4,
+        paid_amount = $5,
+        debt_added = $6,
+        payment_method = COALESCE($7, payment_method)
+      WHERE id = $1`,
+      [order_id, newTotalAmount, newDiscount, newFinalPayment, newPaidAmount, newDebtAdded, payment_method || null]
+    );
+
+    // 6. Adjust partner debt if changed
+    if (debtDiff !== 0 && order.partner_id) {
+      await client.query('UPDATE partners SET debt = debt + $1 WHERE id = $2', [debtDiff, order.partner_id]);
+    }
+
+    // 7. Adjust cash flow if paid amount or payment method changed
+    if (
+      newPaidAmount !== parseFloat(order.paid_amount || 0) ||
+      (payment_method && payment_method !== order.payment_method)
+    ) {
+      const cfMethod = payment_method === 'both' ? 'transfer' : payment_method || 'transfer';
+      await client.query(
+        `UPDATE cash_flow SET
+          amount = $2,
+          payment_method = COALESCE($3, payment_method),
+          note = COALESCE($4, note)
+        WHERE order_id = $1`,
+        [order_id, newPaidAmount, cfMethod, note || undefined]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return NextResponse.json({
+      success: true,
+      message: `Đã cập nhật thành công hóa đơn ${order.code}`,
+    });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Order PATCH error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
     client.release();

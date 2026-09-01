@@ -52,6 +52,13 @@ export default function HomePage() {
     }
   };
 
+  const [ordersInitialSearch, setOrdersInitialSearch] = useState('');
+
+  const handleNavigateToOrder = (orderCode: string) => {
+    setOrdersInitialSearch(orderCode);
+    setActiveTab('orders');
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center text-white space-y-4">
@@ -83,8 +90,10 @@ export default function HomePage() {
         {activeTab === 'warranty' && <WarrantyView user={user} />}
         {activeTab === 'import' && <ImportView user={user} />}
         {activeTab === 'utilities' && <UtilitiesView user={user} onNavigateTab={setActiveTab} />}
-        {activeTab === 'orders' && <OrdersView user={user} />}
-        {activeTab === 'partners' && <PartnersView user={user} />}
+        {activeTab === 'orders' && <OrdersView user={user} initialSearch={ordersInitialSearch} />}
+        {activeTab === 'partners' && (
+          <PartnersView user={user} onNavigateToOrder={handleNavigateToOrder} />
+        )}
         {activeTab === 'cash-flow' && <CashFlowView user={user} />}
         {activeTab === 'reports' && <ReportsView user={user} />}
         {activeTab === 'users' && <UsersView currentUser={user} />}
