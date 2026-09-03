@@ -20,7 +20,8 @@ import {
   Sparkles,
   Download,
   FileSpreadsheet,
-  CheckCircle2
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { UserRole } from '@/types/database';
 import { exportCustomersToCSV } from '@/lib/exportHelper';
@@ -78,6 +79,28 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
           icon: Receipt,
           color: 'bg-gradient-to-tr from-emerald-600 to-teal-600 text-white shadow-glow-emerald',
           tag: 'Hóa Đơn',
+        },
+      ],
+    },
+    {
+      title: 'Quản Lý Nhân Sự, Chấm Công & Bảng Lương',
+      description: 'Chấm công Wifi nội bộ, ca làm việc, tính lương 26 ngày và OT 150%',
+      items: [
+        {
+          id: 'attendance',
+          label: 'Chấm Công Wifi Nội Bộ',
+          desc: 'Chấm công 3 ca chuẩn (Sáng/Chiều/Tối), kiểm tra IP Wifi và tự động tính giờ OT',
+          icon: Clock,
+          color: 'bg-gradient-to-tr from-cyan-600 to-teal-600 text-white shadow-glow-cyan',
+          tag: 'Wifi IP',
+        },
+        {
+          id: 'payroll',
+          label: 'Bảng Tính Lương & Lịch Sử',
+          desc: 'Tự động tính lương 26 ngày công chuẩn, giờ OT 150%, thưởng phạt và lưu trữ',
+          icon: DollarSign,
+          color: 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-glow-cyan',
+          tag: 'Lương 26 Ngày',
         },
       ],
     },

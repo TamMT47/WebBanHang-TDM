@@ -14,6 +14,8 @@ import ReportsView from '@/components/views/ReportsView';
 import UsersView from '@/components/views/UsersView';
 import WarrantyView from '@/components/views/WarrantyView';
 import UtilitiesView from '@/components/views/UtilitiesView';
+import AttendanceView from '@/components/views/AttendanceView';
+import PayrollView from '@/components/views/PayrollView';
 import WarrantyLookupModal from '@/components/WarrantyLookupModal';
 
 export default function HomePage() {
@@ -88,6 +90,8 @@ export default function HomePage() {
         {activeTab === 'pos' && <POSView user={user} />}
         {activeTab === 'inventory' && <InventoryView user={user} />}
         {activeTab === 'warranty' && <WarrantyView user={user} />}
+        {activeTab === 'attendance' && <AttendanceView user={user} />}
+        {activeTab === 'payroll' && <PayrollView user={user} />}
         {activeTab === 'import' && <ImportView user={user} />}
         {activeTab === 'utilities' && <UtilitiesView user={user} onNavigateTab={setActiveTab} />}
         {activeTab === 'orders' && <OrdersView user={user} initialSearch={ordersInitialSearch} />}

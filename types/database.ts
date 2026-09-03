@@ -6,6 +6,7 @@ export interface User {
   password_hash?: string;
   full_name: string;
   role: UserRole;
+  base_salary?: number;
   created_at: string;
 }
 
@@ -99,36 +100,32 @@ export interface OrderItem {
   cost_price?: number;
 }
 
-export type CashFlowType = 'thu' | 'chi';
-export type CashFlowCategory = 'ban_hang' | 'nhap_hang' | 'thu_no' | 'tra_no' | 'chi_phi_khac';
-
 export interface CashFlow {
   id: string;
   code: string;
-  type: CashFlowType;
+  type: 'thu' | 'chi';
   amount: number;
   payment_method: 'cash' | 'transfer';
-  category: CashFlowCategory;
+  category: 'ban_hang' | 'nhap_hang' | 'thu_no' | 'tra_no' | 'chi_phi_khac';
   partner_id?: string | null;
   order_id?: string | null;
   note?: string | null;
   created_by?: string | null;
   created_at: string;
-  // Joined fields
   partner_name?: string;
-  partner_phone?: string;
   creator_name?: string;
 }
 
 export interface TradeInItemInput {
   name: string;
   category: string;
-  condition: ProductCondition;
+  condition: string;
   color: string;
   storage: string;
-  imei: string;
   battery_health: number;
+  imei: string;
   trade_in_value: number;
+  selling_price?: number;
 }
 
 export interface POSSalePayload {
@@ -173,4 +170,89 @@ export interface ImportOrderPayload {
   paid_amount: number;
   payment_method: PaymentMethod;
   note?: string;
+}
+
+// Attendance & Wifi IP Types
+export type ShiftType = 'morning' | 'afternoon' | 'evening';
+
+export interface ShiftConfig {
+  id: ShiftType;
+  name: string;
+  startTime: string; // e.g. "08:00"
+  endTime: string;   // e.g. "12:00"
+  standardHours: number; // 4.0
+}
+
+export interface AttendanceRecord {
+  id: string;
+  user_id: string;
+  date: string; // YYYY-MM-DD
+  shift: ShiftType;
+  check_in: string;
+  check_out?: string | null;
+  ip_address?: string | null;
+  work_hours: number;
+  ot_hours: number;
+  note?: string | null;
+  status: 'present' | 'working' | 'completed';
+  created_at: string;
+  // Joined fields
+  user_name?: string;
+  user_role?: UserRole;
+}
+
+// Payroll & Salary History Types
+export interface AllowanceItem {
+  id: string;
+  title: string;
+  amount: number;
+}
+
+export interface DeductionItem {
+  id: string;
+  reason: string;
+  amount: number;
+}
+
+export interface MonthlyPayrollItem {
+  user_id: string;
+  user_name: string;
+  user_role: UserRole;
+  base_salary: number;
+  standard_days: number; // 26
+  actual_days: number;   // Calculated from attendance or manual
+  ot_hours: number;      // Calculated from attendance or manual
+  salary_by_days: number; // (base_salary / 26) * actual_days
+  ot_salary: number;      // (base_salary / 26 / 8) * ot_hours * 1.5
+  allowances: AllowanceItem[];
+  deductions: DeductionItem[];
+  total_allowance: number;
+  total_deduction: number;
+  final_salary: number;
+  is_locked?: boolean;
+  status?: 'pending' | 'paid';
+  locked_at?: string;
+}
+
+export interface SalaryHistoryRecord {
+  id: string;
+  month: string; // YYYY-MM
+  user_id: string;
+  user_name: string;
+  user_role: UserRole;
+  base_salary: number;
+  standard_days: number;
+  actual_days: number;
+  ot_hours: number;
+  salary_by_days: number;
+  ot_salary: number;
+  allowances: AllowanceItem[];
+  deductions: DeductionItem[];
+  total_allowance: number;
+  total_deduction: number;
+  final_salary: number;
+  status: 'pending' | 'paid';
+  note?: string | null;
+  locked_at: string;
+  created_by?: string | null;
 }

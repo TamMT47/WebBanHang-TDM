@@ -59,6 +59,8 @@ export default function Navbar({
     { id: 'pos', label: 'Bán Hàng', icon: Smartphone, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'inventory', label: 'Kho Hàng', icon: Layers, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'warranty', label: 'Bảo Hành', icon: Shield, roles: ['admin', 'owner', 'manager', 'staff'] },
+    { id: 'attendance', label: 'Chấm Công', icon: UserCheck, roles: ['admin', 'owner', 'manager', 'staff'] },
+    { id: 'payroll', label: 'Tính Lương', icon: DollarSign, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'import', label: 'Nhập Hàng', icon: PlusCircle, roles: ['admin', 'owner', 'manager'] },
     { id: 'partners', label: 'Khách & NCC', icon: Users, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'orders', label: 'Hóa Đơn', icon: FileText, roles: ['admin', 'owner', 'manager', 'staff'] },
