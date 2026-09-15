@@ -227,97 +227,119 @@ body {
 }
 
 /* ======================================================== */
-/* 🌞 LIGHT MODE STYLES (Nền trắng, Chữ xám đen) */
+/* 🌞 LIGHT MODE STYLES (High Contrast: Nền xám trắng #f3f4f6, Chữ đen đậm #111827) */
 /* ======================================================== */
 [data-mode="light"] {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f3f4f6;
+  --foreground: #111827;
 }
 
-[data-mode="light"] body {
-  background: #f8fafc !important;
-  color: #0f172a !important;
+[data-mode="light"] body,
+[data-mode="light"] .bg-\[\#080d1a\],
+[data-mode="light"] main {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
   background-image: none !important;
 }
 
-[data-mode="light"] header {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-bottom-color: #e2e8f0 !important;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06) !important;
+[data-mode="light"] header,
+[data-mode="light"] nav {
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
 }
 
 [data-mode="light"] .bg-slate-950,
 [data-mode="light"] .bg-slate-950\/60,
 [data-mode="light"] .bg-slate-950\/80,
 [data-mode="light"] .bg-slate-950\/90,
-[data-mode="light"] .bg-slate-950\/95 {
-  background-color: #ffffff !important;
-  color: #1e293b !important;
-}
-
+[data-mode="light"] .bg-slate-950\/95,
 [data-mode="light"] .bg-slate-900,
 [data-mode="light"] .bg-slate-900\/60,
 [data-mode="light"] .bg-slate-900\/80,
 [data-mode="light"] .bg-slate-900\/90 {
   background-color: #ffffff !important;
-  color: #1e293b !important;
-  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.05) !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.06) !important;
 }
 
 [data-mode="light"] .bg-slate-800,
+[data-mode="light"] .bg-slate-800\/40,
 [data-mode="light"] .bg-slate-800\/50,
+[data-mode="light"] .bg-slate-800\/60,
+[data-mode="light"] .bg-slate-800\/70,
 [data-mode="light"] .bg-slate-800\/80 {
-  background-color: #f1f5f9 !important;
-  color: #1e293b !important;
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+
+[data-mode="light"] .bg-slate-850,
+[data-mode="light"] .bg-slate-850\/80 {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
 }
 
 [data-mode="light"] .border-slate-800,
 [data-mode="light"] .border-slate-800\/80,
+[data-mode="light"] .border-slate-800\/70,
+[data-mode="light"] .border-slate-800\/60,
 [data-mode="light"] .border-slate-800\/50,
 [data-mode="light"] .border-slate-700,
 [data-mode="light"] .border-slate-700\/80 {
-  border-color: #e2e8f0 !important;
+  border-color: #d1d5db !important;
 }
 
 [data-mode="light"] .divide-slate-800,
-[data-mode="light"] .divide-slate-800\/80 {
-  border-color: #e2e8f0 !important;
+[data-mode="light"] .divide-slate-800\/80,
+[data-mode="light"] .divide-slate-800\/70,
+[data-mode="light"] .divide-slate-800\/60,
+[data-mode="light"] .divide-slate-700 {
+  border-color: #d1d5db !important;
 }
 
 [data-mode="light"] .text-white {
-  color: #0f172a !important;
+  color: #111827 !important;
 }
 
+[data-mode="light"] .text-slate-100,
 [data-mode="light"] .text-slate-200,
 [data-mode="light"] .text-slate-300 {
-  color: #1e293b !important;
+  color: #1f2937 !important;
 }
 
 [data-mode="light"] .text-slate-400 {
-  color: #64748b !important;
+  color: #4b5563 !important;
 }
 
 [data-mode="light"] .text-slate-500 {
-  color: #64748b !important;
+  color: #6b7280 !important;
 }
 
 [data-mode="light"] input,
 [data-mode="light"] select,
 [data-mode="light"] textarea {
   background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+
+[data-mode="light"] .fixed.bottom-0 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-top-color: #d1d5db !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
 }
 
 [data-mode="light"] .glass-panel,
 [data-mode="light"] .glass-card {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: #e2e8f0 !important;
-  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.05) !important;
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.06) !important;
 }
 
 [data-mode="light"] ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #f3f4f6;
 }
 [data-mode="light"] ::-webkit-scrollbar-thumb {
   background: #cbd5e1;

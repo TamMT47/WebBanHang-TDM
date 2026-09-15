@@ -512,8 +512,8 @@ export default function PayrollView({ user }: PayrollViewProps) {
       {/* SECTION 1: BẢNG LƯƠNG NHÂN VIÊN DẠNG 1 DÒNG NẰM NGANG */}
       {/* ======================================================== */}
       {isStaff ? (
-        /* MÀN HÌNH NHÂN VIÊN: 1 DÒNG NẰM NGANG TỐI GIẢN, ẨN HOÀN TOÀN ĐƠN GIÁ & CÔNG THỨC */
-        <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3 sm:p-4 overflow-x-auto">
+        /* MÀN HÌNH NHÂN VIÊN: THẺ BẢNG LƯƠNG TỐI GIẢN, GỌN GÀNG, ẨN HOÀN TOÀN ĐƠN GIÁ & CÔNG THỨC */
+        <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-4 sm:p-5">
           {loading ? (
             <div className="text-center py-6 text-xs text-slate-400 animate-pulse">
               Đang tính lương tháng {selectedMonth}...
@@ -523,85 +523,86 @@ export default function PayrollView({ user }: PayrollViewProps) {
               Không tìm thấy dữ liệu lương của bạn trong tháng {selectedMonth}.
             </div>
           ) : (
-            <div className="flex items-center space-x-3.5 whitespace-nowrap min-w-max">
-              {/* User Info */}
-              <div className="flex items-center space-x-2 pr-3 border-r border-slate-800 flex-shrink-0">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center font-bold text-xs">
-                  {myPayrollItem.user_name?.slice(0, 1) || 'NV'}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                    {myPayrollItem.user_name?.slice(0, 1) || 'NV'}
+                  </div>
+                  <div>
+                    <div className="text-xs sm:text-sm font-black text-white">{myPayrollItem.user_name}</div>
+                    <div className="text-[10px] text-amber-300 font-bold">
+                      {myPayrollItem.contract_type === 'probation' ? 'Thử việc (85%)' : 'Nhân viên chính thức'}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs font-black text-white">{myPayrollItem.user_name}</div>
-                  <div className="text-[10px] text-amber-300 font-bold">
-                    {myPayrollItem.contract_type === 'probation' ? 'Thử việc (85%)' : 'Chính thức'}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPayslipRecord({
+                      ...myPayrollItem,
+                      month: selectedMonth,
+                    });
+                    setIsPayslipOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Xem Phiếu Lương</span>
+                </button>
+              </div>
+
+              {/* Grid các chỉ số lương cơ bản & thực lĩnh */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CƠ BẢN</span>
+                  <span className="font-sans font-bold text-white text-xs">{formatVND(myPayrollItem.base_salary)}</span>
+                </div>
+
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">NGÀY CÔNG</span>
+                  <span className="font-sans font-bold text-white text-xs">{myPayrollItem.actual_days} / {myPayrollItem.standard_days} công</span>
+                </div>
+
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CÔNG</span>
+                  <span className="font-sans font-bold text-white text-xs">{formatVND(myPayrollItem.salary_by_days)}</span>
+                </div>
+
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-amber-400 block font-bold">TĂNG CA (OT)</span>
+                  <span className="font-sans font-bold text-amber-300 text-xs">
+                    {myPayrollItem.ot_hours}h (+{formatVND(myPayrollItem.ot_salary)})
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-emerald-400 block font-bold">HOA HỒNG</span>
+                  <span className="font-sans font-bold text-emerald-400 text-xs">
+                    +{formatVND((myPayrollItem.shared_commission || 0) + (myPayrollItem.personal_commission || 0))}
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">THƯỞNG / TRỪ</span>
+                  <span className="font-sans font-bold text-emerald-400 text-xs">
+                    +{formatVND((myPayrollItem.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}
+                  </span>
+                  <span className="text-slate-500 mx-1">/</span>
+                  <span className="font-sans font-bold text-rose-400 text-xs">-{formatVND(myPayrollItem.total_deduction)}</span>
+                </div>
+
+                <div className="col-span-2 sm:col-span-2 p-2.5 bg-gradient-to-r from-cyan-950/40 to-blue-950/40 rounded-xl border border-cyan-500/40 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-cyan-300 block font-black uppercase">TỔNG THỰC LĨNH THÁNG {selectedMonth}</span>
+                    <span className="font-sans font-black text-base text-cyan-300">{formatVND(myPayrollItem.final_salary)}</span>
+                  </div>
+                  <div className="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 rounded-lg text-xs font-bold border border-cyan-500/30">
+                    Đã tính
                   </div>
                 </div>
               </div>
-
-              {/* Lương Cơ Bản */}
-              <div className="px-3 border-r border-slate-800 flex-shrink-0">
-                <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CƠ BẢN</span>
-                <span className="font-sans font-bold text-white text-xs">{formatVND(myPayrollItem.base_salary)}</span>
-              </div>
-
-              {/* Ngày Công Thực Tế */}
-              <div className="px-3 border-r border-slate-800 flex-shrink-0">
-                <span className="text-[10px] text-slate-400 block font-bold">NGÀY CÔNG</span>
-                <span className="font-sans font-bold text-white text-xs">{myPayrollItem.actual_days} / {myPayrollItem.standard_days} công</span>
-              </div>
-
-              {/* Lương Ngày Công */}
-              <div className="px-3 border-r border-slate-800 flex-shrink-0">
-                <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CÔNG</span>
-                <span className="font-sans font-bold text-white text-xs">{formatVND(myPayrollItem.salary_by_days)}</span>
-              </div>
-
-              {/* Tăng Ca OT */}
-              <div className="px-3 border-r border-slate-800 flex-shrink-0">
-                <span className="text-[10px] text-amber-400 block font-bold">TĂNG CA (OT)</span>
-                <span className="font-sans font-bold text-amber-300 text-xs">
-                  {myPayrollItem.ot_hours}h (+{formatVND(myPayrollItem.ot_salary)})
-                </span>
-              </div>
-
-              {/* Hoa Hồng */}
-              <div className="px-3 border-r border-slate-800 flex-shrink-0">
-                <span className="text-[10px] text-emerald-400 block font-bold">HOA HỒNG</span>
-                <span className="font-sans font-bold text-emerald-400 text-xs">
-                  +{formatVND((myPayrollItem.shared_commission || 0) + (myPayrollItem.personal_commission || 0))}
-                </span>
-              </div>
-
-              {/* Thưởng / Trừ Khác */}
-              <div className="px-3 border-r border-slate-800 flex-shrink-0 text-xs">
-                <span className="text-[10px] text-slate-400 block font-bold">THƯỞNG / TRỪ</span>
-                <span className="font-sans font-bold text-emerald-400">
-                  +{formatVND((myPayrollItem.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}
-                </span>
-                <span className="text-slate-500 mx-1">/</span>
-                <span className="font-sans font-bold text-rose-400">-{formatVND(myPayrollItem.total_deduction)}</span>
-              </div>
-
-              {/* Tổng Thực Lĩnh */}
-              <div className="px-3 border-r border-slate-800 flex-shrink-0">
-                <span className="text-[10px] text-cyan-300 block font-black uppercase">TỔNG THỰC LĨNH</span>
-                <span className="font-sans font-black text-sm text-cyan-300">{formatVND(myPayrollItem.final_salary)}</span>
-              </div>
-
-              {/* Xem Phiếu Lương */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedPayslipRecord({
-                    ...myPayrollItem,
-                    month: selectedMonth,
-                  });
-                  setIsPayslipOpen(true);
-                }}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 flex-shrink-0"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Xem Phiếu Lương</span>
-              </button>
             </div>
           )}
         </div>

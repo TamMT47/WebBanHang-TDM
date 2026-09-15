@@ -270,154 +270,186 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       )}
 
       {/* ======================================================== */}
-      {/* 1. FORM CHẤM CÔNG DẠNG 1 DÒNG NẰM NGANG (TƯƠNG TỰ FORM POS) */}
+      {/* 1. KHUNG CHẤM CÔNG DẠNG DỌC (VERTICAL STACK - RESPONSIVE MOBILE) */}
       {/* ======================================================== */}
-      <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3 sm:p-4 overflow-x-auto">
-        <div className="flex items-center space-x-3 whitespace-nowrap min-w-max">
-          
-          {/* 1. User Avatar & Name */}
-          <div className="flex items-center space-x-2.5 pr-3 border-r border-slate-800 flex-shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center font-black text-sm shadow-xs flex-shrink-0">
+      <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3.5 sm:p-4 space-y-3">
+        
+        {/* Khối 1: Thông tin nhân viên, Ca làm việc tuần này & Trạng thái Wifi */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center font-black text-sm shadow-xs flex-shrink-0">
               {user?.full_name?.slice(0, 1) || 'NV'}
             </div>
             <div>
-              <div className="text-xs font-black text-white">{user?.full_name || 'Nhân Viên'}</div>
-              <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-tight">
-                {user?.role === 'admin' ? 'Admin' : user?.role === 'owner' ? 'Chủ Shop' : user?.role === 'manager' ? 'Quản Lý' : 'Nhân Viên'}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-black text-white">{user?.full_name || 'Nhân Viên'}</span>
+                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-md text-[10px] font-bold uppercase">
+                  {user?.role === 'admin' ? 'Admin' : user?.role === 'owner' ? 'Chủ Shop' : user?.role === 'manager' ? 'Quản Lý' : 'Nhân Viên'}
+                </span>
               </div>
-            </div>
-          </div>
-
-          {/* 2. Clock & Date */}
-          <div className="flex items-center space-x-2 px-3 border-r border-slate-800 flex-shrink-0">
-            <Clock className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-            <div>
-              <div className="font-mono text-sm font-black text-white tracking-tight">{currentTime || '--:--:--'}</div>
-              <div className="text-[10px] text-slate-400 capitalize">{currentDateStr}</div>
-            </div>
-          </div>
-
-          {/* 3. Ca Làm Tuần Này (Tự Động Luân Phiên) */}
-          <div className="flex items-center space-x-2 px-3 border-r border-slate-800 flex-shrink-0">
-            <div className="text-left">
-              <div className="flex items-center space-x-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs">
                 <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded text-[10px] font-black">
                   Tuần {weekNumber}
                 </span>
-                <span className="text-xs font-bold text-white">
+                <span className="font-bold text-slate-200">
                   {assignedShift === 'shift1' ? 'Ca 1' : assignedShift === 'shift2' ? 'Ca 2' : 'Ca Quản Lý'}
                 </span>
-              </div>
-              <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                {assignedShift === 'shift1' ? 'Sáng: 08:30-11:30 | Chiều: 13:00-21:00' : assignedShift === 'shift2' ? 'Sáng: 08:30-13:00 | Chiều: 14:30-21:00' : '08:30 - 21:00'}
+                <span className="text-slate-400 text-[11px]">
+                  ({assignedShift === 'shift1' ? '08:30-11:30 | 13:00-21:00' : assignedShift === 'shift2' ? '08:30-13:00 | 14:30-21:00' : '08:30-21:00'})
+                </span>
               </div>
             </div>
           </div>
 
-          {/* 4. Wifi Status Badge (NO IP shown for staff) */}
-          <div className="flex items-center space-x-1.5 px-3 border-r border-slate-800 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            {/* Realtime Clock */}
+            <div className="flex items-center space-x-1.5 px-3 py-1 bg-slate-900 rounded-xl border border-slate-800">
+              <Clock className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="font-mono text-xs font-black text-white">{currentTime || '--:--:--'}</span>
+              <span className="text-[10px] text-slate-400 capitalize">({currentDateStr})</span>
+            </div>
+
+            {/* Wifi Status */}
             {isWifiMatch ? (
-              <div className="flex items-center space-x-1 px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-xl text-[11px] font-bold">
+              <div className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold">
                 <Wifi className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Wifi Shop: Sẵn sàng</span>
               </div>
             ) : (
-              <div className="flex items-center space-x-1 px-2 py-1 bg-rose-500/15 text-rose-300 border border-rose-500/30 rounded-xl text-[11px] font-bold">
+              <div className="flex items-center space-x-1 px-2.5 py-1 bg-rose-500/15 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold">
                 <WifiOff className="w-3.5 h-3.5 text-rose-400" />
                 <span>Chưa kết nối Wifi Shop</span>
               </div>
             )}
+
             {isTodayOff && (
-              <span className="px-2 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-xl text-[10px] font-bold">
-                🎉 Ngày Off (+1 công nếu làm)
+              <span className="px-2 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-bold">
+                🎉 Ngày Off (+1 công)
               </span>
             )}
           </div>
+        </div>
 
-          {/* 5. Chấm Công Buổi Sáng */}
-          <div className="flex items-center space-x-2 px-3 border-r border-slate-800 flex-shrink-0">
-            <Sun className="w-4 h-4 text-amber-400 flex-shrink-0" />
+        {/* Khối 2: Nút bấm Chấm công Ca Sáng & Ca Chiều dàn đều rộng rãi theo chiều ngang */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          
+          {/* Card Ca Sáng */}
+          <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span className="font-black text-xs text-white uppercase tracking-wider">CHẤM CÔNG CA SÁNG</span>
+              </div>
+              <span className="text-[11px] font-bold text-amber-300 font-sans">
+                {assignedShift === 'shift1' ? '08:30 - 11:30' : assignedShift === 'shift2' ? '08:30 - 13:00' : '08:30 - 13:00'}
+              </span>
+            </div>
+
             {!morningRecord ? (
               <button
                 type="button"
                 onClick={() => handleSessionCheckIn('morning')}
                 disabled={submitting}
-                className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black rounded-xl text-xs shadow-xs hover:brightness-110 active:scale-95 transition flex items-center space-x-1.5 disabled:opacity-50"
+                className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black rounded-xl text-xs shadow-md hover:brightness-110 active:scale-98 transition flex items-center justify-center space-x-2 disabled:opacity-50"
               >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Vào Ca Sáng</span>
+                <LogIn className="w-4 h-4" />
+                <span>VÀO CA SÁNG</span>
               </button>
             ) : morningRecord.status === 'working' ? (
-              <div className="flex items-center space-x-2">
-                <span className="text-[11px] font-bold text-amber-300">
-                  Đang làm ({formatHourMinute(morningRecord.check_in)})
-                </span>
+              <div className="space-y-2">
+                <div className="text-center text-xs font-bold text-amber-300">
+                  🟢 Đang làm việc (Vào lúc: {formatHourMinute(morningRecord.check_in)})
+                </div>
                 <button
                   type="button"
                   onClick={() => handleSessionCheckOut('morning', morningRecord.id)}
                   disabled={submitting}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/50 rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50"
+                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/50 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 disabled:opacity-50"
                 >
-                  <Coffee className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Ra Ca Sáng (Nghỉ trưa)</span>
+                  <Coffee className="w-4 h-4 text-amber-400" />
+                  <span>RA CA SÁNG (Nghỉ trưa)</span>
                 </button>
               </div>
             ) : (
-              <div className="flex items-center space-x-1 px-2.5 py-1 bg-slate-800/80 rounded-xl text-[11px] border border-slate-700">
-                <Check className="w-3 h-3 text-emerald-400" />
-                <span className="text-slate-300 font-bold">Sáng:</span>
-                <span className="font-mono text-white">{formatHourMinute(morningRecord.check_in)} - {formatHourMinute(morningRecord.check_out)}</span>
-                <span className="text-emerald-400 font-bold">({morningRecord.work_hours}h)</span>
+              <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-1.5 text-emerald-400 font-bold">
+                  <Check className="w-4 h-4" />
+                  <span>Đã xong ca sáng:</span>
+                </div>
+                <div className="font-mono text-white font-bold">
+                  {formatHourMinute(morningRecord.check_in)} - {formatHourMinute(morningRecord.check_out)}
+                  <span className="text-emerald-400 ml-1 font-sans">({morningRecord.work_hours}h)</span>
+                </div>
               </div>
             )}
           </div>
 
-          {/* 6. Chấm Công Buổi Chiều */}
-          <div className="flex items-center space-x-2 px-3 border-r border-slate-800 flex-shrink-0">
-            <Sunset className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+          {/* Card Ca Chiều */}
+          <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Sunset className="w-4 h-4 text-cyan-400" />
+                <span className="font-black text-xs text-white uppercase tracking-wider">CHẤM CÔNG CA CHIỀU</span>
+              </div>
+              <span className="text-[11px] font-bold text-cyan-300 font-sans">
+                {assignedShift === 'shift1' ? '13:00 - 21:00' : assignedShift === 'shift2' ? '14:30 - 21:00' : '13:00 - 21:00'}
+              </span>
+            </div>
+
             {!afternoonRecord ? (
               <button
                 type="button"
                 onClick={() => handleSessionCheckIn('afternoon')}
                 disabled={submitting}
-                className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-xl text-xs shadow-glow-cyan hover:brightness-110 active:scale-95 transition flex items-center space-x-1.5 disabled:opacity-50"
+                className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-xl text-xs shadow-glow-cyan hover:brightness-110 active:scale-98 transition flex items-center justify-center space-x-2 disabled:opacity-50"
               >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Vào Ca Chiều</span>
+                <LogIn className="w-4 h-4" />
+                <span>VÀO CA CHIỀU</span>
               </button>
             ) : afternoonRecord.status === 'working' ? (
-              <div className="flex items-center space-x-2">
-                <span className="text-[11px] font-bold text-cyan-300">
-                  Đang làm ({formatHourMinute(afternoonRecord.check_in)})
-                </span>
+              <div className="space-y-2">
+                <div className="text-center text-xs font-bold text-cyan-300">
+                  🟢 Đang làm việc (Vào lúc: {formatHourMinute(afternoonRecord.check_in)})
+                </div>
                 <button
                   type="button"
                   onClick={() => handleSessionCheckOut('afternoon', afternoonRecord.id)}
                   disabled={submitting}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1 disabled:opacity-50 shadow-xs"
+                  className="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs transition flex items-center justify-center space-x-1.5 disabled:opacity-50 shadow-md"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Ra Ca Chiều (Hết ngày)</span>
+                  <LogOut className="w-4 h-4" />
+                  <span>RA CA CHIỀU (Hết ngày)</span>
                 </button>
               </div>
             ) : (
-              <div className="flex items-center space-x-1 px-2.5 py-1 bg-slate-800/80 rounded-xl text-[11px] border border-slate-700">
-                <Check className="w-3 h-3 text-emerald-400" />
-                <span className="text-slate-300 font-bold">Chiều:</span>
-                <span className="font-mono text-white">{formatHourMinute(afternoonRecord.check_in)} - {formatHourMinute(afternoonRecord.check_out)}</span>
-                <span className="text-emerald-400 font-bold">({afternoonRecord.work_hours}h)</span>
-                {afternoonRecord.ot_hours > 0 && (
-                  <span className="text-amber-400 font-bold ml-1">+{afternoonRecord.ot_hours}h OT</span>
-                )}
+              <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-1.5 text-emerald-400 font-bold">
+                  <Check className="w-4 h-4" />
+                  <span>Đã xong ca chiều:</span>
+                </div>
+                <div className="font-mono text-white font-bold">
+                  {formatHourMinute(afternoonRecord.check_in)} - {formatHourMinute(afternoonRecord.check_out)}
+                  <span className="text-emerald-400 ml-1 font-sans">
+                    ({afternoonRecord.work_hours}h{afternoonRecord.ot_hours > 0 ? ` +${afternoonRecord.ot_hours}h OT` : ''})
+                  </span>
+                </div>
               </div>
             )}
           </div>
 
-          {/* 7. Đăng Ký Ngày Off Tuần Tới */}
-          {offDaysData?.nextWeek && (
-            <div className="flex items-center space-x-2 pl-2 flex-shrink-0">
-              <Calendar className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-              <span className="text-[11px] text-slate-300 font-bold">Off Tuần Tới:</span>
+        </div>
+
+        {/* Khối 3: Ô chọn Đăng ký Off Tuần Tới nằm bên dưới & Nút Làm Mới */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-slate-950/60 rounded-xl border border-slate-800 text-xs">
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
+            <span className="font-bold text-slate-200">
+              Đăng ký ngày Off tuần tới ({offDaysData?.nextWeek?.weekStr || 'Tuần sau'}):
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {offDaysData?.nextWeek && (
               <select
                 value={
                   offDaysData.offDays?.find((od) => od.user_id === user?.id && od.week_str === offDaysData.nextWeek.weekStr)?.date || ''
@@ -428,32 +460,31 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                   }
                 }}
                 disabled={savingOffDay}
-                className="bg-slate-950 border border-slate-700 text-[11px] font-bold text-purple-300 rounded-xl px-2.5 py-1 focus:outline-none focus:border-purple-500"
+                className="flex-1 sm:flex-initial bg-slate-900 border border-slate-700 text-xs font-bold text-purple-300 rounded-xl px-3 py-1.5 focus:outline-none focus:border-purple-500"
               >
-                <option value="">-- Chọn 1 ngày --</option>
+                <option value="">-- Chọn ngày Off --</option>
                 {offDaysData.nextWeek.days?.map((d: any) => (
                   <option key={d.date} value={d.date}>
                     {d.dayName} ({d.formattedDate})
                   </option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
 
-          {/* Refresh Button */}
-          <button
-            type="button"
-            onClick={() => {
-              fetchAttendanceData();
-              fetchOffDaysData();
-            }}
-            title="Làm mới trạng thái"
-            className="p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition ml-2"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-
+            <button
+              type="button"
+              onClick={() => {
+                fetchAttendanceData();
+                fetchOffDaysData();
+              }}
+              title="Làm mới trạng thái"
+              className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition flex-shrink-0"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
+
       </div>
 
       {/* ======================================================== */}

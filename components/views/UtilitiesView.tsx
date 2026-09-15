@@ -179,6 +179,8 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
       : []),
   ];
 
+  const isStaff = user?.role === 'staff';
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto pb-16">
       {/* Export Success Toast */}
@@ -199,9 +201,11 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
               Trung Tâm Tiện Ích & Quản Trị
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Tổng hợp các chức năng quản lý nâng cao & xuất dữ liệu của hệ thống TD MOBILE STORE.
-            </p>
+            {!isStaff && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                Tổng hợp các chức năng quản lý nâng cao & xuất dữ liệu của hệ thống TD MOBILE STORE.
+              </p>
+            )}
           </div>
         </div>
         <div className="hidden sm:flex items-center space-x-2 bg-slate-950 px-3.5 py-2 rounded-2xl border border-slate-800 text-xs">
@@ -217,7 +221,7 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
             <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider">
               {sec.title}
             </h3>
-            <p className="text-[11px] text-slate-500">{sec.description}</p>
+            {!isStaff && <p className="text-[11px] text-slate-500">{sec.description}</p>}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -248,9 +252,11 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
                           {item.tag}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5 leading-snug line-clamp-1">
-                        {item.desc}
-                      </p>
+                      {!isStaff && (
+                        <p className="text-[11px] text-slate-400 mt-0.5 leading-snug line-clamp-1">
+                          {item.desc}
+                        </p>
+                      )}
                     </div>
                   </div>
 
