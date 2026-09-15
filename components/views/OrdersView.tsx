@@ -290,6 +290,12 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
                         {order.partner_address && (
                           <div className="text-[10px] text-slate-500 truncate max-w-[150px]">{order.partner_address}</div>
                         )}
+                        {order.seller_name && (
+                          <div className="mt-1 flex items-center space-x-1 text-[10px] text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/50 w-fit badge-nowrap">
+                            <span>👤 Bán:</span>
+                            <span className="font-bold">{order.seller_name}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 text-slate-300">
                         <div className="space-y-1.5">

@@ -35,7 +35,10 @@ export async function POST(request: NextRequest) {
       const res = await query('SELECT * FROM attendance WHERE id = $1 AND user_id = $2', [attendance_id, user.id]);
       if (res.rows.length > 0) record = res.rows[0];
     } else {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const vnTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' });
+      const todayStr = new Date(vnTimeStr).toISOString().split('T')[0];
+
       const res = await query(
         `SELECT * FROM attendance 
          WHERE user_id = $1 AND date = $2 AND check_out IS NULL 
@@ -59,47 +62,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const checkInTime = new Date(record.check_in).getTime();
-    const checkOutTime = Date.now();
-    const durationHours = Math.max(0, (checkOutTime - checkInTime) / (1000 * 60 * 60));
+    const now = new Date();
+    const vnTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const vnDate = new Date(vnTimeStr);
 
-    // Standard Shift Durations (4 hours per standard shift)
-    const standardShiftHours = record.shift === 'full' ? 8.0 : 4.0;
-    
-    let workHours = 0;
+    const hour = vnDate.getHours();
+    const minute = vnDate.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+
+    // Standard Shift End: 21:00 (1260 minutes)
+    // Làm thêm sau giờ ra ca (sau 21:00): Tính OT 150%.
+    // Về sớm trước 21:00: ghi nhận số phút về sớm.
+    let earlyMinutes = 0;
     let otHours = 0;
 
-    if (durationHours > standardShiftHours) {
-      workHours = standardShiftHours;
-      otHours = Math.round((durationHours - standardShiftHours + Number.EPSILON) * 100) / 100;
-    } else {
-      workHours = Math.round((durationHours + Number.EPSILON) * 100) / 100;
+    if (totalMinutes < 1260) {
+      earlyMinutes = 1260 - totalMinutes;
       otHours = 0;
+    } else if (totalMinutes > 1260) {
+      earlyMinutes = 0;
+      otHours = Math.round(((totalMinutes - 1260) / 60 + Number.EPSILON) * 100) / 100;
     }
+
+    // Standard 11h shift (or legacy 4h/8h if legacy shift)
+    const isLegacy4h = ['morning', 'afternoon', 'evening'].includes(record.shift);
+    const standardHours = isLegacy4h ? 4.0 : 11.0;
+
+    const lateMin = parseInt(record.late_minutes || 0, 10);
+    const totalDeductedHours = (lateMin + earlyMinutes) / 60;
+    const workHours = Math.max(0, Math.round((standardHours - totalDeductedHours + Number.EPSILON) * 100) / 100);
 
     const updateRes = await query(
       `UPDATE attendance
        SET check_out = NOW(),
            work_hours = $1,
            ot_hours = $2,
+           early_minutes = $3,
            status = 'completed',
-           note = COALESCE($3, note)
-       WHERE id = $4
+           note = COALESCE($4, note)
+       WHERE id = $5
        RETURNING *`,
-      [workHours, otHours, note || null, record.id]
+      [workHours, otHours, earlyMinutes, note || null, record.id]
     );
 
     const updated = updateRes.rows[0];
 
     return NextResponse.json({
       success: true,
-      message: `Đã chấm công Ra Ca thành công! Thời gian làm: ${workHours}h ${otHours > 0 ? `(Tăng ca OT: ${otHours}h)` : ''}`,
+      message: `Đã chấm công Ra Ca thành công! Thời gian làm chuẩn: ${workHours}h ${otHours > 0 ? `• Tăng ca (OT 150%): ${otHours}h` : ''} ${earlyMinutes > 0 ? `• (Về sớm: ${earlyMinutes} phút)` : ''}`,
       attendance: updated,
       summary: {
         workHours,
         otHours,
-        totalDuration: Math.round((durationHours + Number.EPSILON) * 100) / 100,
-      }
+        earlyMinutes,
+        lateMinutes: lateMin,
+      },
     });
   } catch (err: any) {
     console.error('Check-out error:', err);

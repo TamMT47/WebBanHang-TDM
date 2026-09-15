@@ -33,15 +33,18 @@ export async function GET(request: NextRequest) {
         o.payment_method,
         o.debt_added,
         o.created_by,
+        o.seller_id,
         o.created_at,
         p.name AS partner_name,
         p.phone AS partner_phone,
         p.address AS partner_address,
         p.cccd AS partner_cccd,
-        u.full_name AS creator_name
+        u.full_name AS creator_name,
+        s.full_name AS seller_name
       FROM orders o
       LEFT JOIN partners p ON o.partner_id = p.id
       LEFT JOIN users u ON o.created_by = u.id
+      LEFT JOIN users s ON o.seller_id = s.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -237,10 +240,11 @@ export async function POST(request: NextRequest) {
 
       // 3. Create Order Code
       const code = `HD${Date.now().toString().slice(-6)}`;
+      const sellerId = payload.seller_id || user.id;
 
       const orderInsertRes = await client.query(
-        `INSERT INTO orders (code, type, partner_id, total_amount, discount, trade_in_value, final_payment, paid_amount, payment_method, debt_added, created_by)
-         VALUES ($1, 'sell', $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO orders (code, type, partner_id, total_amount, discount, trade_in_value, final_payment, paid_amount, payment_method, debt_added, created_by, seller_id)
+         VALUES ($1, 'sell', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
         [
           code,
@@ -253,6 +257,7 @@ export async function POST(request: NextRequest) {
           payment_method || 'cash',
           debtAdded,
           user.id,
+          sellerId,
         ]
       );
       const newOrder = orderInsertRes.rows[0];
@@ -703,6 +708,7 @@ export async function PATCH(request: NextRequest) {
       discount,
       paid_amount,
       payment_method,
+      seller_id,
     } = payload;
 
     if (!order_id) {
@@ -797,9 +803,19 @@ export async function PATCH(request: NextRequest) {
         final_payment = $4,
         paid_amount = $5,
         debt_added = $6,
-        payment_method = COALESCE($7, payment_method)
+        payment_method = COALESCE($7, payment_method),
+        seller_id = COALESCE($8, seller_id)
       WHERE id = $1`,
-      [order_id, newTotalAmount, newDiscount, newFinalPayment, newPaidAmount, newDebtAdded, payment_method || null]
+      [
+        order_id,
+        newTotalAmount,
+        newDiscount,
+        newFinalPayment,
+        newPaidAmount,
+        newDebtAdded,
+        payment_method || null,
+        seller_id !== undefined ? seller_id : null,
+      ]
     );
 
     // 6. Adjust partner debt if changed

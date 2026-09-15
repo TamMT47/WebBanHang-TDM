@@ -79,6 +79,7 @@ interface POSCheckoutModalProps {
     address?: string;
     cccd?: string;
   } | null;
+  currentUser?: any;
 }
 
 export default function POSCheckoutModal({
@@ -88,6 +89,7 @@ export default function POSCheckoutModal({
   onCompleteOrder,
   submitting,
   initialCustomer,
+  currentUser,
 }: POSCheckoutModalProps) {
   // Wizard Step: 1 = Customer, 2 = Trade-in, 3 = Payment, 4 = Review & Confirm
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -133,6 +135,25 @@ export default function POSCheckoutModal({
   const [customPaidAmount, setCustomPaidAmount] = useState<number | null>(null);
   const [overpaidAction, setOverpaidAction] = useState<'refund' | 'debt'>('refund');
   const [note, setNote] = useState('');
+
+  // Salesperson state (chỉ Admin/Quản lý được sửa)
+  const isManagerOrAbove = currentUser && ['admin', 'owner', 'manager'].includes(currentUser.role);
+  const [sellerId, setSellerId] = useState<string>(currentUser?.id || '');
+  const [usersList, setUsersList] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.users) {
+          setUsersList(data.users);
+          if (!sellerId && currentUser?.id) {
+            setSellerId(currentUser.id);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [currentUser]);
 
   // Financial Calculations
   const totalAmount = useMemo(() => {
@@ -395,6 +416,7 @@ export default function POSCheckoutModal({
             selling_price: tiSellingPrice || Math.round(tiValue * 1.15),
           }
         : null,
+      seller_id: sellerId || currentUser?.id || null,
     };
 
     await onCompleteOrder(payload);
@@ -1034,6 +1056,42 @@ export default function POSCheckoutModal({
                 )}
               </div>
 
+              {/* Người Bán / Giới Thiệu Cá Nhân */}
+              <div className="p-3.5 bg-slate-850 rounded-2xl border border-slate-700/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-200 uppercase tracking-wide flex items-center space-x-1.5">
+                    <User className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Người Bán / Giới Thiệu Cá Nhân:</span>
+                  </label>
+                  {!isManagerOrAbove && (
+                    <span className="text-[10px] text-slate-400 italic">
+                      (Chỉ Quản lý / Admin mới được sửa)
+                    </span>
+                  )}
+                </div>
+
+                {isManagerOrAbove ? (
+                  <select
+                    value={sellerId}
+                    onChange={(e) => setSellerId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500"
+                  >
+                    {usersList.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.role})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl text-xs font-bold text-slate-300">
+                    {usersList.find((u) => u.id === sellerId)?.full_name || currentUser?.full_name || 'Nhân viên bán hàng'}
+                  </div>
+                )}
+                <div className="text-[10px] text-slate-400">
+                  Hoa hồng cá nhân (máy cũ 200k-500k, máy New 300k) sẽ tự động cộng dồn vào bảng lương của nhân sự này.
+                </div>
+              </div>
+
               {/* Note */}
               <input
                 type="text"
@@ -1119,6 +1177,13 @@ export default function POSCheckoutModal({
                       <span className="font-sans font-bold">{debtAdded > 0 ? `+${formatVND(debtAdded)}` : formatVND(debtAdded)}</span>
                     </div>
                   )}
+
+                  <div className="flex justify-between text-xs font-bold text-slate-300 pt-1.5 border-t border-slate-700/60">
+                    <span>Người bán ghi nhận:</span>
+                    <span className="font-bold text-cyan-300">
+                      {usersList.find((u) => u.id === sellerId)?.full_name || currentUser?.full_name || 'Admin'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

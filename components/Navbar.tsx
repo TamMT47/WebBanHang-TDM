@@ -67,6 +67,7 @@ export default function Navbar({
     { id: 'cash-flow', label: 'Sổ Quỹ', icon: DollarSign, roles: ['admin', 'owner', 'manager'] },
     { id: 'reports', label: 'Báo Cáo', icon: BarChart3, roles: ['admin', 'owner', 'manager'] },
     { id: 'users', label: 'Tài Khoản', icon: UserCheck, roles: ['admin', 'owner'] },
+    { id: 'settings', label: 'Cài Đặt', icon: Sparkles, roles: ['admin', 'owner', 'manager', 'staff'] },
   ];
 
   const filteredNavItems = navItems.filter(

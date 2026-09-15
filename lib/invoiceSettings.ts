@@ -3,12 +3,17 @@ export interface InvoiceSettings {
   shopSlogan: string;
   shopAddress: string;
   shopHotline: string;
+  warrantyHotline: string;
+  footerNote: string;
   shopLogoUrl: string;
+  paperSize: 'k80' | 'a4';
+  showImei: boolean;
+  showBatteryHealth: boolean;
+  showWarrantyTerms: boolean;
   bankName: string;
   bankAccount: string;
   bankAccountHolder: string;
   warrantyPolicies: string[];
-  footerNote: string;
 }
 
 export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
@@ -16,7 +21,13 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
   shopSlogan: 'Chất lượng tạo niềm tin - Dịch vụ đỉnh cao',
   shopAddress: '06 Nguyễn Trãi, Phường Gò Công, Đồng Tháp',
   shopHotline: '0364848960',
+  warrantyHotline: '0364848960',
+  footerNote: 'Xin chân thành cảm ơn Quý Khách đã tin tưởng và đồng hành cùng TD Mobile Store!',
   shopLogoUrl: '/logo.png',
+  paperSize: 'a4',
+  showImei: true,
+  showBatteryHealth: true,
+  showWarrantyTerms: true,
   bankName: 'MB Bank (Ngân hàng Quân Đội)',
   bankAccount: '0364848960',
   bankAccountHolder: 'TRUONG MINH TAM',
@@ -26,7 +37,6 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
     '3. Từ chối bảo hành đối với các trường hợp rơi vỡ, cấn móp, ngấm nước, tự ý tháo mở máy hoặc can thiệp phần mềm.',
     '4. Quý khách vui lòng xuất trình hóa đơn này hoặc cung cấp SĐT đã mua hàng khi cần hỗ trợ kỹ thuật / bảo hành.',
   ],
-  footerNote: 'Xin chân thành cảm ơn Quý Khách đã tin tưởng và đồng hành cùng TD Mobile Store!',
 };
 
 const STORAGE_KEY = 'tdm_invoice_settings';

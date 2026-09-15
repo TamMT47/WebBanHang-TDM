@@ -13,10 +13,11 @@ export async function GET(
     const { id } = params;
 
     const orderRes = await query(
-      `SELECT o.*, p.name AS partner_name, p.phone AS partner_phone, p.address AS partner_address, p.cccd AS partner_cccd, u.full_name AS creator_name
+      `SELECT o.*, p.name AS partner_name, p.phone AS partner_phone, p.address AS partner_address, p.cccd AS partner_cccd, u.full_name AS creator_name, s.full_name AS seller_name
        FROM orders o
        LEFT JOIN partners p ON o.partner_id = p.id
        LEFT JOIN users u ON o.created_by = u.id
+       LEFT JOIN users s ON o.seller_id = s.id
        WHERE o.id = $1 OR o.code = $1`,
       [id]
     );

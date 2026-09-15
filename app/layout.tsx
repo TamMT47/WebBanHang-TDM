@@ -36,6 +36,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" className={`${nunito.variable} ${robotoMono.variable} dark`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var t = localStorage.getItem('tdm_active_theme');
+                if (t) document.documentElement.setAttribute('data-theme', t);
+              } catch(e) {}
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-[#080d1a] text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-black">
         {children}
       </body>

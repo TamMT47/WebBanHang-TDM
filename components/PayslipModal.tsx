@@ -29,15 +29,31 @@ export default function PayslipModal({ isOpen, onClose, record, month }: Payslip
 
   const currentMonth = record.month || month || new Date().toISOString().slice(0, 7);
   const baseSalary = parseFloat(record.base_salary || 0);
-  const standardDays = parseInt(record.standard_days || 26, 10);
+  const contractType = record.contract_type || 'sales';
+  const contractTypeLabel =
+    contractType === 'probation'
+      ? 'Thử việc (85% Lương CB)'
+      : contractType === 'marketing'
+      ? 'Sale Marketing (100%)'
+      : contractType === 'manager'
+      ? 'Quản lý (100%)'
+      : 'Bán hàng (100%)';
+  const effectiveBaseSalary = contractType === 'probation' ? Math.round(baseSalary * 0.85) : baseSalary;
+
+  const standardDays = parseInt(record.standard_days || (currentMonth.endsWith('-02') ? 26 : 26), 10);
   const actualDays = parseFloat(record.actual_days || 0);
   const otHours = parseFloat(record.ot_hours || 0);
   const salaryByDays = parseFloat(record.salary_by_days || 0);
   const otSalary = parseFloat(record.ot_salary || 0);
+  const sharedCommission = parseFloat(record.shared_commission || 0);
+  const personalCommission = parseFloat(record.personal_commission || 0);
   const totalAllowance = parseFloat(record.total_allowance || 0);
   const totalDeduction = parseFloat(record.total_deduction || 0);
   const finalSalary = parseFloat(record.final_salary || 0);
   const isPaid = record.status === 'paid';
+
+  const unitDailySalary = standardDays > 0 ? Math.round(effectiveBaseSalary / standardDays) : 0;
+  const unitHourlyRate = unitDailySalary > 0 ? Math.round(unitDailySalary / 11) : 0;
 
   const allowances = Array.isArray(record.allowances) ? record.allowances : [];
   const deductions = Array.isArray(record.deductions) ? record.deductions : [];
@@ -92,20 +108,28 @@ export default function PayslipModal({ isOpen, onClose, record, month }: Payslip
           </div>
 
           {/* Employee Meta */}
-          <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
             <div>
               <span className="text-[10px] text-slate-500 uppercase font-bold block">Nhân Viên</span>
               <span className="font-bold text-white text-xs">{record.user_name}</span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Chức Vụ / Vai Trò</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Chức Vụ</span>
               <span className="font-bold text-cyan-300 uppercase text-xs">
-                {record.user_role === 'admin' ? 'Quản Trị Viên' : record.user_role === 'owner' ? 'Chủ Cửa Hàng' : record.user_role === 'manager' ? 'Quản Lý' : 'Nhân Viên Bán Hàng'}
+                {record.user_role === 'admin' ? 'Quản Trị Viên' : record.user_role === 'owner' ? 'Chủ Cửa Hàng' : record.user_role === 'manager' ? 'Quản Lý' : 'Nhân Viên'}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Lương Cơ Bản</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Loại Hợp Đồng</span>
+              <span className="font-bold text-amber-300 text-xs">{contractTypeLabel}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Lương Cơ Bản Gốc</span>
               <span className="font-sans font-bold text-white text-xs">{formatVND(baseSalary)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Lương CB Thực Tế</span>
+              <span className="font-sans font-bold text-cyan-300 text-xs">{formatVND(effectiveBaseSalary)}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-500 uppercase font-bold block">Trạng Thái</span>
@@ -117,40 +141,56 @@ export default function PayslipModal({ isOpen, onClose, record, month }: Payslip
 
           {/* Detailed Calculations */}
           <div className="space-y-2">
-            <div className="font-bold text-slate-300 uppercase text-[11px]">1. Chi Tiết Lương & Giờ Làm:</div>
+            <div className="font-bold text-slate-300 uppercase text-[11px]">1. Lương Ngày Công & Tăng Ca (Ca 11 Tiếng):</div>
             <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">
-                  • Lương ngày công ({actualDays} / {standardDays} ngày chuẩn):
+                  • Đơn giá 1 ngày công ({effectiveBaseSalary > 0 ? formatVND(effectiveBaseSalary) : '0đ'} / {standardDays} ngày chuẩn):
+                </span>
+                <span className="font-sans font-bold text-slate-300">{formatVND(unitDailySalary)} / ngày</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">
+                  • Lương ngày công làm việc ({actualDays} ngày thực tế):
                 </span>
                 <span className="font-sans font-bold text-white">{formatVND(salaryByDays)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">
-                  • Lương Tăng ca OT ({otHours} giờ x 150% lương giờ):
+                  • Lương giờ chuẩn ca 11h ({formatVND(unitDailySalary)} / 11):
                 </span>
-                <span className="font-sans font-bold text-emerald-400">+{formatVND(otSalary)}</span>
+                <span className="font-sans text-slate-400">{formatVND(unitHourlyRate)} / giờ</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-800/80 pt-1.5">
+                <span className="text-slate-400">
+                  • Lương Tăng ca OT sau 21:00 ({otHours} giờ x 150%):
+                </span>
+                <span className="font-sans font-bold text-amber-300">+{formatVND(otSalary)}</span>
               </div>
             </div>
           </div>
 
-          {/* Allowances / Bonuses */}
+          {/* Commissions & Bonuses */}
           <div className="space-y-2">
             <div className="font-bold text-slate-300 uppercase text-[11px] flex items-center justify-between">
-              <span>2. Phụ Cấp, Thưởng & Hoa Hồng:</span>
+              <span>2. Hoa Hồng Doanh Số & Phụ Cấp:</span>
               <span className="text-emerald-400 font-sans font-bold">+{formatVND(totalAllowance)}</span>
             </div>
             <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
-              {allowances.length === 0 ? (
-                <div className="text-slate-500 text-[11px] italic">Không có khoản thưởng phát sinh</div>
-              ) : (
-                allowances.map((al: any, idx: number) => (
-                  <div key={al.id || idx} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-300">• {al.title}</span>
-                    <span className="font-sans font-bold text-emerald-400">+{formatVND(al.amount)}</span>
-                  </div>
-                ))
-              )}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300">• Hoa hồng doanh số nhóm (chia đều 50k/máy chính):</span>
+                <span className="font-sans font-bold text-emerald-400">+{formatVND(sharedCommission)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300">• Hoa hồng cá nhân trên thẻ hóa đơn (bán/giới thiệu):</span>
+                <span className="font-sans font-bold text-emerald-400">+{formatVND(personalCommission)}</span>
+              </div>
+              {allowances.map((al: any, idx: number) => (
+                <div key={al.id || idx} className="flex items-center justify-between text-xs border-t border-slate-800/60 pt-1">
+                  <span className="text-slate-300">• {al.title}</span>
+                  <span className="font-sans font-bold text-emerald-400">+{formatVND(al.amount)}</span>
+                </div>
+              ))}
             </div>
           </div>
 

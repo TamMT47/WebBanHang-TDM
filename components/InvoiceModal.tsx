@@ -56,6 +56,9 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
       const current = getInvoiceSettings();
       setSettings(current);
       setEditForm(current);
+      if (current.paperSize) {
+        setPrintFormat(current.paperSize);
+      }
     }
   }, [isOpen]);
 
@@ -69,6 +72,9 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
     e.preventDefault();
     const updated = saveInvoiceSettings(editForm);
     setSettings(updated);
+    if (updated.paperSize) {
+      setPrintFormat(updated.paperSize);
+    }
     setIsEditSettingsOpen(false);
   };
 
@@ -77,8 +83,26 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
       const reset = saveInvoiceSettings(DEFAULT_INVOICE_SETTINGS);
       setSettings(reset);
       setEditForm(reset);
+      if (reset.paperSize) {
+        setPrintFormat(reset.paperSize);
+      }
       setIsEditSettingsOpen(false);
     }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Vui lòng chọn ảnh logo nhỏ hơn 2MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setEditForm((prev) => ({ ...prev, shopLogoUrl: dataUrl }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const orderDate = order.created_at
@@ -188,7 +212,12 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                       </div>
                       <div className="flex items-center space-x-1">
                         <Phone className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                        <span><b>Hotline / Zalo:</b> <span className="font-bold text-gray-950 font-sans">{settings.shopHotline}</span></span>
+                        <span>
+                          <b>Hotline:</b> <span className="font-bold text-gray-950 font-sans">{settings.shopHotline}</span>
+                          {settings.warrantyHotline && (
+                            <> • <b>Bảo hành:</b> <span className="font-bold text-gray-950 font-sans">{settings.warrantyHotline}</span></>
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -244,7 +273,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                       <tr className="bg-gray-100 border-b border-gray-300 text-gray-700 font-bold uppercase text-[10px]">
                         <th className="py-2.5 px-3">STT</th>
                         <th className="py-2.5 px-3">Dòng Sản Phẩm</th>
-                        <th className="py-2.5 px-3">Mã IMEI / Số Serial</th>
+                        {settings.showImei !== false && <th className="py-2.5 px-3">Mã IMEI / Số Serial</th>}
                         <th className="py-2.5 px-3 text-center">Gói Bảo Hành</th>
                         <th className="py-2.5 px-3 text-right">Đơn Giá</th>
                       </tr>
@@ -256,12 +285,15 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                           <td className="py-3 px-3">
                             <div className="font-black text-gray-950 text-sm">{item.product_name || item.name}</div>
                             <div className="text-[11px] text-gray-600 font-medium">
-                              {item.color ? `${item.color} • ` : ''}{item.storage ? `${item.storage} • ` : ''}{item.condition || '99%'}{item.battery_health ? ` • Pin ${item.battery_health}%` : ''}
+                              {item.color ? `${item.color} • ` : ''}{item.storage ? `${item.storage} • ` : ''}{item.condition || '99%'}
+                              {settings.showBatteryHealth !== false && item.battery_health ? ` • Pin ${item.battery_health}%` : ''}
                             </div>
                           </td>
-                          <td className="py-3 px-3 font-sans font-bold text-gray-900 text-xs">
-                            {item.imei || 'N/A'}
-                          </td>
+                          {settings.showImei !== false && (
+                            <td className="py-3 px-3 font-sans font-bold text-gray-900 text-xs">
+                              {item.imei || 'N/A'}
+                            </td>
+                          )}
                           <td className="py-3 px-3 text-center">
                             <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md font-bold text-[10px]">
                               {item.warranty_months || 12} Tháng
@@ -337,18 +369,20 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                 </div>
 
                 {/* 5. Điều Khoản & Chính Sách Bảo Hành (Customizable) */}
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-[11px] text-gray-700 space-y-1.5 mb-8">
-                  <div className="font-black text-gray-950 uppercase flex items-center space-x-1 mb-1">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span>CHÍNH SÁCH BẢO HÀNH & CAM KẾT CHẤT LƯỢNG:</span>
+                {settings.showWarrantyTerms !== false && (
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-[11px] text-gray-700 space-y-1.5 mb-8">
+                    <div className="font-black text-gray-950 uppercase flex items-center space-x-1 mb-1">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>CHÍNH SÁCH BẢO HÀNH & CAM KẾT CHẤT LƯỢNG:</span>
+                    </div>
+                    {settings.warrantyPolicies?.map((policy, pIdx) => (
+                      <p key={pIdx} className="leading-relaxed">• {policy}</p>
+                    ))}
+                    <p className="text-[10px] text-gray-500 italic pt-1 text-center border-t border-gray-200 mt-2">
+                      {settings.footerNote}
+                    </p>
                   </div>
-                  {settings.warrantyPolicies?.map((policy, pIdx) => (
-                    <p key={pIdx} className="leading-relaxed">• {policy}</p>
-                  ))}
-                  <p className="text-[10px] text-gray-500 italic pt-1 text-center border-t border-gray-200 mt-2">
-                    {settings.footerNote}
-                  </p>
-                </div>
+                )}
               </div>
 
               {/* 6. Chữ Ký Các Bên */}
@@ -379,7 +413,9 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
               <div className="text-center space-y-1 pb-4 border-b border-dashed border-gray-300">
                 <div className="font-black text-base uppercase text-gray-950">{settings.shopName}</div>
                 <div className="text-[10px] text-gray-500">{settings.shopAddress}</div>
-                <div className="text-[10px] font-bold text-gray-700">Hotline: {settings.shopHotline}</div>
+                <div className="text-[10px] font-bold text-gray-700">
+                  Hotline: {settings.shopHotline} {settings.warrantyHotline ? `• BH: ${settings.warrantyHotline}` : ''}
+                </div>
                 <div className="text-xs font-black text-gray-950 pt-2 uppercase">HÓA ĐƠN THANH TOÁN</div>
                 <div className="text-[10px] text-gray-500">#{order.code} • {orderDate}</div>
               </div>
@@ -398,7 +434,9 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                       <span className="font-sans font-bold">{formatVND(item.price)}</span>
                     </div>
                     <div className="text-[10px] text-gray-500 font-sans">
-                      IMEI: {item.imei} • BH: {item.warranty_months}T
+                      {settings.showImei !== false && item.imei ? `IMEI: ${item.imei} • ` : ''}
+                      {settings.showBatteryHealth !== false && item.battery_health ? `Pin ${item.battery_health}% • ` : ''}
+                      BH: {item.warranty_months}T
                     </div>
                   </div>
                 ))}
@@ -445,7 +483,15 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
               </div>
 
               <div className="text-center pt-4 space-y-1 text-[10px] text-gray-500">
-                <p className="font-bold text-gray-700">{settings.footerNote}</p>
+                {settings.showWarrantyTerms !== false && (
+                  <div className="text-[9px] text-left border-t border-dashed border-gray-300 pt-2 pb-1 space-y-0.5">
+                    <div className="font-bold text-gray-700">Chính sách bảo hành:</div>
+                    {settings.warrantyPolicies?.map((p, pi) => (
+                      <div key={pi}>- {p}</div>
+                    ))}
+                  </div>
+                )}
+                <p className="font-bold text-gray-700 pt-1">{settings.footerNote}</p>
                 <p>Quý khách vui lòng giữ hóa đơn để được phục vụ tốt nhất!</p>
               </div>
             </div>
@@ -494,7 +540,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Hotline / Zalo liên hệ</label>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Hotline / Zalo liên hệ *</label>
                     <input
                       type="text"
                       value={editForm.shopHotline}
@@ -504,18 +550,42 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Đường dẫn Logo</label>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Hotline tiếp nhận bảo hành *</label>
                     <input
                       type="text"
-                      value={editForm.shopLogoUrl}
-                      onChange={(e) => setEditForm({ ...editForm, shopLogoUrl: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none"
+                      value={editForm.warrantyHotline}
+                      onChange={(e) => setEditForm({ ...editForm, warrantyHotline: e.target.value })}
+                      placeholder="VD: 0364848960"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none"
+                      required
                     />
                   </div>
                 </div>
 
+                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2">
+                  <label className="block text-xs font-bold text-slate-300">Logo Cửa Hàng</label>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 rounded-xl bg-white p-1 border border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <img src={editForm.shopLogoUrl || '/logo.png'} alt="Logo" className="w-full h-full object-contain" />
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-lg text-xs font-bold cursor-pointer inline-flex items-center space-x-1">
+                        <span>Tải ảnh từ máy</span>
+                        <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.shopLogoUrl}
+                        onChange={(e) => setEditForm({ ...editForm, shopLogoUrl: e.target.value })}
+                        placeholder="Hoặc URL logo"
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Địa chỉ cửa hàng</label>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Địa chỉ cửa hàng *</label>
                   <input
                     type="text"
                     value={editForm.shopAddress}
@@ -523,6 +593,65 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
                     required
                   />
+                </div>
+
+                {/* Paper size and toggles */}
+                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2.5">
+                  <label className="block text-xs font-bold text-slate-200">Khổ giấy in mặc định:</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, paperSize: 'k80' })}
+                      className={`py-1.5 px-3 rounded-lg border text-xs font-bold ${
+                        editForm.paperSize === 'k80'
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                          : 'bg-slate-900 text-slate-400 border-slate-800'
+                      }`}
+                    >
+                      🧾 Bill K80 (80mm)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, paperSize: 'a4' })}
+                      className={`py-1.5 px-3 rounded-lg border text-xs font-bold ${
+                        editForm.paperSize === 'a4'
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                          : 'bg-slate-900 text-slate-400 border-slate-800'
+                      }`}
+                    >
+                      📄 Khổ A5 / A4
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                    <label className="flex items-center space-x-2 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={editForm.showImei}
+                        onChange={(e) => setEditForm({ ...editForm, showImei: e.target.checked })}
+                        className="w-3.5 h-3.5 rounded text-cyan-500"
+                      />
+                      <span className="text-slate-300">Hiển thị mã IMEI / Serial</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={editForm.showBatteryHealth}
+                        onChange={(e) => setEditForm({ ...editForm, showBatteryHealth: e.target.checked })}
+                        className="w-3.5 h-3.5 rounded text-cyan-500"
+                      />
+                      <span className="text-slate-300">Hiển thị % Dung lượng Pin</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={editForm.showWarrantyTerms}
+                        onChange={(e) => setEditForm({ ...editForm, showWarrantyTerms: e.target.checked })}
+                        className="w-3.5 h-3.5 rounded text-cyan-500"
+                      />
+                      <span className="text-slate-300">Hiển thị Điều khoản bảo hành</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div>

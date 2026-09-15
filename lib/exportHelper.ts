@@ -125,12 +125,15 @@ export function exportPayrollToCSV(records: any[], month: string) {
     'Tháng',
     'Họ và Tên Nhân Viên',
     'Vai Trò',
+    'Loại Hợp Đồng',
     'Lương Cơ Bản (đ)',
     'Công Chuẩn (ngày)',
     'Công Thực Tế (ngày)',
     'Lương Theo Ngày Công (đ)',
-    'Số Giờ Tăng Ca (OT)',
+    'Số Giờ Tăng Ca (OT 11h)',
     'Tiền Lương OT 150% (đ)',
+    'Hoa Hồng Nhóm (đ)',
+    'Hoa Hồng Cá Nhân (đ)',
     'Tổng Phụ Cấp / Thưởng (đ)',
     'Tổng Khoản Trừ / Phạt (đ)',
     'TỔNG THỰC LĨNH (đ)',
@@ -139,17 +142,29 @@ export function exportPayrollToCSV(records: any[], month: string) {
   ];
 
   const rows = records.map((r, index) => {
+    const contractTypeLabel =
+      r.contract_type === 'probation'
+        ? 'Thử việc (85%)'
+        : r.contract_type === 'marketing'
+        ? 'Sale Marketing (100%)'
+        : r.contract_type === 'manager'
+        ? 'Quản lý (100%)'
+        : 'Bán hàng (100%)';
+
     return [
       escapeCSVCell(index + 1),
       escapeCSVCell(r.month || month),
       escapeCSVCell(r.user_name || ''),
       escapeCSVCell(r.user_role || ''),
+      escapeCSVCell(contractTypeLabel),
       escapeCSVCell(r.base_salary || 0),
       escapeCSVCell(r.standard_days || 26),
       escapeCSVCell(r.actual_days || 0),
       escapeCSVCell(r.salary_by_days || 0),
       escapeCSVCell(r.ot_hours || 0),
       escapeCSVCell(r.ot_salary || 0),
+      escapeCSVCell(r.shared_commission || 0),
+      escapeCSVCell(r.personal_commission || 0),
       escapeCSVCell(r.total_allowance || 0),
       escapeCSVCell(r.total_deduction || 0),
       escapeCSVCell(r.final_salary || 0),

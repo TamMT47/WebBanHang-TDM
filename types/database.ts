@@ -1,11 +1,14 @@
 export type UserRole = 'admin' | 'owner' | 'manager' | 'staff';
 
+export type ContractType = 'probation' | 'sales' | 'marketing' | 'manager';
+
 export interface User {
   id: string;
   username: string;
   password_hash?: string;
   full_name: string;
   role: UserRole;
+  contract_type?: ContractType;
   base_salary?: number;
   created_at: string;
 }
@@ -74,11 +77,13 @@ export interface Order {
   payment_method: PaymentMethod;
   debt_added: number;
   created_by?: string | null;
+  seller_id?: string | null;
   created_at: string;
   // Joined fields
   partner_name?: string;
   partner_phone?: string;
   creator_name?: string;
+  seller_name?: string;
   items?: OrderItem[];
 }
 
@@ -173,14 +178,15 @@ export interface ImportOrderPayload {
 }
 
 // Attendance & Wifi IP Types
-export type ShiftType = 'morning' | 'afternoon' | 'evening';
+export type ShiftType = 'shift1' | 'shift2' | 'manager' | 'morning' | 'afternoon' | 'evening';
 
 export interface ShiftConfig {
   id: ShiftType;
   name: string;
-  startTime: string; // e.g. "08:00"
-  endTime: string;   // e.g. "12:00"
-  standardHours: number; // 4.0
+  timeRange: string; // e.g. "08:30 - 21:00"
+  lunchBreak?: string; // e.g. "11:30 - 13:00"
+  standardHours: number; // 11.0
+  isStaffShift: boolean;
 }
 
 export interface AttendanceRecord {
@@ -191,14 +197,26 @@ export interface AttendanceRecord {
   check_in: string;
   check_out?: string | null;
   ip_address?: string | null;
+  late_minutes?: number;
+  early_minutes?: number;
   work_hours: number;
   ot_hours: number;
+  is_off_day?: boolean;
   note?: string | null;
   status: 'present' | 'working' | 'completed';
   created_at: string;
   // Joined fields
   user_name?: string;
   user_role?: UserRole;
+}
+
+export interface EmployeeOffDay {
+  id: string;
+  user_id: string;
+  date: string; // YYYY-MM-DD
+  week_str: string; // e.g. "2026-W38"
+  created_at: string;
+  user_name?: string;
 }
 
 // Payroll & Salary History Types
@@ -218,12 +236,19 @@ export interface MonthlyPayrollItem {
   user_id: string;
   user_name: string;
   user_role: UserRole;
+  contract_type: ContractType;
   base_salary: number;
-  standard_days: number; // 26
-  actual_days: number;   // Calculated from attendance or manual
-  ot_hours: number;      // Calculated from attendance or manual
-  salary_by_days: number; // (base_salary / 26) * actual_days
-  ot_salary: number;      // (base_salary / 26 / 8) * ot_hours * 1.5
+  effective_base_salary: number; // base_salary * (probation ? 0.85 : 1.0)
+  standard_days: number; // 26 (30-day month) or 27 (31-day month)
+  unit_daily_salary: number; // effective_base_salary / standard_days
+  actual_days: number;   // Calculated from attendance (+1 if worked on registered off day)
+  off_days_worked?: number;
+  salary_by_days: number; // unit_daily_salary * actual_days
+  ot_hours: number;      // Calculated from attendance (>21:00)
+  ot_salary: number;      // (unit_daily_salary / 11) * ot_hours * 1.5
+  shared_commission: number; // (total main devices / eligible staff) * 50,000
+  personal_commission: number; // calculated from seller_id on orders
+  main_devices_count?: number;
   allowances: AllowanceItem[];
   deductions: DeductionItem[];
   total_allowance: number;
@@ -232,6 +257,7 @@ export interface MonthlyPayrollItem {
   is_locked?: boolean;
   status?: 'pending' | 'paid';
   locked_at?: string;
+  note?: string;
 }
 
 export interface SalaryHistoryRecord {
@@ -240,12 +266,15 @@ export interface SalaryHistoryRecord {
   user_id: string;
   user_name: string;
   user_role: UserRole;
+  contract_type?: string;
   base_salary: number;
   standard_days: number;
   actual_days: number;
   ot_hours: number;
   salary_by_days: number;
   ot_salary: number;
+  shared_commission?: number;
+  personal_commission?: number;
   allowances: AllowanceItem[];
   deductions: DeductionItem[];
   total_allowance: number;

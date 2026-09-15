@@ -5,6 +5,115 @@
 :root {
   --background: #080d1a;
   --foreground: #f8fafc;
+
+  /* Default Theme: Navy Blue */
+  --theme-from: #06b6d4;
+  --theme-to: #3b82f6;
+  --theme-color: #06b6d4;
+  --theme-text: #67e8f9;
+  --theme-text-bold: #22d3ee;
+  --theme-border: rgba(6, 182, 212, 0.45);
+  --theme-glow: 0 0 20px -3px rgba(6, 182, 212, 0.35);
+  --theme-bg-subtle: rgba(6, 182, 212, 0.15);
+  --theme-bg-gradient: linear-gradient(to right, #06b6d4, #3b82f6);
+}
+
+/* 1. Navy Blue (Mặc định) */
+[data-theme="navy"] {
+  --theme-from: #06b6d4;
+  --theme-to: #3b82f6;
+  --theme-color: #06b6d4;
+  --theme-text: #67e8f9;
+  --theme-text-bold: #22d3ee;
+  --theme-border: rgba(6, 182, 212, 0.45);
+  --theme-glow: 0 0 20px -3px rgba(6, 182, 212, 0.35);
+  --theme-bg-subtle: rgba(6, 182, 212, 0.15);
+  --theme-bg-gradient: linear-gradient(to right, #06b6d4, #3b82f6);
+}
+
+/* 2. Pastel Teal */
+[data-theme="teal"] {
+  --theme-from: #14b8a6;
+  --theme-to: #06b6d4;
+  --theme-color: #14b8a6;
+  --theme-text: #5eead4;
+  --theme-text-bold: #2dd4bf;
+  --theme-border: rgba(20, 184, 166, 0.45);
+  --theme-glow: 0 0 20px -3px rgba(20, 184, 166, 0.35);
+  --theme-bg-subtle: rgba(20, 184, 166, 0.15);
+  --theme-bg-gradient: linear-gradient(to right, #14b8a6, #06b6d4);
+}
+
+/* 3. Space Gray */
+[data-theme="gray"] {
+  --theme-from: #94a3b8;
+  --theme-to: #64748b;
+  --theme-color: #94a3b8;
+  --theme-text: #e2e8f0;
+  --theme-text-bold: #cbd5e1;
+  --theme-border: rgba(148, 163, 184, 0.45);
+  --theme-glow: 0 0 20px -3px rgba(148, 163, 184, 0.3);
+  --theme-bg-subtle: rgba(148, 163, 184, 0.15);
+  --theme-bg-gradient: linear-gradient(to right, #94a3b8, #64748b);
+}
+
+/* 4. Crimson Red */
+[data-theme="crimson"] {
+  --theme-from: #f43f5e;
+  --theme-to: #e11d48;
+  --theme-color: #f43f5e;
+  --theme-text: #fda4af;
+  --theme-text-bold: #fb7185;
+  --theme-border: rgba(244, 63, 94, 0.45);
+  --theme-glow: 0 0 20px -3px rgba(244, 63, 94, 0.35);
+  --theme-bg-subtle: rgba(244, 63, 94, 0.15);
+  --theme-bg-gradient: linear-gradient(to right, #f43f5e, #e11d48);
+}
+
+/* 5. Warm Amber */
+[data-theme="amber"] {
+  --theme-from: #f59e0b;
+  --theme-to: #ea580c;
+  --theme-color: #f59e0b;
+  --theme-text: #fcd34d;
+  --theme-text-bold: #fbbf24;
+  --theme-border: rgba(245, 158, 11, 0.45);
+  --theme-glow: 0 0 20px -3px rgba(245, 158, 11, 0.35);
+  --theme-bg-subtle: rgba(245, 158, 11, 0.15);
+  --theme-bg-gradient: linear-gradient(to right, #f59e0b, #ea580c);
+}
+
+/* 6. Emerald Green */
+[data-theme="emerald"] {
+  --theme-from: #10b981;
+  --theme-to: #059669;
+  --theme-color: #10b981;
+  --theme-text: #6ee7b7;
+  --theme-text-bold: #34d399;
+  --theme-border: rgba(16, 185, 129, 0.45);
+  --theme-glow: 0 0 20px -3px rgba(16, 185, 129, 0.35);
+  --theme-bg-subtle: rgba(16, 185, 129, 0.15);
+  --theme-bg-gradient: linear-gradient(to right, #10b981, #059669);
+}
+
+/* Map existing primary color utility classes to active theme variables */
+.from-cyan-500, .from-cyan-600 {
+  --tw-gradient-from: var(--theme-from) var(--tw-gradient-from-position) !important;
+}
+.to-blue-500, .to-blue-600 {
+  --tw-gradient-to: var(--theme-to) var(--tw-gradient-to-position) !important;
+}
+.from-cyan-500\/20, .from-cyan-600\/20 {
+  --tw-gradient-from: var(--theme-bg-subtle) var(--tw-gradient-from-position) !important;
+}
+.text-cyan-300, .text-cyan-400 {
+  color: var(--theme-text) !important;
+}
+.border-cyan-500, .border-cyan-500\/40, .border-cyan-500\/30, .border-cyan-500\/50 {
+  border-color: var(--theme-border) !important;
+}
+.shadow-glow-cyan {
+  box-shadow: var(--theme-glow) !important;
 }
 
 body {
@@ -43,7 +152,7 @@ body {
 
 .glass-card:hover {
   background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(6, 182, 212, 0.4);
+  border-color: var(--theme-border);
 }
 
 .glass-input {
@@ -54,8 +163,8 @@ body {
 }
 
 .glass-input:focus {
-  border-color: #06b6d4 !important;
-  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25) !important;
+  border-color: var(--theme-color) !important;
+  box-shadow: 0 0 0 2px var(--theme-border) !important;
   outline: none !important;
 }
 
@@ -86,8 +195,8 @@ body {
 /* Print styles for Receipts (A4 & K80) - Always Clean White */
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 8mm;
+    size: auto;
+    margin: 6mm;
   }
   body {
     background: white !important;

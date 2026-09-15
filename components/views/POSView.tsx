@@ -1101,6 +1101,7 @@ export default function POSView({ user }: POSViewProps) {
         onCompleteOrder={handleCompleteOrder}
         submitting={submitting}
         initialCustomer={selectedCustomer}
+        currentUser={user}
       />
 
       {/* Barcode / QR Scanner */}

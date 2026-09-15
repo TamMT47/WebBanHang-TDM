@@ -145,16 +145,30 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
         },
       ],
     },
+    {
+      title: 'Tùy Biến Giao Diện & Mẫu In',
+      description: 'Chuyển đổi 6 tông màu hệ thống và cấu hình mẫu in hóa đơn',
+      items: [
+        {
+          id: 'settings',
+          label: 'Cài Đặt Giao Diện & Mẫu In',
+          desc: 'Đổi 6 tông màu hệ thống (Navy, Teal, Gray, Crimson, Amber, Emerald) & mẫu in K80/A4',
+          icon: Sparkles,
+          color: 'bg-gradient-to-tr from-cyan-600 to-blue-600 text-white shadow-glow-cyan',
+          tag: 'Theme & In',
+        },
+      ],
+    },
     ...(isAdminOrOwner
       ? [
           {
             title: 'Bảo Mật & Quản Trị Hệ Thống',
-            description: 'Phân quyền và quản lý nhân sự cửa hàng',
+            description: 'Phân quyền và quản trị nhân sự cửa hàng',
             items: [
               {
                 id: 'users',
                 label: 'Quản Lý Tài Khoản & Phân Quyền',
-                desc: 'Cấp quyền truycập 4 cấp bậc (Admin, Owner, Manager, Staff)',
+                desc: 'Cấp quyền truy cập 4 cấp bậc (Admin, Owner, Manager, Staff)',
                 icon: UserCheck,
                 color: 'bg-gradient-to-tr from-rose-600 to-red-600 text-white',
                 tag: 'Admin Only',

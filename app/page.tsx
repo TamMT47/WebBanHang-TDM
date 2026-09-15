@@ -16,7 +16,9 @@ import WarrantyView from '@/components/views/WarrantyView';
 import UtilitiesView from '@/components/views/UtilitiesView';
 import AttendanceView from '@/components/views/AttendanceView';
 import PayrollView from '@/components/views/PayrollView';
+import SettingsView from '@/components/views/SettingsView';
 import WarrantyLookupModal from '@/components/WarrantyLookupModal';
+import { getSavedTheme, applyTheme } from '@/lib/themeHelper';
 
 export default function HomePage() {
   const router = useRouter();
@@ -26,6 +28,9 @@ export default function HomePage() {
   const [isWarrantyLookupOpen, setIsWarrantyLookupOpen] = useState(false);
 
   useEffect(() => {
+    // Apply saved theme immediately
+    applyTheme(getSavedTheme());
+
     // Check authentication
     fetch('/api/auth/me')
       .then((res) => {
@@ -101,6 +106,7 @@ export default function HomePage() {
         {activeTab === 'cash-flow' && <CashFlowView user={user} />}
         {activeTab === 'reports' && <ReportsView user={user} />}
         {activeTab === 'users' && <UsersView currentUser={user} />}
+        {activeTab === 'settings' && <SettingsView user={user} />}
       </main>
 
       {/* Mobile Bottom Navigation Bar (5 Fixed Main Tabs) */}

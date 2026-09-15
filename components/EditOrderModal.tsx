@@ -38,9 +38,20 @@ export default function EditOrderModal({
   const [discount, setDiscount] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
   const [items, setItems] = useState<any[]>([]);
+  const [sellerId, setSellerId] = useState('');
+  const [usersList, setUsersList] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.users) setUsersList(data.users);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (order) {
@@ -51,6 +62,7 @@ export default function EditOrderModal({
       setPaymentMethod(order.payment_method || 'transfer');
       setDiscount(parseFloat(order.discount || 0));
       setPaidAmount(parseFloat(order.paid_amount || 0));
+      setSellerId(order.seller_id || order.created_by || '');
 
       const mappedItems = (order.items || []).map((it: any) => {
         let until = it.warranty_until;
@@ -133,6 +145,7 @@ export default function EditOrderModal({
         payment_method: paymentMethod,
         discount: parseFloat(discount as any) || 0,
         paid_amount: parseFloat(paidAmount as any) || 0,
+        seller_id: sellerId || null,
         items: items.map((it) => ({
           id: it.id,
           warranty_months: it.warranty_months,
@@ -250,6 +263,26 @@ export default function EditOrderModal({
                   placeholder="Số CCCD..."
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
                 />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-semibold text-cyan-300 mb-1">
+                  👤 Người Bán / Giới Thiệu Cá Nhân (Ghi nhận Hoa hồng)
+                </label>
+                <select
+                  value={sellerId}
+                  onChange={(e) => setSellerId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-cyan-500/40 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="">-- Chưa chọn người bán / Khách vãng lai --</option>
+                  {usersList.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.role === 'admin' ? 'Admin' : u.role === 'owner' ? 'Chủ Shop' : u.role === 'manager' ? 'Quản lý' : 'Nhân viên'})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  * Hoa hồng bán máy (200k-500k máy cũ / 300k máy new) sẽ tự động cộng dồn vào Bảng Lương tháng của nhân sự này.
+                </p>
               </div>
             </div>
           </div>
@@ -376,6 +409,22 @@ export default function EditOrderModal({
                   <option value="transfer">Chuyển khoản</option>
                   <option value="cash">Tiền mặt</option>
                   <option value="both">Hỗn hợp (Tiền mặt + CK)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Người bán / Giới thiệu</label>
+                <select
+                  value={sellerId}
+                  onChange={(e) => setSellerId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="">-- Mặc định --</option>
+                  {usersList.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.role})
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
