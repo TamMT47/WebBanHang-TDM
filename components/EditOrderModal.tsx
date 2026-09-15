@@ -62,7 +62,7 @@ export default function EditOrderModal({
       setPaymentMethod(order.payment_method || 'transfer');
       setDiscount(parseFloat(order.discount || 0));
       setPaidAmount(parseFloat(order.paid_amount || 0));
-      setSellerId(order.seller_id || order.created_by || '');
+      setSellerId(order.seller_id || '');
 
       const mappedItems = (order.items || []).map((it: any) => {
         let until = it.warranty_until;
@@ -419,7 +419,7 @@ export default function EditOrderModal({
                   onChange={(e) => setSellerId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
                 >
-                  <option value="">-- Mặc định --</option>
+                  <option value="">-- Không có (Không tính hoa hồng cá nhân) --</option>
                   {usersList.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.full_name} ({u.role})

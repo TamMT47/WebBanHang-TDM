@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Smartphone,
   Layers,
@@ -15,9 +15,12 @@ import {
   Menu,
   X,
   PlusCircle,
-  Sparkles
+  Sparkles,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { UserRole } from '@/types/database';
+import { getSavedColorMode, applyColorMode, ColorMode } from '@/lib/themeHelper';
 
 interface NavbarProps {
   activeTab: string;
@@ -40,6 +43,17 @@ export default function Navbar({
   onOpenWarrantyLookup,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [colorMode, setColorMode] = useState<ColorMode>('dark');
+
+  useEffect(() => {
+    setColorMode(getSavedColorMode());
+  }, []);
+
+  const handleToggleColorMode = () => {
+    const nextMode = colorMode === 'dark' ? 'light' : 'dark';
+    setColorMode(nextMode);
+    applyColorMode(nextMode);
+  };
 
   const getRoleBadge = (role?: UserRole) => {
     switch (role) {
@@ -116,6 +130,20 @@ export default function Navbar({
 
           {/* User Profile & Actions */}
           <div className="flex items-center space-x-2.5">
+            {/* Light / Dark Mode Toggle */}
+            <button
+              type="button"
+              onClick={handleToggleColorMode}
+              title={colorMode === 'dark' ? 'Chuyển sang Chế độ Sáng (Light Mode)' : 'Chuyển sang Chế độ Tối (Dark Mode)'}
+              className="p-2 text-slate-300 hover:text-amber-400 bg-slate-900/90 hover:bg-slate-800 rounded-xl border border-slate-700/80 transition flex items-center justify-center shadow-xs"
+            >
+              {colorMode === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400 animate-in spin-in-180 duration-300" />
+              ) : (
+                <Moon className="w-4 h-4 text-slate-600 animate-in spin-in-180 duration-300" />
+              )}
+            </button>
+
             {onOpenWarrantyLookup && (
               <button
                 onClick={onOpenWarrantyLookup}

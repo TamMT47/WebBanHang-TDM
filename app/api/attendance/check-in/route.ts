@@ -10,11 +10,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 });
     }
 
-    const { shift, note } = await request.json();
+    const { shift, session, note } = await request.json();
     const validShifts = ['shift1', 'shift2', 'manager', 'morning', 'afternoon', 'evening', 'full'];
-    if (!shift || !validShifts.includes(shift)) {
-      return NextResponse.json({ error: 'Vui lòng chọn ca làm việc hợp lệ (Ca 1 hoặc Ca 2)' }, { status: 400 });
-    }
+    const chosenShift = shift && validShifts.includes(shift) ? shift : 'shift1';
 
     // IP Wifi Validation
     const clientIp = getClientIp(request);
@@ -34,7 +32,6 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
-    // Use GMT+7 for Vietnam time
     const vnTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' });
     const vnDate = new Date(vnTimeStr);
     const todayStr = vnDate.toISOString().split('T')[0];
@@ -43,26 +40,51 @@ export async function POST(request: NextRequest) {
     const minute = vnDate.getMinutes();
     const totalMinutes = hour * 60 + minute;
 
-    // Standard Shift Start: 08:30 (510 minutes)
-    // Đi sớm hơn giờ vào ca: KHÔNG tính lương.
-    // Đi muộn hơn 08:30: tính số phút vào muộn.
+    // Determine session: 'morning' or 'afternoon'
+    const targetSession: 'morning' | 'afternoon' =
+      session === 'afternoon' || (session !== 'morning' && totalMinutes >= 750) ? 'afternoon' : 'morning';
+
+    // Calculate Late Minutes based on shift & session:
+    // Ca 1: Sáng (08:30 - 11:30), Chiều (13:00 - 21:00)
+    // Ca 2: Sáng (08:30 - 13:00), Chiều (14:30 - 21:00)
+    // Manager: Sáng (08:30 - 12:00), Chiều (13:30 - 21:00)
     let lateMinutes = 0;
-    if (totalMinutes > 510) {
-      lateMinutes = totalMinutes - 510;
+    if (targetSession === 'morning') {
+      const scheduledStart = 510; // 08:30
+      if (totalMinutes > scheduledStart) {
+        lateMinutes = totalMinutes - scheduledStart;
+      }
+    } else {
+      // Afternoon session
+      let scheduledStart = 780; // 13:00 for Ca 1
+      if (chosenShift === 'shift2') scheduledStart = 870; // 14:30 for Ca 2
+      else if (chosenShift === 'manager') scheduledStart = 810; // 13:30 for Manager
+
+      if (totalMinutes > scheduledStart) {
+        lateMinutes = totalMinutes - scheduledStart;
+      }
     }
 
-    // Check if user already checked in for today and hasn't checked out
-    const existingActive = await query(
+    // Check if already checked in for this session today
+    const existingSession = await query(
       `SELECT id, check_in, check_out FROM attendance 
-       WHERE user_id = $1 AND date = $2 AND check_out IS NULL`,
-      [user.id, todayStr]
+       WHERE user_id = $1 AND date = $2 AND session = $3`,
+      [user.id, todayStr, targetSession]
     );
 
-    if (existingActive.rows.length > 0) {
-      return NextResponse.json(
-        { error: 'Bạn đã bấm Vào Ca hôm nay rồi và chưa bấm Ra Ca!' },
-        { status: 400 }
-      );
+    if (existingSession.rows.length > 0) {
+      const rec = existingSession.rows[0];
+      if (rec.check_out) {
+        return NextResponse.json(
+          { error: `Bạn đã chấm công và hoàn thành ca ${targetSession === 'morning' ? 'Sáng' : 'Chiều'} hôm nay rồi!` },
+          { status: 400 }
+        );
+      } else {
+        return NextResponse.json(
+          { error: `Bạn đang trong ca ${targetSession === 'morning' ? 'Sáng' : 'Chiều'} rồi và chưa bấm Ra Ca!` },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if today is user's registered day off
@@ -72,23 +94,20 @@ export async function POST(request: NextRequest) {
     );
     const isOffDay = offDayRes.rows.length > 0;
 
-    // Shift name label
-    const shiftLabel =
-      shift === 'shift1' ? 'Ca 1 (11 tiếng)' :
-      shift === 'shift2' ? 'Ca 2 (11 tiếng)' :
-      shift === 'manager' ? 'Ca Quản Lý' : shift;
+    // Shift label
+    const sessionLabel = targetSession === 'morning' ? 'Ca Sáng' : 'Ca Chiều';
 
     // Insert attendance record
     const insertRes = await query(
-      `INSERT INTO attendance (user_id, date, shift, check_in, ip_address, status, late_minutes, is_off_day, note)
-       VALUES ($1, $2, $3, NOW(), $4, 'working', $5, $6, $7)
+      `INSERT INTO attendance (user_id, date, shift, session, check_in, ip_address, status, late_minutes, is_off_day, note)
+       VALUES ($1, $2, $3, $4, NOW(), $5, 'working', $6, $7, $8)
        RETURNING *`,
-      [user.id, todayStr, shift, clientIp, lateMinutes, isOffDay, note || null]
+      [user.id, todayStr, chosenShift, targetSession, clientIp, lateMinutes, isOffDay, note || null]
     );
 
     return NextResponse.json({
       success: true,
-      message: `Đã chấm công Vào ${shiftLabel} thành công! ${lateMinutes > 0 ? `(Vào muộn: ${lateMinutes} phút)` : 'Đúng giờ chuẩn'}${isOffDay ? ' • (Đi làm ngày Off đăng ký: +1 ngày công)' : ''}`,
+      message: `Đã chấm Vào ${sessionLabel} thành công! ${lateMinutes > 0 ? `(Vào muộn: ${lateMinutes} phút)` : 'Đúng giờ chuẩn'}${isOffDay ? ' • (Đi làm ngày Off: +1 ngày công)' : ''}`,
       attendance: insertRes.rows[0],
       lateMinutes,
       isOffDay,

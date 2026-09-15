@@ -138,7 +138,7 @@ export default function POSCheckoutModal({
 
   // Salesperson state (chỉ Admin/Quản lý được sửa)
   const isManagerOrAbove = currentUser && ['admin', 'owner', 'manager'].includes(currentUser.role);
-  const [sellerId, setSellerId] = useState<string>(currentUser?.id || '');
+  const [sellerId, setSellerId] = useState<string>('');
   const [usersList, setUsersList] = useState<any[]>([]);
 
   useEffect(() => {
@@ -147,9 +147,6 @@ export default function POSCheckoutModal({
       .then((data) => {
         if (data && data.users) {
           setUsersList(data.users);
-          if (!sellerId && currentUser?.id) {
-            setSellerId(currentUser.id);
-          }
         }
       })
       .catch(() => {});
@@ -416,7 +413,7 @@ export default function POSCheckoutModal({
             selling_price: tiSellingPrice || Math.round(tiValue * 1.15),
           }
         : null,
-      seller_id: sellerId || currentUser?.id || null,
+      seller_id: sellerId || null,
     };
 
     await onCompleteOrder(payload);
@@ -1076,6 +1073,7 @@ export default function POSCheckoutModal({
                     onChange={(e) => setSellerId(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500"
                   >
+                    <option value="">-- Không có (Không tính hoa hồng cá nhân) --</option>
                     {usersList.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.full_name} ({u.role})
@@ -1084,7 +1082,7 @@ export default function POSCheckoutModal({
                   </select>
                 ) : (
                   <div className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl text-xs font-bold text-slate-300">
-                    {usersList.find((u) => u.id === sellerId)?.full_name || currentUser?.full_name || 'Nhân viên bán hàng'}
+                    {usersList.find((u) => u.id === sellerId)?.full_name || 'Không có (Không tính hoa hồng cá nhân)'}
                   </div>
                 )}
                 <div className="text-[10px] text-slate-400">
@@ -1181,7 +1179,7 @@ export default function POSCheckoutModal({
                   <div className="flex justify-between text-xs font-bold text-slate-300 pt-1.5 border-t border-slate-700/60">
                     <span>Người bán ghi nhận:</span>
                     <span className="font-bold text-cyan-300">
-                      {usersList.find((u) => u.id === sellerId)?.full_name || currentUser?.full_name || 'Admin'}
+                      {usersList.find((u) => u.id === sellerId)?.full_name || 'Không có'}
                     </span>
                   </div>
                 </div>

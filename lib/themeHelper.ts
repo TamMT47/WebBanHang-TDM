@@ -84,3 +84,29 @@ export function applyTheme(themeId: ThemeId): void {
     console.error('Error saving theme:', e);
   }
 }
+
+export type ColorMode = 'dark' | 'light';
+export const COLOR_MODE_KEY = 'tdm_color_mode';
+
+export function getSavedColorMode(): ColorMode {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const saved = localStorage.getItem(COLOR_MODE_KEY);
+    if (saved === 'light' || saved === 'dark') {
+      return saved;
+    }
+  } catch (e) {
+    console.error('Error reading color mode:', e);
+  }
+  return 'dark';
+}
+
+export function applyColorMode(mode: ColorMode): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.setAttribute('data-mode', mode);
+  try {
+    localStorage.setItem(COLOR_MODE_KEY, mode);
+  } catch (e) {
+    console.error('Error saving color mode:', e);
+  }
+}

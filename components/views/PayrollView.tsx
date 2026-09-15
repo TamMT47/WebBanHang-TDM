@@ -48,6 +48,7 @@ const CONTRACT_OPTIONS = [
 export default function PayrollView({ user }: PayrollViewProps) {
   const isAdminOrOwner = user && ['admin', 'owner'].includes(user.role);
   const isManagerOrAbove = user && ['admin', 'owner', 'manager'].includes(user.role);
+  const isStaff = user?.role === 'staff';
 
   const currentMonthStr = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
@@ -58,6 +59,11 @@ export default function PayrollView({ user }: PayrollViewProps) {
 
   // Live Payroll State
   const [payrollItems, setPayrollItems] = useState<MonthlyPayrollItem[]>([]);
+  const [totalMainDevicesSold, setTotalMainDevicesSold] = useState(0);
+  const [totalEligibleStaff, setTotalEligibleStaff] = useState(0);
+  const [sharedCommissionPerPerson, setSharedCommissionPerPerson] = useState(0);
+  const [customHeadcountInput, setCustomHeadcountInput] = useState<number | string>('');
+  const [savingHeadcount, setSavingHeadcount] = useState(false);
 
   // Archived Salary History State
   const [archiveRecords, setArchiveRecords] = useState<SalaryHistoryRecord[]>([]);
@@ -96,6 +102,10 @@ export default function PayrollView({ user }: PayrollViewProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi tải bảng tính lương');
       setPayrollItems(data.payroll || []);
+      setTotalMainDevicesSold(data.totalMainDevicesSold || 0);
+      setTotalEligibleStaff(data.totalEligibleStaff || 0);
+      setSharedCommissionPerPerson(data.sharedCommissionPerPerson || 0);
+      setCustomHeadcountInput(data.customHeadcount || data.finalDivisor || '');
     } catch (err: any) {
       console.error(err);
       setMessage({ type: 'error', text: err.message });
@@ -146,10 +156,6 @@ export default function PayrollView({ user }: PayrollViewProps) {
     const actualDays = parseFloat(item.actual_days as any) || 0;
     const otHours = parseFloat(item.ot_hours as any) || 0;
 
-    // Formula standard 26/27 days & Ca 11 tiếng:
-    // Đơn giá 1 ngày công = Lương CB Thực / Số ngày công chuẩn (26 hoặc 27)
-    // Lương Ngày Công = Đơn giá 1 ngày công * Số ngày làm thực tế
-    // Lương OT 150% = (Đơn giá 1 ngày công / 11) * Số giờ OT * 150%
     const unitDailySalary = standardDays > 0 ? (effectiveBaseSalary / standardDays) : 0;
     item.salary_by_days = Math.round(unitDailySalary * actualDays);
     item.ot_salary = Math.round((unitDailySalary / 11) * otHours * 1.5);
@@ -190,6 +196,37 @@ export default function PayrollView({ user }: PayrollViewProps) {
     }
   };
 
+  // Save manual headcount divisor for shared commission
+  const handleSaveHeadcount = async () => {
+    const num = parseInt(String(customHeadcountInput), 10);
+    if (!num || num <= 0) {
+      alert('Vui lòng nhập số nhân sự hợp lệ (> 0)');
+      return;
+    }
+
+    try {
+      setSavingHeadcount(true);
+      const res = await fetch('/api/payroll', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_shared_commission_headcount',
+          month: selectedMonth,
+          headcount: num,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi cập nhật số nhân sự');
+
+      setMessage({ type: 'success', text: data.message });
+      fetchLivePayroll();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setSavingHeadcount(false);
+    }
+  };
+
   // Add Allowance Item
   const handleAddAllowanceSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,7 +243,6 @@ export default function PayrollView({ user }: PayrollViewProps) {
     updated[targetUserIndex] = item;
     setPayrollItems(updated);
 
-    // Recalculate
     handleUpdateItemValue(targetUserIndex, 'allowances', item.allowances);
 
     setIsAllowanceModalOpen(false);
@@ -231,7 +267,6 @@ export default function PayrollView({ user }: PayrollViewProps) {
     updated[targetUserIndex] = item;
     setPayrollItems(updated);
 
-    // Recalculate
     handleUpdateItemValue(targetUserIndex, 'deductions', item.deductions);
 
     setIsDeductionModalOpen(false);
@@ -240,7 +275,6 @@ export default function PayrollView({ user }: PayrollViewProps) {
     setTargetUserIndex(-1);
   };
 
-  // Remove allowance / deduction item
   const handleRemoveAllowance = (userIndex: number, itemId: string) => {
     const updated = [...payrollItems];
     const item = { ...updated[userIndex] };
@@ -355,7 +389,6 @@ export default function PayrollView({ user }: PayrollViewProps) {
     }
   };
 
-  // Export to Excel
   const handleExportLivePayroll = () => {
     exportPayrollToCSV(payrollItems, selectedMonth);
   };
@@ -364,37 +397,27 @@ export default function PayrollView({ user }: PayrollViewProps) {
     exportPayrollToCSV(archiveRecords, archiveMonthFilter);
   };
 
-  // Totals calculations
-  const totalPayrollLive = payrollItems.reduce((sum, item) => sum + item.final_salary, 0);
-  const totalSalaryByDays = payrollItems.reduce((sum, item) => sum + item.salary_by_days, 0);
-  const totalOtSalary = payrollItems.reduce((sum, item) => sum + item.ot_salary, 0);
-  const totalSharedComm = payrollItems.reduce((sum, item) => sum + (item.shared_commission || 0), 0);
-  const totalPersonalComm = payrollItems.reduce((sum, item) => sum + (item.personal_commission || 0), 0);
-  const totalCommissions = totalSharedComm + totalPersonalComm;
+  // My current payroll item (for staff)
+  const myPayrollItem = payrollItems.find((p) => p.user_id === user?.id);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="space-y-4 max-w-7xl mx-auto pb-16">
       
-      {/* Top Header */}
-      <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan">
-            <DollarSign className="w-5 h-5" />
+      {/* Top Header Bar */}
+      <div className="bg-slate-900/90 backdrop-blur-xl p-3.5 sm:p-4 rounded-2xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-2.5">
+          <div className="p-2 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-xl shadow-glow-cyan">
+            <DollarSign className="w-4 h-4" />
           </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
-              Bảng Tính Lương Chuẩn (Payroll Engine)
-            </h2>
-            <p className="text-xs text-slate-400">
-              Quy chuẩn 26/27 ngày công • Tăng ca Ca 11h (150%) • Hoa hồng nhóm & Hoa hồng cá nhân.
-            </p>
-          </div>
+          <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
+            Bảng Tính Lương & Quản Lý Lương
+          </h2>
         </div>
 
-        {/* Month Selector */}
+        {/* Month Selector & Action Buttons */}
         <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-1.5 bg-slate-950 px-3 py-1.5 rounded-2xl border border-slate-800">
-            <Calendar className="w-4 h-4 text-cyan-400" />
+          <div className="flex items-center space-x-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <Calendar className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-xs font-bold text-slate-400">Tháng:</span>
             <input
               type="month"
@@ -406,12 +429,24 @@ export default function PayrollView({ user }: PayrollViewProps) {
 
           <button
             onClick={handleExportLivePayroll}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 badge-nowrap shadow-sm"
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 badge-nowrap shadow-xs"
             title="Xuất file Excel bảng lương tháng này"
           >
-            <Download className="w-4 h-4 text-emerald-400" />
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden sm:inline">Xuất Excel</span>
           </button>
+
+          {isAdminOrOwner && (
+            <button
+              type="button"
+              onClick={handleLockMonthlyPayroll}
+              disabled={savingPayroll}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-xl text-xs shadow-glow-cyan transition flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 badge-nowrap"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>{savingPayroll ? 'Đang lưu...' : `Chốt & Lưu Tháng ${selectedMonth}`}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -435,351 +470,381 @@ export default function PayrollView({ user }: PayrollViewProps) {
         </div>
       )}
 
-      {/* KPI Overview Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl">
-          <div className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">
-            Tổng Thực Lĩnh Tháng {selectedMonth}
-          </div>
-          <div className="text-sm sm:text-lg font-black text-cyan-300 font-sans tracking-tight">
-            {formatVND(totalPayrollLive)}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
-            Dành cho {payrollItems.length} nhân viên
-          </div>
-        </div>
-
-        <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl">
-          <div className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">
-            Lương Ngày Công
-          </div>
-          <div className="text-sm sm:text-lg font-black text-white font-sans tracking-tight">
-            {formatVND(totalSalaryByDays)}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Chuẩn 26/27 ngày công</div>
-        </div>
-
-        <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl">
-          <div className="text-[10px] sm:text-xs text-amber-400 font-bold uppercase tracking-wider mb-1">
-            Lương Tăng Ca (OT 11h)
-          </div>
-          <div className="text-sm sm:text-lg font-black text-amber-300 font-sans tracking-tight">
-            +{formatVND(totalOtSalary)}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Sau 21:00 x 150%</div>
-        </div>
-
-        <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl">
-          <div className="text-[10px] sm:text-xs text-emerald-400 font-bold uppercase tracking-wider mb-1">
-            Tổng Hoa Hồng Bán Hàng
-          </div>
-          <div className="text-sm sm:text-lg font-black text-emerald-400 font-sans tracking-tight">
-            +{formatVND(totalCommissions)}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">Nhóm & Cá nhân</div>
-        </div>
-      </div>
-
       {/* ======================================================== */}
-      {/* SECTION 1: LIVE PAYROLL CALCULATION & ADJUSTMENTS */}
+      {/* ADMIN CONTROLS: Ô NHẬP TAY SỐ NHÂN SỰ CHIA HOA HỒNG THÁNG */}
       {/* ======================================================== */}
-      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div>
-            <div className="text-xs font-black text-white uppercase flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span>1. Bảng Tính Lương Tự Động & Điều Chỉnh (Tháng {selectedMonth})</span>
+      {isAdminOrOwner && (
+        <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-2xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center space-x-2">
+            <Award className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <div>
+              <span className="font-black text-white uppercase">Cấu hình chia hoa hồng doanh số (50.000đ/máy chính):</span>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                Tổng máy chính tháng này: <b className="text-white font-sans">{totalMainDevicesSold}</b> máy • Hoa hồng mỗi suất: <b className="text-emerald-400 font-sans">+{formatVND(sharedCommissionPerPerson)}</b>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Tháng 30 ngày = Chuẩn 26 công • Tháng 31 ngày = Chuẩn 27 công • Làm ngày Off được +1 công • Ca 11h tính OT sau 21h hệ số 1.5.
-            </p>
           </div>
 
-          {isAdminOrOwner && (
+          <div className="flex items-center space-x-2">
+            <span className="text-[11px] font-bold text-slate-300 badge-nowrap">Số nhân sự chia tháng này:</span>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={customHeadcountInput}
+              onChange={(e) => setCustomHeadcountInput(e.target.value)}
+              placeholder="VD: 4"
+              className="w-16 px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white text-center focus:outline-none focus:border-cyan-500"
+            />
             <button
               type="button"
-              onClick={handleLockMonthlyPayroll}
-              disabled={savingPayroll}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-xl text-xs shadow-glow-cyan transition flex items-center space-x-1.5 self-start sm:self-auto active:scale-95 disabled:opacity-50"
+              onClick={handleSaveHeadcount}
+              disabled={savingHeadcount}
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black rounded-xl text-xs shadow-xs hover:brightness-110 active:scale-95 transition disabled:opacity-50 badge-nowrap"
             >
-              <Lock className="w-3.5 h-3.5" />
-              <span>{savingPayroll ? 'Đang lưu...' : `Chốt & Lưu Bảng Lương Tháng ${selectedMonth}`}</span>
+              {savingHeadcount ? 'Đang lưu...' : 'Lưu Số Chia'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION 1: BẢNG LƯƠNG NHÂN VIÊN DẠNG 1 DÒNG NẰM NGANG */}
+      {/* ======================================================== */}
+      {isStaff ? (
+        /* MÀN HÌNH NHÂN VIÊN: 1 DÒNG NẰM NGANG TỐI GIẢN, ẨN HOÀN TOÀN ĐƠN GIÁ & CÔNG THỨC */
+        <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3 sm:p-4 overflow-x-auto">
+          {loading ? (
+            <div className="text-center py-6 text-xs text-slate-400 animate-pulse">
+              Đang tính lương tháng {selectedMonth}...
+            </div>
+          ) : !myPayrollItem ? (
+            <div className="text-center py-6 text-xs text-slate-400">
+              Không tìm thấy dữ liệu lương của bạn trong tháng {selectedMonth}.
+            </div>
+          ) : (
+            <div className="flex items-center space-x-3.5 whitespace-nowrap min-w-max">
+              {/* User Info */}
+              <div className="flex items-center space-x-2 pr-3 border-r border-slate-800 flex-shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                  {myPayrollItem.user_name?.slice(0, 1) || 'NV'}
+                </div>
+                <div>
+                  <div className="text-xs font-black text-white">{myPayrollItem.user_name}</div>
+                  <div className="text-[10px] text-amber-300 font-bold">
+                    {myPayrollItem.contract_type === 'probation' ? 'Thử việc (85%)' : 'Chính thức'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lương Cơ Bản */}
+              <div className="px-3 border-r border-slate-800 flex-shrink-0">
+                <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CƠ BẢN</span>
+                <span className="font-sans font-bold text-white text-xs">{formatVND(myPayrollItem.base_salary)}</span>
+              </div>
+
+              {/* Ngày Công Thực Tế */}
+              <div className="px-3 border-r border-slate-800 flex-shrink-0">
+                <span className="text-[10px] text-slate-400 block font-bold">NGÀY CÔNG</span>
+                <span className="font-sans font-bold text-white text-xs">{myPayrollItem.actual_days} / {myPayrollItem.standard_days} công</span>
+              </div>
+
+              {/* Lương Ngày Công */}
+              <div className="px-3 border-r border-slate-800 flex-shrink-0">
+                <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CÔNG</span>
+                <span className="font-sans font-bold text-white text-xs">{formatVND(myPayrollItem.salary_by_days)}</span>
+              </div>
+
+              {/* Tăng Ca OT */}
+              <div className="px-3 border-r border-slate-800 flex-shrink-0">
+                <span className="text-[10px] text-amber-400 block font-bold">TĂNG CA (OT)</span>
+                <span className="font-sans font-bold text-amber-300 text-xs">
+                  {myPayrollItem.ot_hours}h (+{formatVND(myPayrollItem.ot_salary)})
+                </span>
+              </div>
+
+              {/* Hoa Hồng */}
+              <div className="px-3 border-r border-slate-800 flex-shrink-0">
+                <span className="text-[10px] text-emerald-400 block font-bold">HOA HỒNG</span>
+                <span className="font-sans font-bold text-emerald-400 text-xs">
+                  +{formatVND((myPayrollItem.shared_commission || 0) + (myPayrollItem.personal_commission || 0))}
+                </span>
+              </div>
+
+              {/* Thưởng / Trừ Khác */}
+              <div className="px-3 border-r border-slate-800 flex-shrink-0 text-xs">
+                <span className="text-[10px] text-slate-400 block font-bold">THƯỞNG / TRỪ</span>
+                <span className="font-sans font-bold text-emerald-400">
+                  +{formatVND((myPayrollItem.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}
+                </span>
+                <span className="text-slate-500 mx-1">/</span>
+                <span className="font-sans font-bold text-rose-400">-{formatVND(myPayrollItem.total_deduction)}</span>
+              </div>
+
+              {/* Tổng Thực Lĩnh */}
+              <div className="px-3 border-r border-slate-800 flex-shrink-0">
+                <span className="text-[10px] text-cyan-300 block font-black uppercase">TỔNG THỰC LĨNH</span>
+                <span className="font-sans font-black text-sm text-cyan-300">{formatVND(myPayrollItem.final_salary)}</span>
+              </div>
+
+              {/* Xem Phiếu Lương */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPayslipRecord({
+                    ...myPayrollItem,
+                    month: selectedMonth,
+                  });
+                  setIsPayslipOpen(true);
+                }}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 flex-shrink-0"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Xem Phiếu Lương</span>
+              </button>
+            </div>
           )}
         </div>
-
-        {loading ? (
-          <div className="text-center py-16 text-xs text-slate-400 animate-pulse">
-            Đang tính toán bảng lương tháng {selectedMonth}...
-          </div>
-        ) : payrollItems.length === 0 ? (
-          <div className="text-center py-16 text-xs text-slate-400">
-            Chưa có nhân viên nào trong hệ thống.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
-                <tr>
-                  <th className="px-3.5 py-3">Nhân Viên</th>
-                  <th className="px-3.5 py-3">Loại Hợp Đồng</th>
-                  <th className="px-3.5 py-3">Lương Cơ Bản</th>
-                  <th className="px-3.5 py-3">Công Thực Tế</th>
-                  <th className="px-3.5 py-3">Lương Ngày Công</th>
-                  <th className="px-3.5 py-3">Tăng Ca (OT 11h)</th>
-                  <th className="px-3.5 py-3">HH Nhóm (50k)</th>
-                  <th className="px-3.5 py-3">HH Cá Nhân</th>
-                  <th className="px-3.5 py-3">Phụ Cấp / Trừ</th>
-                  <th className="px-3.5 py-3">TỔNG THỰC LĨNH</th>
-                  <th className="px-3.5 py-3 text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {payrollItems.map((item, idx) => {
-                  const contract = CONTRACT_OPTIONS.find((c) => c.value === item.contract_type) || CONTRACT_OPTIONS[1];
-                  const effectiveBase = item.contract_type === 'probation' ? Math.round(item.base_salary * 0.85) : item.base_salary;
-                  const unitDaily = item.standard_days > 0 ? Math.round(effectiveBase / item.standard_days) : 0;
-
-                  return (
-                    <tr key={item.user_id} className="hover:bg-slate-800/50 transition">
-                      
-                      {/* User Info */}
-                      <td className="px-3.5 py-3">
-                        <div className="font-bold text-white text-xs">{item.user_name}</div>
-                        <div className="text-[10px] text-cyan-300 uppercase font-semibold">
-                          {item.user_role === 'admin' ? 'Admin' : item.user_role === 'owner' ? 'Chủ Shop' : item.user_role === 'manager' ? 'Quản Lý' : 'Nhân Viên'}
-                        </div>
-                      </td>
-
-                      {/* Contract Type Dropdown */}
-                      <td className="px-3.5 py-3">
-                        {isManagerOrAbove ? (
-                          <select
-                            value={item.contract_type || 'sales'}
-                            onChange={(e) => handleChangeContractType(idx, e.target.value)}
-                            className="bg-slate-950 border border-slate-700 text-[11px] font-bold text-amber-300 rounded-lg px-2 py-1 focus:outline-none focus:border-cyan-500"
-                          >
-                            {CONTRACT_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-[11px] font-bold text-amber-300">
-                            {contract.label}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Base Salary (Original + Effective if probation) */}
-                      <td className="px-3.5 py-3">
-                        <div className="flex items-center space-x-1">
-                          <div>
-                            <div className="font-sans font-bold text-slate-200">
-                              {formatVND(item.base_salary)}
-                            </div>
-                            {item.contract_type === 'probation' && (
-                              <div className="text-[10px] text-cyan-400 font-semibold">
-                                Thực tế: {formatVND(effectiveBase)} (85%)
-                              </div>
-                            )}
-                          </div>
-                          {isAdminOrOwner && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingUserId(item.user_id);
-                                setEditingUserName(item.user_name);
-                                setNewBaseSalary(item.base_salary);
-                                setIsBaseSalaryModalOpen(true);
-                              }}
-                              title="Sửa mức lương cơ bản"
-                              className="p-1 text-slate-500 hover:text-cyan-300 transition"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Actual Days / Standard Days */}
-                      <td className="px-3.5 py-3">
-                        {isAdminOrOwner ? (
-                          <div className="flex items-center space-x-1">
-                            <input
-                              type="number"
-                              step="0.5"
-                              value={item.actual_days}
-                              onChange={(e) => handleUpdateItemValue(idx, 'actual_days', parseFloat(e.target.value) || 0)}
-                              className="w-14 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-white text-center focus:outline-none focus:border-cyan-500"
-                            />
-                            <span className="text-slate-400 text-[11px] font-bold">/ {item.standard_days}c</span>
-                          </div>
-                        ) : (
-                          <span className="font-bold text-white font-sans text-xs">
-                            {item.actual_days} / {item.standard_days} công
-                          </span>
-                        )}
-                        <div className="text-[10px] text-slate-500">
-                          {unitDaily > 0 ? `${formatVND(unitDaily)}/ngày` : ''}
-                        </div>
-                      </td>
-
-                      {/* Salary by Days */}
-                      <td className="px-3.5 py-3 font-sans font-bold text-white">
-                        {formatVND(item.salary_by_days)}
-                      </td>
-
-                      {/* OT Hours (11h Ca - after 21:00) */}
-                      <td className="px-3.5 py-3">
-                        {isAdminOrOwner ? (
-                          <div className="flex items-center space-x-1">
-                            <input
-                              type="number"
-                              step="0.5"
-                              value={item.ot_hours}
-                              onChange={(e) => handleUpdateItemValue(idx, 'ot_hours', parseFloat(e.target.value) || 0)}
-                              className="w-12 px-1 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-amber-300 text-center focus:outline-none focus:border-amber-500"
-                            />
-                            <span className="text-amber-400 text-[10px] font-bold">h</span>
-                          </div>
-                        ) : (
-                          <span className="font-bold text-amber-400 font-sans">{item.ot_hours}h</span>
-                        )}
-                        <div className="text-[10px] font-bold text-amber-300 font-sans mt-0.5">
-                          +{formatVND(item.ot_salary)}
-                        </div>
-                      </td>
-
-                      {/* Shared Commission (50k / main device) */}
-                      <td className="px-3.5 py-3 font-sans font-bold text-emerald-400">
-                        {(item.shared_commission || 0) > 0 ? `+${formatVND(item.shared_commission || 0)}` : '0đ'}
-                      </td>
-
-                      {/* Personal Commission (Invoice seller) */}
-                      <td className="px-3.5 py-3 font-sans font-bold text-emerald-400">
-                        {(item.personal_commission || 0) > 0 ? `+${formatVND(item.personal_commission || 0)}` : '0đ'}
-                      </td>
-
-                      {/* Custom Allowances & Deductions */}
-                      <td className="px-3.5 py-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-1">
-                            <span className="font-sans text-[11px] font-bold text-slate-300">
-                              Thưởng: <span className="text-emerald-400">+{formatVND((item.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}</span>
-                            </span>
-                            {isAdminOrOwner && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setTargetUserIndex(idx);
-                                  setIsAllowanceModalOpen(true);
-                                }}
-                                className="p-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded transition"
-                                title="+ Thêm Phụ cấp / Thưởng"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="flex items-center space-x-1">
-                            <span className="font-sans text-[11px] font-bold text-slate-300">
-                              Trừ: <span className="text-rose-400">-{formatVND(item.total_deduction)}</span>
-                            </span>
-                            {isAdminOrOwner && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setTargetUserIndex(idx);
-                                  setIsDeductionModalOpen(true);
-                                }}
-                                className="p-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded transition"
-                                title="+ Thêm Khoản trừ / Phạt / Tạm ứng"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* List badges */}
-                          {item.allowances?.map((al) => (
-                            <div key={al.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
-                              <span>{al.title}: +{formatVND(al.amount)}</span>
-                              {isAdminOrOwner && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveAllowance(idx, al.id)}
-                                  className="text-slate-500 hover:text-rose-400 ml-1"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          {item.deductions?.map((de) => (
-                            <div key={de.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
-                              <span>{de.reason}: -{formatVND(de.amount)}</span>
-                              {isAdminOrOwner && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveDeduction(idx, de.id)}
-                                  className="text-slate-500 hover:text-rose-400 ml-1"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-
-                      {/* Final Net Pay */}
-                      <td className="px-3.5 py-3 font-sans font-black text-sm text-cyan-300 tracking-tight badge-nowrap">
-                        {formatVND(item.final_salary)}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-3.5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPayslipRecord({
-                              ...item,
-                              month: selectedMonth,
-                            });
-                            setIsPayslipOpen(true);
-                          }}
-                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 ml-auto"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Phiếu Lương</span>
-                        </button>
-                      </td>
-
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ======================================================== */}
-      {/* SECTION 2: ARCHIVED SALARY HISTORY & MONTHLY FILTER */}
-      {/* ======================================================== */}
-      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div>
+      ) : (
+        /* MÀN HÌNH ADMIN / QUẢN LÝ: BẢNG CHI TIẾT TẤT CẢ NHÂN SỰ */
+        <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3.5 sm:p-4 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
             <div className="text-xs font-black text-white uppercase flex items-center space-x-2">
-              <Lock className="w-4 h-4 text-emerald-400" />
-              <span>2. Danh Sách Bảng Lương Đã Lưu Trữ</span>
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+              <span>Bảng Lương Tháng {selectedMonth}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Kho lưu trữ dữ liệu lương các tháng đã chốt cố định theo chuẩn 26/27 ngày công và 11h OT.
-            </p>
+            <div className="text-[11px] text-slate-400">
+              Tổng thực lĩnh: <b className="text-cyan-300 font-sans">{formatVND(payrollItems.reduce((s, i) => s + i.final_salary, 0))}</b> ({payrollItems.length} nhân sự)
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-12 text-xs text-slate-400 animate-pulse">
+              Đang tính toán bảng lương...
+            </div>
+          ) : payrollItems.length === 0 ? (
+            <div className="text-center py-12 text-xs text-slate-400">
+              Chưa có nhân viên nào trong hệ thống.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                  <tr>
+                    <th className="px-3 py-2.5">Nhân Viên</th>
+                    <th className="px-3 py-2.5">Loại Hợp Đồng</th>
+                    <th className="px-3 py-2.5">Lương Cơ Bản</th>
+                    <th className="px-3 py-2.5">Công Thực Tế</th>
+                    <th className="px-3 py-2.5">Lương Công</th>
+                    <th className="px-3 py-2.5">Tăng Ca (OT)</th>
+                    <th className="px-3 py-2.5">HH Nhóm</th>
+                    <th className="px-3 py-2.5">HH Cá Nhân</th>
+                    <th className="px-3 py-2.5">Phụ Cấp / Trừ</th>
+                    <th className="px-3 py-2.5">TỔNG THỰC LĨNH</th>
+                    <th className="px-3 py-2.5 text-right">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/70">
+                  {payrollItems.map((item, idx) => {
+                    const effectiveBase = item.contract_type === 'probation' ? Math.round(item.base_salary * 0.85) : item.base_salary;
+
+                    return (
+                      <tr key={item.user_id} className="hover:bg-slate-800/40 transition">
+                        <td className="px-3 py-2.5">
+                          <div className="font-bold text-white text-xs">{item.user_name}</div>
+                          <div className="text-[10px] text-cyan-400 uppercase font-semibold">{item.user_role}</div>
+                        </td>
+
+                        <td className="px-3 py-2.5">
+                          {isManagerOrAbove ? (
+                            <select
+                              value={item.contract_type || 'sales'}
+                              onChange={(e) => handleChangeContractType(idx, e.target.value)}
+                              className="bg-slate-950 border border-slate-700 text-[11px] font-bold text-amber-300 rounded-lg px-2 py-1 focus:outline-none"
+                            >
+                              {CONTRACT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-[11px] font-bold text-amber-300">
+                              {CONTRACT_OPTIONS.find((c) => c.value === item.contract_type)?.label || 'Bán hàng'}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center space-x-1">
+                            <span className="font-sans font-bold text-slate-200">{formatVND(item.base_salary)}</span>
+                            {isAdminOrOwner && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingUserId(item.user_id);
+                                  setEditingUserName(item.user_name);
+                                  setNewBaseSalary(item.base_salary);
+                                  setIsBaseSalaryModalOpen(true);
+                                }}
+                                title="Sửa lương cơ bản"
+                                className="p-1 text-slate-500 hover:text-cyan-300 transition"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          {item.contract_type === 'probation' && (
+                            <div className="text-[10px] text-cyan-400 font-semibold">85%: {formatVND(effectiveBase)}</div>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2.5">
+                          {isAdminOrOwner ? (
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={item.actual_days}
+                                onChange={(e) => handleUpdateItemValue(idx, 'actual_days', parseFloat(e.target.value) || 0)}
+                                className="w-14 px-1 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-white text-center focus:outline-none focus:border-cyan-500"
+                              />
+                              <span className="text-slate-400 text-[11px] font-bold">/ {item.standard_days}c</span>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-white font-sans text-xs">
+                              {item.actual_days} / {item.standard_days} công
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2.5 font-sans font-bold text-white">
+                          {formatVND(item.salary_by_days)}
+                        </td>
+
+                        <td className="px-3 py-2.5">
+                          {isAdminOrOwner ? (
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={item.ot_hours}
+                                onChange={(e) => handleUpdateItemValue(idx, 'ot_hours', parseFloat(e.target.value) || 0)}
+                                className="w-12 px-1 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-amber-300 text-center focus:outline-none focus:border-amber-500"
+                              />
+                              <span className="text-amber-400 text-[10px] font-bold">h</span>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-amber-400 font-sans">{item.ot_hours}h</span>
+                          )}
+                          <div className="text-[10px] font-bold text-amber-300 font-sans mt-0.5">
+                            +{formatVND(item.ot_salary)}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-2.5 font-sans font-bold text-emerald-400">
+                          {(item.shared_commission || 0) > 0 ? `+${formatVND(item.shared_commission || 0)}` : '0đ'}
+                        </td>
+
+                        <td className="px-3 py-2.5 font-sans font-bold text-emerald-400">
+                          {(item.personal_commission || 0) > 0 ? `+${formatVND(item.personal_commission || 0)}` : '0đ'}
+                        </td>
+
+                        <td className="px-3 py-2.5">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-1">
+                              <span className="font-sans text-[11px] font-bold text-emerald-400">
+                                +{formatVND((item.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}
+                              </span>
+                              {isAdminOrOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetUserIndex(idx);
+                                    setIsAllowanceModalOpen(true);
+                                  }}
+                                  className="p-0.5 bg-emerald-500/10 text-emerald-300 rounded"
+                                  title="+ Thêm Thưởng / Phụ cấp"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex items-center space-x-1">
+                              <span className="font-sans text-[11px] font-bold text-rose-400">
+                                -{formatVND(item.total_deduction)}
+                              </span>
+                              {isAdminOrOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetUserIndex(idx);
+                                    setIsDeductionModalOpen(true);
+                                  }}
+                                  className="p-0.5 bg-rose-500/10 text-rose-300 rounded"
+                                  title="+ Thêm Khoản trừ / Phạt"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+
+                            {item.allowances?.map((al) => (
+                              <div key={al.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
+                                <span>{al.title}: +{formatVND(al.amount)}</span>
+                                {isAdminOrOwner && (
+                                  <button type="button" onClick={() => handleRemoveAllowance(idx, al.id)} className="text-slate-500 hover:text-rose-400 ml-1">✕</button>
+                                )}
+                              </div>
+                            ))}
+                            {item.deductions?.map((de) => (
+                              <div key={de.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
+                                <span>{de.reason}: -{formatVND(de.amount)}</span>
+                                {isAdminOrOwner && (
+                                  <button type="button" onClick={() => handleRemoveDeduction(idx, de.id)} className="text-slate-500 hover:text-rose-400 ml-1">✕</button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-2.5 font-sans font-black text-sm text-cyan-300">
+                          {formatVND(item.final_salary)}
+                        </td>
+
+                        <td className="px-3 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPayslipRecord({
+                                ...item,
+                                month: selectedMonth,
+                              });
+                              setIsPayslipOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 ml-auto"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Phiếu Lương</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION 2: DANH SÁCH BẢNG LƯƠNG ĐÃ LƯU TRỮ (SALARY ARCHIVE) */}
+      {/* ======================================================== */}
+      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden space-y-3 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-2.5">
+          <div className="flex items-center space-x-2">
+            <Lock className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-xs font-black text-white uppercase">Danh Sách Bảng Lương Đã Lưu Trữ</h3>
           </div>
 
           <button
@@ -787,7 +852,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 self-start sm:self-auto"
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Xuất Excel Danh Sách Đã Lưu</span>
+            <span>Xuất Excel Đã Lưu</span>
           </button>
         </div>
 
@@ -813,9 +878,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
               <option value="all">📅 Tất cả các tháng</option>
               <option value={currentMonthStr}>📅 Tháng hiện tại ({currentMonthStr})</option>
               {availableArchiveMonths.filter((m) => m !== currentMonthStr).map((m) => (
-                <option key={m} value={m}>
-                  📅 Tháng {m}
-                </option>
+                <option key={m} value={m}>📅 Tháng {m}</option>
               ))}
             </select>
           </div>
@@ -835,71 +898,57 @@ export default function PayrollView({ user }: PayrollViewProps) {
 
         {/* Archived Table */}
         {archiveLoading ? (
-          <div className="text-center py-16 text-xs text-slate-400 animate-pulse">
+          <div className="text-center py-12 text-xs text-slate-400 animate-pulse">
             Đang tải dữ liệu lưu trữ...
           </div>
         ) : archiveRecords.length === 0 ? (
-          <div className="text-center py-16 text-xs text-slate-400">
+          <div className="text-center py-12 text-xs text-slate-400">
             Chưa có bảng lương nào được chốt lưu trong khoảng thời gian này.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs whitespace-nowrap">
               <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
                 <tr>
-                  <th className="px-3.5 py-3">Tháng</th>
-                  <th className="px-3.5 py-3">Nhân Viên</th>
-                  <th className="px-3.5 py-3">Hợp Đồng</th>
-                  <th className="px-3.5 py-3">Lương CB</th>
-                  <th className="px-3.5 py-3">Công / Chuẩn</th>
-                  <th className="px-3.5 py-3">Giờ OT (11h)</th>
-                  <th className="px-3.5 py-3">HH Nhóm</th>
-                  <th className="px-3.5 py-3">HH Cá Nhân</th>
-                  <th className="px-3.5 py-3">Phụ Cấp / Trừ</th>
-                  <th className="px-3.5 py-3">TỔNG THỰC LĨNH</th>
-                  <th className="px-3.5 py-3">Trạng Thái</th>
-                  <th className="px-3.5 py-3 text-right">Thao Tác</th>
+                  <th className="px-3.5 py-2.5">Tháng</th>
+                  <th className="px-3.5 py-2.5">Nhân Viên</th>
+                  <th className="px-3.5 py-2.5">Hợp Đồng</th>
+                  <th className="px-3.5 py-2.5">Lương CB</th>
+                  <th className="px-3.5 py-2.5">Công / Chuẩn</th>
+                  <th className="px-3.5 py-2.5">Giờ OT</th>
+                  <th className="px-3.5 py-2.5">HH Nhóm</th>
+                  <th className="px-3.5 py-2.5">HH Cá Nhân</th>
+                  <th className="px-3.5 py-2.5">Phụ Cấp / Trừ</th>
+                  <th className="px-3.5 py-2.5">TỔNG THỰC LĨNH</th>
+                  <th className="px-3.5 py-2.5">Trạng Thái</th>
+                  <th className="px-3.5 py-2.5 text-right">Thao Tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-slate-800/70">
                 {archiveRecords.map((rec) => {
                   const contract = CONTRACT_OPTIONS.find((c) => c.value === rec.contract_type) || CONTRACT_OPTIONS[1];
 
                   return (
-                    <tr key={rec.id} className="hover:bg-slate-800/50 transition">
-                      <td className="px-3.5 py-3 font-mono font-bold text-white">
-                        {rec.month}
-                      </td>
-                      <td className="px-3.5 py-3 font-bold text-slate-200">
-                        {rec.user_name}
-                      </td>
-                      <td className="px-3.5 py-3 font-semibold text-amber-300 text-[11px]">
-                        {contract.label}
-                      </td>
-                      <td className="px-3.5 py-3 font-sans font-bold text-slate-300">
-                        {formatVND(rec.base_salary)}
-                      </td>
-                      <td className="px-3.5 py-3 font-sans font-bold text-white">
-                        {rec.actual_days} / {rec.standard_days || 26}
-                      </td>
-                      <td className="px-3.5 py-3 font-sans text-amber-300 font-bold">
-                        {rec.ot_hours > 0 ? `+${rec.ot_hours}h` : '0'}
-                      </td>
-                      <td className="px-3.5 py-3 font-sans font-bold text-emerald-400">
+                    <tr key={rec.id} className="hover:bg-slate-800/40 transition">
+                      <td className="px-3.5 py-2.5 font-mono font-bold text-white">{rec.month}</td>
+                      <td className="px-3.5 py-2.5 font-bold text-slate-200">{rec.user_name}</td>
+                      <td className="px-3.5 py-2.5 font-semibold text-amber-300 text-[11px]">{contract.label}</td>
+                      <td className="px-3.5 py-2.5 font-sans font-bold text-slate-300">{formatVND(rec.base_salary)}</td>
+                      <td className="px-3.5 py-2.5 font-sans font-bold text-white">{rec.actual_days} / {rec.standard_days || 26}</td>
+                      <td className="px-3.5 py-2.5 font-sans text-amber-300 font-bold">{rec.ot_hours > 0 ? `+${rec.ot_hours}h` : '0'}</td>
+                      <td className="px-3.5 py-2.5 font-sans font-bold text-emerald-400">
                         {(rec.shared_commission || 0) > 0 ? `+${formatVND(rec.shared_commission || 0)}` : '0đ'}
                       </td>
-                      <td className="px-3.5 py-3 font-sans font-bold text-emerald-400">
+                      <td className="px-3.5 py-2.5 font-sans font-bold text-emerald-400">
                         {(rec.personal_commission || 0) > 0 ? `+${formatVND(rec.personal_commission || 0)}` : '0đ'}
                       </td>
-                      <td className="px-3.5 py-3 font-sans text-[11px]">
+                      <td className="px-3.5 py-2.5 font-sans text-[11px]">
                         <span className="text-emerald-400">+{formatVND(rec.total_allowance || 0)}</span>
                         <span className="text-slate-500 mx-1">/</span>
                         <span className="text-rose-400">-{formatVND(rec.total_deduction || 0)}</span>
                       </td>
-                      <td className="px-3.5 py-3 font-sans font-black text-sm text-cyan-300 tracking-tight">
-                        {formatVND(rec.final_salary)}
-                      </td>
-                      <td className="px-3.5 py-3">
+                      <td className="px-3.5 py-2.5 font-sans font-black text-sm text-cyan-300">{formatVND(rec.final_salary)}</td>
+                      <td className="px-3.5 py-2.5">
                         {isAdminOrOwner ? (
                           <button
                             type="button"
@@ -922,7 +971,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                           </span>
                         )}
                       </td>
-                      <td className="px-3.5 py-3 text-right">
+                      <td className="px-3.5 py-2.5 text-right">
                         <div className="flex items-center justify-end space-x-1.5">
                           <button
                             type="button"
@@ -1027,7 +1076,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                   type="text"
                   value={allowanceTitle}
                   onChange={(e) => setAllowanceTitle(e.target.value)}
-                  placeholder="VD: Phụ cấp ăn trưa, Trợ cấp chuyên cần, Thưởng nóng..."
+                  placeholder="VD: Phụ cấp ăn trưa, Trợ cấp chuyên cần..."
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
                   required
                 />
@@ -1086,7 +1135,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                   type="text"
                   value={deductionReason}
                   onChange={(e) => setDeductionReason(e.target.value)}
-                  placeholder="VD: Đi muộn không phép, Tạm ứng lương giữa tháng..."
+                  placeholder="VD: Đi muộn không phép, Tạm ứng lương..."
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-rose-500"
                   required
                 />

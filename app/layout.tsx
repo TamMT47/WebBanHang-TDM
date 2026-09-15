@@ -43,6 +43,8 @@ export default function RootLayout({
               try {
                 var t = localStorage.getItem('tdm_active_theme');
                 if (t) document.documentElement.setAttribute('data-theme', t);
+                var m = localStorage.getItem('tdm_color_mode');
+                if (m) document.documentElement.setAttribute('data-mode', m);
               } catch(e) {}
             `,
           }}

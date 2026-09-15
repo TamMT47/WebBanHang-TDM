@@ -8,6 +8,7 @@ import { getInvoiceSettings, saveInvoiceSettings, InvoiceSettings, DEFAULT_INVOI
 interface InvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialDocType?: 'invoice' | 'warranty';
   order: {
     code: string;
     created_at?: string;
@@ -45,7 +46,8 @@ interface InvoiceModalProps {
   } | null;
 }
 
-export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalProps) {
+export default function InvoiceModal({ isOpen, onClose, order, initialDocType = 'invoice' }: InvoiceModalProps) {
+  const [docType, setDocType] = useState<'invoice' | 'warranty'>(initialDocType);
   const [printFormat, setPrintFormat] = useState<'a4' | 'k80'>('a4');
   const [settings, setSettings] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
   const [isEditSettingsOpen, setIsEditSettingsOpen] = useState(false);
@@ -53,6 +55,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
 
   useEffect(() => {
     if (isOpen) {
+      setDocType(initialDocType || 'invoice');
       const current = getInvoiceSettings();
       setSettings(current);
       setEditForm(current);
@@ -60,7 +63,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
         setPrintFormat(current.paperSize);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, initialDocType]);
 
   if (!isOpen || !order) return null;
 
@@ -119,13 +122,43 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
         {/* Modal Header Bar (Hidden during Print) */}
         <div className="no-print flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-950 text-white border-b border-slate-800">
           <div className="flex items-center space-x-2.5">
-            <Printer className="w-5 h-5 text-cyan-400" />
+            {docType === 'warranty' ? (
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <Printer className="w-5 h-5 text-cyan-400" />
+            )}
             <h3 className="text-sm font-extrabold tracking-wide">
-              HÓA ĐƠN & PHIẾU BẢO HÀNH #{order.code}
+              {docType === 'warranty' ? 'PHIẾU BẢO HÀNH CHÍNH HÃNG' : 'HÓA ĐƠN BÁN HÀNG'} #{order.code}
             </h3>
           </div>
           
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Document Mode Toggle: Hóa Đơn vs Phiếu Bảo Hành */}
+            <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setDocType('invoice')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition badge-nowrap ${
+                  docType === 'invoice'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                📄 Hóa Đơn
+              </button>
+              <button
+                type="button"
+                onClick={() => setDocType('warranty')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition badge-nowrap ${
+                  docType === 'warranty'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black shadow-glow-emerald'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                🛡️ Phiếu Bảo Hành
+              </button>
+            </div>
+
             {/* Customize Invoice Template Button */}
             <button
               type="button"
@@ -133,7 +166,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 badge-nowrap"
             >
               <Settings className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Chỉnh Mẫu In</span>
+              <span>Mẫu In</span>
             </button>
 
             {/* Format Toggle */}
@@ -143,31 +176,35 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                 onClick={() => setPrintFormat('a4')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition badge-nowrap ${
                   printFormat === 'a4'
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                    ? 'bg-slate-700 text-white font-black'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                📄 Khổ A4
+                Khổ A4
               </button>
               <button
                 type="button"
                 onClick={() => setPrintFormat('k80')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition badge-nowrap ${
                   printFormat === 'k80'
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                    ? 'bg-slate-700 text-white font-black'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                🧾 Bill K80
+                Bill K80
               </button>
             </div>
 
             <button
               onClick={handlePrint}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition badge-nowrap active:scale-95"
+              className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-black transition badge-nowrap active:scale-95 ${
+                docType === 'warranty'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-glow-emerald'
+                  : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan'
+              }`}
             >
               <Printer className="w-4 h-4" />
-              <span>In Hóa Đơn</span>
+              <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành' : 'In Hóa Đơn'}</span>
             </button>
 
             <button
@@ -225,7 +262,7 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                   {/* Mã Đơn & Ngày Giờ */}
                   <div className="text-right space-y-1 bg-gray-50 p-3 rounded-xl border border-gray-200">
                     <div className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">
-                      Mã Hóa Đơn
+                      {docType === 'warranty' ? 'Mã Phiếu BH' : 'Mã Hóa Đơn'}
                     </div>
                     <div className="text-lg font-black text-gray-950 font-sans">
                       #{order.code}
@@ -236,13 +273,17 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                   </div>
                 </div>
 
-                {/* Tiêu đề hóa đơn */}
+                {/* Tiêu đề hóa đơn / phiếu bảo hành */}
                 <div className="text-center my-6">
                   <h2 className="text-xl font-black tracking-wider text-gray-950 uppercase">
-                    HÓA ĐƠN BÁN HÀNG & PHIẾU BẢO HÀNH
+                    {docType === 'warranty'
+                      ? 'PHIẾU BẢO HÀNH SẢN PHẨM & CAM KẾT CHẤT LƯỢNG'
+                      : 'HÓA ĐƠN BÁN HÀNG & PHIẾU BẢO HÀNH'}
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    (Kiêm phiếu bàn giao thiết bị & cam kết chất lượng chính hãng)
+                    {docType === 'warranty'
+                      ? '(Chứng nhận bảo hành điện tử chính hãng theo số IMEI & Serial)'
+                      : '(Kiêm phiếu bàn giao thiết bị & cam kết chất lượng chính hãng)'}
                   </p>
                 </div>
 
@@ -260,19 +301,19 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                   </div>
 
                   <div className="space-y-1 text-right sm:text-left sm:pl-6 sm:border-l border-gray-200">
-                    <div><b>Nhân viên bán:</b> <span className="font-bold text-gray-950">{order.creator_name || 'Admin'}</span></div>
+                    <div><b>{docType === 'warranty' ? 'Kỹ thuật xuất máy:' : 'Nhân viên bán:'}</b> <span className="font-bold text-gray-950">{order.creator_name || 'Admin'}</span></div>
                     <div><b>Hình thức:</b> <span className="font-bold text-gray-950 uppercase">{order.payment_method === 'cash' ? 'Tiền mặt' : order.payment_method === 'transfer' ? 'Chuyển khoản' : 'Kết hợp'}</span></div>
-                    <div><b>Trạng thái đơn:</b> <span className="text-emerald-700 font-bold">✓ Đã Hoàn Tất Giao Máy</span></div>
+                    <div><b>Trạng thái:</b> <span className="text-emerald-700 font-bold">{docType === 'warranty' ? '✓ Đã Kiểm Định & Bàn Giao Thiết Bị' : '✓ Đã Hoàn Tất Giao Máy'}</span></div>
                   </div>
                 </div>
 
-                {/* 3. Bảng chi tiết sản phẩm mua */}
+                {/* 3. Bảng chi tiết sản phẩm mua (Chỉ sản phẩm xuất bán, KHÔNG có thu cũ) */}
                 <div className="mb-6 overflow-hidden rounded-xl border border-gray-300">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-gray-100 border-b border-gray-300 text-gray-700 font-bold uppercase text-[10px]">
                         <th className="py-2.5 px-3">STT</th>
-                        <th className="py-2.5 px-3">Dòng Sản Phẩm</th>
+                        <th className="py-2.5 px-3">Dòng Sản Phẩm Xuất Bán</th>
                         {settings.showImei !== false && <th className="py-2.5 px-3">Mã IMEI / Số Serial</th>}
                         <th className="py-2.5 px-3 text-center">Gói Bảo Hành</th>
                         <th className="py-2.5 px-3 text-right">Đơn Giá</th>
@@ -290,16 +331,16 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                             </div>
                           </td>
                           {settings.showImei !== false && (
-                            <td className="py-3 px-3 font-sans font-bold text-gray-900 text-xs">
+                            <td className="py-3 px-3 font-mono font-bold text-gray-950 text-xs">
                               {item.imei || 'N/A'}
                             </td>
                           )}
                           <td className="py-3 px-3 text-center">
-                            <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md font-bold text-[10px]">
+                            <span className="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg font-black text-[11px]">
                               {item.warranty_months || 12} Tháng
                             </span>
                             {item.warranty_until && (
-                              <div className="text-[10px] text-gray-500 mt-0.5">
+                              <div className="text-[10px] text-gray-600 font-bold mt-0.5">
                                 Đến: {new Date(item.warranty_until).toLocaleDateString('vi-VN')}
                               </div>
                             )}
@@ -313,60 +354,82 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                   </table>
                 </div>
 
-                {/* 4. Tổng Kết Tài Chính Hóa Đơn */}
-                <div className="flex justify-end mb-8">
-                  <div className="w-72 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-xs">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Tổng tiền hàng:</span>
-                      <span className="font-bold text-gray-950 font-sans">{formatVND(order.total_amount)}</span>
+                {/* 4. Tổng Kết / Tóm Tắt (Phiếu Bảo Hành: Ẩn hoàn toàn thông tin Thu Cũ) */}
+                {docType === 'warranty' ? (
+                  <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 mb-8 flex flex-col sm:flex-row items-center justify-between text-xs gap-3">
+                    <div className="flex items-center space-x-2.5">
+                      <ShieldCheck className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                      <div>
+                        <div className="font-black text-emerald-950 text-sm uppercase">Sản Phẩm Đã Được Kiểm Định & Kích Hoạt Bảo Hành</div>
+                        <div className="text-emerald-800 text-[11px]">Cam kết thiết bị nguyên zin - Bảo hành căn cứ trên số IMEI / Serial lưu trên hệ thống</div>
+                      </div>
                     </div>
-
-                    {order.discount > 0 && (
-                      <div className="flex justify-between text-rose-600 font-bold">
-                        <span>Giảm giá / Voucher:</span>
-                        <span className="font-sans">-{formatVND(order.discount)}</span>
+                    <div className="text-right flex items-center space-x-4 border-t sm:border-t-0 sm:border-l border-emerald-200 pt-2 sm:pt-0 sm:pl-4">
+                      <div>
+                        <div className="text-gray-500 text-[10px] uppercase font-bold">Số lượng máy</div>
+                        <div className="font-black text-gray-950 font-sans text-sm">{order.items?.length || 1} thiết bị</div>
                       </div>
-                    )}
-
-                    {order.trade_in_value > 0 && (
-                      <div className="flex justify-between text-amber-800 font-bold">
-                        <span>Khấu trừ thu cũ:</span>
-                        <span className="font-sans">-{formatVND(order.trade_in_value)}</span>
+                      <div className="border-l border-emerald-300 pl-4">
+                        <div className="text-gray-500 text-[10px] uppercase font-bold">Hotline kỹ thuật</div>
+                        <div className="font-black text-emerald-700 font-sans text-sm">{settings.warrantyHotline || settings.shopHotline}</div>
                       </div>
-                    )}
-
-                    <div className="flex justify-between text-sm font-black text-gray-950 pt-2 border-t border-gray-300">
-                      <span>TỔNG THANH TOÁN:</span>
-                      <span className="font-sans text-base font-black text-cyan-700">{formatVND(order.final_payment)}</span>
                     </div>
-
-                    <div className="flex justify-between text-gray-700 font-bold pt-1">
-                      <span>Tiền khách đưa:</span>
-                      <span className="text-emerald-700 font-sans">{formatVND(order.paid_amount)}</span>
-                    </div>
-
-                    {changeReturned > 0 && (
-                      <div className="flex justify-between text-blue-700 font-bold">
-                        <span>Tiền thối lại khách:</span>
-                        <span className="font-sans">{formatVND(changeReturned)}</span>
-                      </div>
-                    )}
-
-                    {order.debt_added > 0 && (
-                      <div className="flex justify-between text-rose-600 font-black">
-                        <span>Ghi nợ đơn hàng:</span>
-                        <span className="font-sans">+{formatVND(order.debt_added)}</span>
-                      </div>
-                    )}
-
-                    {order.debt_added < 0 && (
-                      <div className="flex justify-between text-emerald-700 font-bold">
-                        <span>Nợ thừa tài khoản khách:</span>
-                        <span className="font-sans">-{formatVND(Math.abs(order.debt_added))}</span>
-                      </div>
-                    )}
                   </div>
-                </div>
+                ) : (
+                  <div className="flex justify-end mb-8">
+                    <div className="w-72 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-xs">
+                      <div className="flex justify-between text-gray-600">
+                        <span>Tổng tiền hàng:</span>
+                        <span className="font-bold text-gray-950 font-sans">{formatVND(order.total_amount)}</span>
+                      </div>
+
+                      {order.discount > 0 && (
+                        <div className="flex justify-between text-rose-600 font-bold">
+                          <span>Giảm giá / Voucher:</span>
+                          <span className="font-sans">-{formatVND(order.discount)}</span>
+                        </div>
+                      )}
+
+                      {order.trade_in_value > 0 && (
+                        <div className="flex justify-between text-amber-800 font-bold">
+                          <span>Khấu trừ thu cũ:</span>
+                          <span className="font-sans">-{formatVND(order.trade_in_value)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between text-sm font-black text-gray-950 pt-2 border-t border-gray-300">
+                        <span>TỔNG THANH TOÁN:</span>
+                        <span className="font-sans text-base font-black text-cyan-700">{formatVND(order.final_payment)}</span>
+                      </div>
+
+                      <div className="flex justify-between text-gray-700 font-bold pt-1">
+                        <span>Tiền khách đưa:</span>
+                        <span className="text-emerald-700 font-sans">{formatVND(order.paid_amount)}</span>
+                      </div>
+
+                      {changeReturned > 0 && (
+                        <div className="flex justify-between text-blue-700 font-bold">
+                          <span>Tiền thối lại khách:</span>
+                          <span className="font-sans">{formatVND(changeReturned)}</span>
+                        </div>
+                      )}
+
+                      {order.debt_added > 0 && (
+                        <div className="flex justify-between text-rose-600 font-black">
+                          <span>Ghi nợ đơn hàng:</span>
+                          <span className="font-sans">+{formatVND(order.debt_added)}</span>
+                        </div>
+                      )}
+
+                      {order.debt_added < 0 && (
+                        <div className="flex justify-between text-emerald-700 font-bold">
+                          <span>Nợ thừa tài khoản khách:</span>
+                          <span className="font-sans">-{formatVND(Math.abs(order.debt_added))}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* 5. Điều Khoản & Chính Sách Bảo Hành (Customizable) */}
                 {settings.showWarrantyTerms !== false && (
@@ -416,13 +479,15 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                 <div className="text-[10px] font-bold text-gray-700">
                   Hotline: {settings.shopHotline} {settings.warrantyHotline ? `• BH: ${settings.warrantyHotline}` : ''}
                 </div>
-                <div className="text-xs font-black text-gray-950 pt-2 uppercase">HÓA ĐƠN THANH TOÁN</div>
+                <div className="text-xs font-black text-gray-950 pt-2 uppercase">
+                  {docType === 'warranty' ? 'PHIẾU BẢO HÀNH ĐIỆN TỬ' : 'HÓA ĐƠN THANH TOÁN'}
+                </div>
                 <div className="text-[10px] text-gray-500">#{order.code} • {orderDate}</div>
               </div>
 
               <div className="py-3 border-b border-dashed border-gray-300 space-y-1 text-[11px]">
                 <div><b>Khách:</b> {order.partner_name || 'Khách lẻ'} ({order.partner_phone || 'N/A'})</div>
-                <div><b>Thu ngân:</b> {order.creator_name || 'Admin'}</div>
+                <div><b>{docType === 'warranty' ? 'Kỹ thuật:' : 'Thu ngân:'}</b> {order.creator_name || 'Admin'}</div>
               </div>
 
               {/* Items */}
@@ -442,45 +507,62 @@ export default function InvoiceModal({ isOpen, onClose, order }: InvoiceModalPro
                 ))}
               </div>
 
-              {/* Totals */}
-              <div className="py-3 border-b border-dashed border-gray-300 space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span>Tổng tiền:</span>
-                  <span className="font-bold font-sans">{formatVND(order.total_amount)}</span>
+              {/* Totals or Warranty Summary */}
+              {docType === 'warranty' ? (
+                <div className="py-3 border-b border-dashed border-gray-300 space-y-1 text-xs">
+                  <div className="flex justify-between font-bold">
+                    <span>Số lượng thiết bị:</span>
+                    <span className="font-sans">{order.items?.length || 1} máy</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-emerald-800 font-bold">
+                    <span>Trạng thái bảo hành:</span>
+                    <span>Đã kích hoạt IMEI</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-gray-600">
+                    <span>Hotline kỹ thuật:</span>
+                    <span className="font-bold font-sans">{settings.warrantyHotline || settings.shopHotline}</span>
+                  </div>
                 </div>
-                {order.discount > 0 && (
-                  <div className="flex justify-between text-rose-600">
-                    <span>Giảm giá:</span>
-                    <span className="font-sans">-{formatVND(order.discount)}</span>
+              ) : (
+                <div className="py-3 border-b border-dashed border-gray-300 space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span>Tổng tiền:</span>
+                    <span className="font-bold font-sans">{formatVND(order.total_amount)}</span>
                   </div>
-                )}
-                {order.trade_in_value > 0 && (
-                  <div className="flex justify-between text-amber-800">
-                    <span>Trừ thu cũ:</span>
-                    <span className="font-sans">-{formatVND(order.trade_in_value)}</span>
+                  {order.discount > 0 && (
+                    <div className="flex justify-between text-rose-600">
+                      <span>Giảm giá:</span>
+                      <span className="font-sans">-{formatVND(order.discount)}</span>
+                    </div>
+                  )}
+                  {order.trade_in_value > 0 && (
+                    <div className="flex justify-between text-amber-800">
+                      <span>Trừ thu cũ:</span>
+                      <span className="font-sans">-{formatVND(order.trade_in_value)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-black text-sm pt-1">
+                    <span>THANH TOÁN:</span>
+                    <span className="font-sans text-cyan-800">{formatVND(order.final_payment)}</span>
                   </div>
-                )}
-                <div className="flex justify-between font-black text-sm pt-1">
-                  <span>THANH TOÁN:</span>
-                  <span className="font-sans text-cyan-800">{formatVND(order.final_payment)}</span>
+                  <div className="flex justify-between text-[11px]">
+                    <span>Tiền khách đưa:</span>
+                    <span className="font-sans font-bold text-emerald-700">{formatVND(order.paid_amount)}</span>
+                  </div>
+                  {changeReturned > 0 && (
+                    <div className="flex justify-between text-[11px] text-blue-700">
+                      <span>Tiền thối lại:</span>
+                      <span className="font-sans">{formatVND(changeReturned)}</span>
+                    </div>
+                  )}
+                  {order.debt_added > 0 && (
+                    <div className="flex justify-between text-[11px] text-rose-600 font-bold">
+                      <span>Ghi nợ:</span>
+                      <span className="font-sans">+{formatVND(order.debt_added)}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between text-[11px]">
-                  <span>Tiền khách đưa:</span>
-                  <span className="font-sans font-bold text-emerald-700">{formatVND(order.paid_amount)}</span>
-                </div>
-                {changeReturned > 0 && (
-                  <div className="flex justify-between text-[11px] text-blue-700">
-                    <span>Tiền thối lại:</span>
-                    <span className="font-sans">{formatVND(changeReturned)}</span>
-                  </div>
-                )}
-                {order.debt_added > 0 && (
-                  <div className="flex justify-between text-[11px] text-rose-600 font-bold">
-                    <span>Ghi nợ:</span>
-                    <span className="font-sans">+{formatVND(order.debt_added)}</span>
-                  </div>
-                )}
-              </div>
+              )}
 
               <div className="text-center pt-4 space-y-1 text-[10px] text-gray-500">
                 {settings.showWarrantyTerms !== false && (

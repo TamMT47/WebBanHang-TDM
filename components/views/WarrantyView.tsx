@@ -238,10 +238,10 @@ export default function WarrantyView({ user }: WarrantyViewProps) {
                       setSelectedOrder(item.raw_order);
                       setIsInvoiceOpen(true);
                     }}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm transition badge-nowrap"
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm transition badge-nowrap"
                   >
-                    <Printer className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>In Lại Hóa Đơn A4</span>
+                    <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>In Phiếu Bảo Hành</span>
                   </button>
                 </div>
               </div>
@@ -266,6 +266,7 @@ export default function WarrantyView({ user }: WarrantyViewProps) {
           setSelectedOrder(null);
         }}
         order={selectedOrder}
+        initialDocType="warranty"
       />
     </div>
   );

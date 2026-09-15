@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     const salesRes = await query(
       `SELECT 
         o.id AS order_id,
-        COALESCE(o.seller_id, o.created_by) AS effective_seller_id,
+        o.seller_id AS effective_seller_id,
         oi.price,
         COALESCE(p.category, '') AS category,
         COALESCE(p.condition, '') AS condition,
@@ -139,8 +139,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Shared Commission per person: (Total main devices / Total eligible staff) * 50,000 đ
-    const sharedCommissionPerPerson = Math.round((totalMainDevicesSold / totalEligibleStaff) * 50000);
+    // Check if Admin configured a custom headcount divisor for shared commission
+    const hcRes = await query(`SELECT value FROM store_settings WHERE key = $1`, [`shared_commission_headcount_${month}`]);
+    let customHeadcount = hcRes.rows[0]?.value ? parseInt(hcRes.rows[0].value, 10) : 0;
+    if (!customHeadcount) {
+      const defaultHcRes = await query(`SELECT value FROM store_settings WHERE key = 'shared_commission_headcount'`);
+      customHeadcount = defaultHcRes.rows[0]?.value ? parseInt(defaultHcRes.rows[0].value, 10) : 0;
+    }
+    const finalDivisor = customHeadcount > 0 ? customHeadcount : totalEligibleStaff;
+
+    // Shared Commission per person: (Total main devices / finalDivisor) * 50,000 đ
+    const sharedCommissionPerPerson = Math.round((totalMainDevicesSold / finalDivisor) * 50000);
 
     // 6. Compile payroll list
     const payrollItems = usersRes.rows.map((u) => {
@@ -241,6 +250,8 @@ export async function GET(request: NextRequest) {
       daysInMonth,
       totalMainDevicesSold,
       totalEligibleStaff,
+      customHeadcount,
+      finalDivisor,
       sharedCommissionPerPerson,
       payroll: payrollItems,
       isFinancialAdmin,
@@ -348,7 +359,28 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { action, user_id, base_salary, contract_type, salary_id, status } = await request.json();
+    const body = await request.json();
+    const { action, user_id, base_salary, contract_type, salary_id, status, month: targetMonth, headcount } = body;
+
+    if (action === 'update_shared_commission_headcount') {
+      const numHeadcount = parseInt(headcount, 10) || 0;
+      if (!targetMonth || numHeadcount <= 0) {
+        return NextResponse.json({ error: 'Vui lòng nhập tháng và số nhân sự hợp lệ (> 0)' }, { status: 400 });
+      }
+
+      const key = `shared_commission_headcount_${targetMonth}`;
+      await query(
+        `INSERT INTO store_settings (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+        [key, String(numHeadcount)]
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: `Đã cập nhật số nhân sự chia hoa hồng tháng ${targetMonth} là ${numHeadcount} người!`,
+      });
+    }
 
     if (action === 'update_base_salary') {
       if (!user_id || base_salary === undefined) {
