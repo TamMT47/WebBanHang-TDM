@@ -196,6 +196,32 @@ export default function PayrollView({ user }: PayrollViewProps) {
     }
   };
 
+  // Update Personal Commission (Manager / Admin)
+  const handleUpdatePersonalCommission = async (index: number, newComm: number) => {
+    handleUpdateItemValue(index, 'personal_commission', newComm);
+    const item = payrollItems[index];
+    if (!item) return;
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_personal_commission',
+          user_id: item.user_id,
+          month: selectedMonth,
+          commission: newComm,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi cập nhật hoa hồng cá nhân');
+      setMessage({ type: 'success', text: data.message });
+    } catch (err: any) {
+      console.error(err);
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
   // Save manual headcount divisor for shared commission
   const handleSaveHeadcount = async () => {
     const num = parseInt(String(customHeadcountInput), 10);
@@ -436,7 +462,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
             <span className="hidden sm:inline">Xuất Excel</span>
           </button>
 
-          {isAdminOrOwner && (
+          {isManagerOrAbove && (
             <button
               type="button"
               onClick={handleLockMonthlyPayroll}
@@ -473,7 +499,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
       {/* ======================================================== */}
       {/* ADMIN CONTROLS: Ô NHẬP TAY SỐ NHÂN SỰ CHIA HOA HỒNG THÁNG */}
       {/* ======================================================== */}
-      {isAdminOrOwner && (
+      {isManagerOrAbove && (
         <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-2xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center space-x-2">
             <Award className="w-4 h-4 text-amber-400 flex-shrink-0" />
@@ -493,8 +519,8 @@ export default function PayrollView({ user }: PayrollViewProps) {
               max="100"
               value={customHeadcountInput}
               onChange={(e) => setCustomHeadcountInput(e.target.value)}
-              placeholder="VD: 4"
-              className="w-16 px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white text-center focus:outline-none focus:border-cyan-500"
+              placeholder="VD: 5"
+              className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-amber-300 text-center focus:outline-none focus:border-amber-500"
             />
             <button
               type="button"
@@ -677,7 +703,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                         <td className="px-3 py-2.5">
                           <div className="flex items-center space-x-1">
                             <span className="font-sans font-bold text-slate-200">{formatVND(item.base_salary)}</span>
-                            {isAdminOrOwner && (
+                            {isManagerOrAbove && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -699,7 +725,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                         </td>
 
                         <td className="px-3 py-2.5">
-                          {isAdminOrOwner ? (
+                          {isManagerOrAbove ? (
                             <div className="flex items-center space-x-1">
                               <input
                                 type="number"
@@ -722,7 +748,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                         </td>
 
                         <td className="px-3 py-2.5">
-                          {isAdminOrOwner ? (
+                          {isManagerOrAbove ? (
                             <div className="flex items-center space-x-1">
                               <input
                                 type="number"
@@ -746,7 +772,26 @@ export default function PayrollView({ user }: PayrollViewProps) {
                         </td>
 
                         <td className="px-3 py-2.5 font-sans font-bold text-emerald-400">
-                          {(item.personal_commission || 0) > 0 ? `+${formatVND(item.personal_commission || 0)}` : '0đ'}
+                          {isManagerOrAbove ? (
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                value={item.personal_commission || 0}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  handleUpdateItemValue(idx, 'personal_commission', val);
+                                }}
+                                onBlur={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  handleUpdatePersonalCommission(idx, val);
+                                }}
+                                title="Quản lý có thể nhập chỉnh sửa hoa hồng cá nhân trực tiếp"
+                                className="w-24 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-emerald-300 text-right focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          ) : (
+                            <span>{(item.personal_commission || 0) > 0 ? `+${formatVND(item.personal_commission || 0)}` : '0đ'}</span>
+                          )}
                         </td>
 
                         <td className="px-3 py-2.5">
@@ -755,7 +800,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                               <span className="font-sans text-[11px] font-bold text-emerald-400">
                                 +{formatVND((item.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}
                               </span>
-                              {isAdminOrOwner && (
+                              {isManagerOrAbove && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -774,7 +819,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                               <span className="font-sans text-[11px] font-bold text-rose-400">
                                 -{formatVND(item.total_deduction)}
                               </span>
-                              {isAdminOrOwner && (
+                              {isManagerOrAbove && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -792,7 +837,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                             {item.allowances?.map((al) => (
                               <div key={al.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
                                 <span>{al.title}: +{formatVND(al.amount)}</span>
-                                {isAdminOrOwner && (
+                                {isManagerOrAbove && (
                                   <button type="button" onClick={() => handleRemoveAllowance(idx, al.id)} className="text-slate-500 hover:text-rose-400 ml-1">✕</button>
                                 )}
                               </div>
@@ -800,7 +845,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                             {item.deductions?.map((de) => (
                               <div key={de.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
                                 <span>{de.reason}: -{formatVND(de.amount)}</span>
-                                {isAdminOrOwner && (
+                                {isManagerOrAbove && (
                                   <button type="button" onClick={() => handleRemoveDeduction(idx, de.id)} className="text-slate-500 hover:text-rose-400 ml-1">✕</button>
                                 )}
                               </div>
@@ -950,7 +995,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                       </td>
                       <td className="px-3.5 py-2.5 font-sans font-black text-sm text-cyan-300">{formatVND(rec.final_salary)}</td>
                       <td className="px-3.5 py-2.5">
-                        {isAdminOrOwner ? (
+                        {isManagerOrAbove ? (
                           <button
                             type="button"
                             onClick={() => handleToggleArchiveStatus(rec)}
@@ -986,7 +1031,7 @@ export default function PayrollView({ user }: PayrollViewProps) {
                             <span>Xem phiếu</span>
                           </button>
 
-                          {isAdminOrOwner && (
+                          {isManagerOrAbove && (
                             <button
                               type="button"
                               onClick={() => handleDeleteArchiveMonth(rec.month)}

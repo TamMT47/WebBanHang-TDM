@@ -87,9 +87,9 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
-    if (!user || !['admin', 'owner'].includes(user.role)) {
+    if (!user || !['admin', 'owner', 'manager'].includes(user.role)) {
       return NextResponse.json(
-        { error: 'Chỉ Admin hoặc Chủ cửa hàng mới có quyền xóa / mở lại bảng lương lưu trữ' },
+        { error: 'Chỉ Quản lý, Admin hoặc Chủ cửa hàng mới có quyền xóa / mở lại bảng lương lưu trữ' },
         { status: 403 }
       );
     }

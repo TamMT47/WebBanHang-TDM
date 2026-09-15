@@ -452,7 +452,13 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
             {offDaysData?.nextWeek && (
               <select
                 value={
-                  offDaysData.offDays?.find((od) => od.user_id === user?.id && od.week_str === offDaysData.nextWeek.weekStr)?.date || ''
+                  (() => {
+                    const match = offDaysData.offDays?.find(
+                      (od) => od.user_id === user?.id && od.week_str === offDaysData.nextWeek.weekStr
+                    );
+                    if (!match?.date) return '';
+                    return typeof match.date === 'string' ? match.date.slice(0, 10) : new Date(match.date).toISOString().slice(0, 10);
+                  })()
                 }
                 onChange={(e) => {
                   if (e.target.value) {
@@ -463,11 +469,15 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                 className="flex-1 sm:flex-initial bg-slate-900 border border-slate-700 text-xs font-bold text-purple-300 rounded-xl px-3 py-1.5 focus:outline-none focus:border-purple-500"
               >
                 <option value="">-- Chọn ngày Off --</option>
-                {offDaysData.nextWeek.days?.map((d: any) => (
-                  <option key={d.date} value={d.date}>
-                    {d.dayName} ({d.formattedDate})
-                  </option>
-                ))}
+                {offDaysData.nextWeek.days?.map((d: any) => {
+                  const isoVal = d.date || d.dateStr;
+                  const label = `${d.dayName} (${d.formattedDate || d.formatted || isoVal})`;
+                  return (
+                    <option key={isoVal} value={isoVal}>
+                      {label}
+                    </option>
+                  );
+                })}
               </select>
             )}
 
@@ -551,39 +561,48 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                     const curOff = offDaysData?.offDays?.find((od) => od.user_id === u.id && od.week_str === offDaysData.currentWeek?.weekStr);
                     const nextOff = offDaysData?.offDays?.find((od) => od.user_id === u.id && od.week_str === offDaysData.nextWeek?.weekStr);
 
+                    const curVal = curOff?.date ? (typeof curOff.date === 'string' ? curOff.date.slice(0, 10) : new Date(curOff.date).toISOString().slice(0, 10)) : '';
+                    const nextVal = nextOff?.date ? (typeof nextOff.date === 'string' ? nextOff.date.slice(0, 10) : new Date(nextOff.date).toISOString().slice(0, 10)) : '';
+
                     return (
                       <tr key={u.id} className="hover:bg-slate-800/40 transition">
                         <td className="py-2 font-bold text-white">{u.full_name}</td>
                         <td className="py-2">
                           <select
-                            value={curOff?.date || ''}
+                            value={curVal}
                             onChange={(e) => {
                               if (e.target.value) handleRegisterOffDay(u.id, e.target.value, offDaysData.currentWeek.weekStr);
                             }}
                             className="bg-slate-950 border border-slate-700 text-[10px] font-bold text-slate-200 rounded-lg px-2 py-1 focus:outline-none"
                           >
                             <option value="">-- Chưa đăng ký --</option>
-                            {offDaysData?.currentWeek?.days?.map((d: any) => (
-                              <option key={d.date} value={d.date}>
-                                {d.dayName} ({d.formattedDate})
-                              </option>
-                            ))}
+                            {offDaysData?.currentWeek?.days?.map((d: any) => {
+                              const isoVal = d.date || d.dateStr;
+                              return (
+                                <option key={isoVal} value={isoVal}>
+                                  {d.dayName} ({d.formattedDate || d.formatted || isoVal})
+                                </option>
+                              );
+                            })}
                           </select>
                         </td>
                         <td className="py-2">
                           <select
-                            value={nextOff?.date || ''}
+                            value={nextVal}
                             onChange={(e) => {
                               if (e.target.value) handleRegisterOffDay(u.id, e.target.value, offDaysData.nextWeek.weekStr);
                             }}
                             className="bg-slate-950 border border-slate-700 text-[10px] font-bold text-purple-300 rounded-lg px-2 py-1 focus:outline-none"
                           >
                             <option value="">-- Chưa đăng ký --</option>
-                            {offDaysData?.nextWeek?.days?.map((d: any) => (
-                              <option key={d.date} value={d.date}>
-                                {d.dayName} ({d.formattedDate})
-                              </option>
-                            ))}
+                            {offDaysData?.nextWeek?.days?.map((d: any) => {
+                              const isoVal = d.date || d.dateStr;
+                              return (
+                                <option key={isoVal} value={isoVal}>
+                                  {d.dayName} ({d.formattedDate || d.formatted || isoVal})
+                                </option>
+                              );
+                            })}
                           </select>
                         </td>
                       </tr>

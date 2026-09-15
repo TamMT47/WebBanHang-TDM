@@ -139,6 +139,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Check if Admin or Manager configured custom personal commission overrides
+    const commOverrideRes = await query(
+      `SELECT key, value FROM store_settings WHERE key LIKE $1`,
+      [`personal_commission_%_${month}`]
+    );
+    const manualCommMap = new Map<string, number>();
+    for (const row of commOverrideRes.rows) {
+      // Key is personal_commission_${user_id}_${month}
+      const prefix = 'personal_commission_';
+      const suffix = `_${month}`;
+      if (row.key.startsWith(prefix) && row.key.endsWith(suffix)) {
+        const uId = row.key.substring(prefix.length, row.key.length - suffix.length);
+        manualCommMap.set(uId, parseFloat(row.value || '0'));
+      }
+    }
+
     // Check if Admin configured a custom headcount divisor for shared commission
     const hcRes = await query(`SELECT value FROM store_settings WHERE key = $1`, [`shared_commission_headcount_${month}`]);
     let customHeadcount = hcRes.rows[0]?.value ? parseInt(hcRes.rows[0].value, 10) : 0;
@@ -210,8 +226,9 @@ export async function GET(request: NextRequest) {
       // Lương OT (11 tiếng/ngày): (Đơn giá 1 ngày công / 11) * Số giờ OT * 150%
       const otSalary = Math.round((unitDailySalary / 11) * otHours * 1.5);
 
-      // Personal & Shared Commission
-      const personalCommission = personalCommissionMap.get(u.id) || 0;
+      // Personal & Shared Commission (check manual override first)
+      const manualComm = manualCommMap.get(u.id);
+      const personalCommission = manualComm !== undefined ? manualComm : (personalCommissionMap.get(u.id) || 0);
       const sharedCommission = sharedCommissionPerPerson;
 
       const finalSalary = Math.max(0, salaryByDays + otSalary + sharedCommission + personalCommission);
@@ -245,14 +262,15 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
+      success: true,
       month,
       standardDays,
       daysInMonth,
-      totalMainDevicesSold,
       totalEligibleStaff,
+      totalMainDevicesSold,
+      sharedCommissionPerPerson,
       customHeadcount,
       finalDivisor,
-      sharedCommissionPerPerson,
       payroll: payrollItems,
       isFinancialAdmin,
     });
@@ -266,9 +284,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
-    if (!user || !['admin', 'owner'].includes(user.role)) {
+    if (!user || !['admin', 'owner', 'manager'].includes(user.role)) {
       return NextResponse.json(
-        { error: 'Chỉ Admin hoặc Chủ cửa hàng mới có quyền chốt & lưu bảng lương' },
+        { error: 'Chỉ Quản lý, Admin hoặc Chủ cửa hàng mới có quyền chốt & lưu bảng lương' },
         { status: 403 }
       );
     }
@@ -348,19 +366,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Update Base Salary, Contract Type or Status
+// Update Base Salary, Contract Type, Personal Commission or Status
 export async function PATCH(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
-    if (!user || !['admin', 'owner'].includes(user.role)) {
+    if (!user || !['admin', 'owner', 'manager'].includes(user.role)) {
       return NextResponse.json(
-        { error: 'Chỉ Admin hoặc Chủ cửa hàng mới có quyền chỉnh sửa' },
+        { error: 'Chỉ Quản lý, Admin hoặc Chủ cửa hàng mới có quyền chỉnh sửa' },
         { status: 403 }
       );
     }
 
     const body = await request.json();
-    const { action, user_id, base_salary, contract_type, salary_id, status, month: targetMonth, headcount } = body;
+    const { action, user_id, base_salary, contract_type, salary_id, status, month: targetMonth, headcount, commission } = body;
+
+    if (action === 'update_personal_commission') {
+      if (!user_id || !targetMonth || commission === undefined) {
+        return NextResponse.json({ error: 'Thiếu user_id, month hoặc commission' }, { status: 400 });
+      }
+
+      const commVal = parseFloat(commission || 0);
+      const key = `personal_commission_${user_id}_${targetMonth}`;
+      await query(
+        `INSERT INTO store_settings (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+        [key, String(commVal)]
+      );
+
+      // Also update salary_history if this month is already saved/locked
+      await query(
+        `UPDATE salary_history 
+         SET personal_commission = $1, 
+             final_salary = salary_by_days + ot_salary + shared_commission + $1 + total_allowance - total_deduction
+         WHERE user_id = $2 AND month = $3`,
+        [commVal, user_id, targetMonth]
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: 'Đã cập nhật hoa hồng cá nhân thành công!',
+      });
+    }
 
     if (action === 'update_shared_commission_headcount') {
       const numHeadcount = parseInt(headcount, 10) || 0;

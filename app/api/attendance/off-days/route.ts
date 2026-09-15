@@ -14,10 +14,12 @@ function getWeekInfo(offsetWeeks: number = 0) {
   monday.setHours(0, 0, 0, 0);
 
   const days: Array<{
+    date: string;
     dateStr: string;
     dayName: string;
     dayIndex: number;
     formatted: string;
+    formattedDate: string;
   }> = [];
 
   const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -25,11 +27,20 @@ function getWeekInfo(offsetWeeks: number = 0) {
   for (let i = 0; i < 7; i++) {
     const curr = new Date(monday);
     curr.setDate(monday.getDate() + i);
+    const yyyy = curr.getFullYear();
+    const mm = String(curr.getMonth() + 1).padStart(2, '0');
+    const dd = String(curr.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const formatted = `${curr.getDate()}/${curr.getMonth() + 1}`;
+    const formattedDate = `${curr.getDate()}/${curr.getMonth() + 1}/${yyyy}`;
+
     days.push({
-      dateStr: curr.toISOString().split('T')[0],
+      date: dateStr,
+      dateStr: dateStr,
       dayName: dayNames[curr.getDay()],
       dayIndex: curr.getDay() === 0 ? 7 : curr.getDay(),
-      formatted: `${curr.getDate()}/${curr.getMonth() + 1}`,
+      formatted: formatted,
+      formattedDate: formattedDate,
     });
   }
 
@@ -71,7 +82,7 @@ export async function GET(request: NextRequest) {
     // Also get all employees for admin management
     const usersRes = await query(
       `SELECT id, username, full_name, role FROM users 
-       WHERE role IN ('staff', 'manager', 'owner')
+       WHERE role IN ('staff', 'manager', 'owner', 'admin')
        ORDER BY role = 'owner' DESC, role = 'manager' DESC, full_name ASC`
     );
 
@@ -101,6 +112,16 @@ export async function POST(request: NextRequest) {
     if (!date || !week_str) {
       return NextResponse.json({ error: 'Thiếu thông tin ngày hoặc tuần cần đăng ký' }, { status: 400 });
     }
+
+    // Validate ISO date format YYYY-MM-DD
+    const isoDateMatch = String(date).trim().match(/^\d{4}-\d{2}-\d{2}$/);
+    if (!isoDateMatch) {
+      return NextResponse.json(
+        { error: `Định dạng ngày không hợp lệ ("${date}"). Bắt buộc phải là YYYY-MM-DD.` },
+        { status: 400 }
+      );
+    }
+    const cleanDate = isoDateMatch[0];
 
     const targetUserId = user_id || user.id;
 
@@ -132,12 +153,12 @@ export async function POST(request: NextRequest) {
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (user_id, week_str) DO UPDATE
        SET date = $2, created_at = NOW()`,
-      [targetUserId, date, week_str]
+      [targetUserId, cleanDate, week_str]
     );
 
     return NextResponse.json({
       success: true,
-      message: `Đã lưu ngày Off (${date}) cho tuần ${week_str} thành công!`,
+      message: `Đã lưu ngày Off (${cleanDate}) cho tuần ${week_str} thành công!`,
     });
   } catch (err: any) {
     console.error('Off-days POST error:', err);

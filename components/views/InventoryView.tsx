@@ -448,24 +448,24 @@ export default function InventoryView({ user }: InventoryViewProps) {
         ) : (
           <div>
             {/* 1. Mobile Cards View (< 640px) */}
-            <div className="block sm:hidden divide-y divide-slate-800/80">
+            <div className="block sm:hidden divide-y divide-slate-800">
               {filteredInventory.map((item) => {
                 const isInStock = item.status === 'in_stock';
                 return (
-                  <div key={item.id} className="p-4 space-y-2.5 hover:bg-slate-850/50 transition">
+                  <div key={item.id} className="p-4 space-y-2.5 bg-slate-900 hover:bg-slate-850 transition">
                     {/* Top: Product Name + Status */}
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-black text-white text-sm">{item.product_name}</div>
-                        <div className="text-[10px] text-slate-400 font-bold uppercase">{item.category}</div>
+                        <div className="font-black text-white text-sm tracking-tight">{item.product_name}</div>
+                        <div className="text-[10px] text-slate-300 font-bold uppercase">{item.category}</div>
                       </div>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold badge-nowrap ${
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black badge-nowrap ${
                           isInStock
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                             : item.status === 'sold'
-                            ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            ? 'bg-slate-800 text-slate-300 border border-slate-700'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                         }`}
                       >
                         {isInStock ? '● Còn hàng' : item.status === 'sold' ? 'Đã bán' : 'Bảo hành'}
@@ -474,35 +474,35 @@ export default function InventoryView({ user }: InventoryViewProps) {
 
                     {/* IMEI */}
                     <div className="text-xs font-mono font-bold text-slate-300 flex items-center space-x-1.5">
-                      <span className="text-slate-500 text-[10px] uppercase font-sans">IMEI:</span>
-                      <span className="text-cyan-300 font-mono tracking-wider">{item.imei}</span>
+                      <span className="text-slate-400 text-[10px] uppercase font-sans font-bold">IMEI:</span>
+                      <span className="text-white font-mono font-black tracking-wider">{item.imei}</span>
                     </div>
 
-                    {/* 2x2 Attributes */}
+                    {/* Attributes */}
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-black border border-cyan-500/30 badge-nowrap">
+                      <span className="px-2 py-0.5 bg-slate-800 text-white rounded-md text-[10px] font-black border border-slate-700 badge-nowrap">
                         {item.storage || 'N/A'}
                       </span>
-                      <span className="px-2 py-0.5 bg-amber-500/15 text-amber-300 rounded-md text-[10px] font-bold border border-amber-500/30 badge-nowrap">
+                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-md text-[10px] font-black border border-amber-500/40 badge-nowrap">
                         {item.condition || '99%'}
                       </span>
-                      <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md text-[10px] font-bold border border-slate-700 badge-nowrap max-w-[120px] truncate">
+                      <span className="px-2 py-0.5 bg-slate-800 text-white rounded-md text-[10px] font-black border border-slate-700 badge-nowrap max-w-[120px] truncate">
                         {item.color || 'Mặc định'}
                       </span>
-                      <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-[10px] font-bold border border-emerald-500/30 badge-nowrap">
+                      <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-md text-[10px] font-black border border-emerald-500/40 badge-nowrap">
                         {item.battery_health ? `🔋 ${item.battery_health}%` : '🔋 N/A'}
                       </span>
                     </div>
 
                     {/* Bottom: Pricing & Actions */}
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                       <div>
-                        <div className="text-[10px] text-slate-500 font-bold uppercase">Giá Niêm Yết</div>
-                        <div className="text-sm font-black text-cyan-300 font-sans tracking-tight">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">Giá Niêm Yết</div>
+                        <div className="text-base font-black text-white font-sans tracking-tight">
                           {formatVND(item.selling_price)}
                         </div>
                         {canSeeCost && (
-                          <div className="text-[11px] font-bold text-rose-400 font-sans">
+                          <div className="text-[11px] font-bold text-rose-300 font-sans">
                             Vốn: {formatVND(item.cost_price)}
                           </div>
                         )}

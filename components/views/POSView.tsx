@@ -542,10 +542,10 @@ export default function POSView({ user }: POSViewProps) {
                   key={gIdx}
                   className="bg-slate-900/75 backdrop-blur-lg rounded-3xl border border-slate-800/80 shadow-xl overflow-hidden"
                 >
-                  {/* Product Header */}
-                  <div className="px-4 py-3 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between">
+                  {/* Header: Model & Category */}
+                  <div className="p-3.5 sm:p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
                     <div className="flex items-center space-x-2.5">
-                      <div className="p-2 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-xl shadow-glow-cyan">
+                      <div className="p-2 bg-slate-800 border border-slate-700 rounded-xl text-cyan-400 shadow-sm">
                         <Smartphone className="w-4 h-4" />
                       </div>
                       <h4 className="text-sm sm:text-base font-black text-white tracking-tight">
@@ -554,82 +554,82 @@ export default function POSView({ user }: POSViewProps) {
                     </div>
 
                     <div className="flex items-center space-x-1.5">
-                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[10px] font-bold rounded-lg uppercase border border-slate-700 badge-nowrap">
+                      <span className="px-2 py-0.5 bg-slate-800 text-white text-[10px] font-bold rounded-lg uppercase border border-slate-700 badge-nowrap">
                         {group.category}
                       </span>
-                      <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 font-extrabold text-[11px] rounded-full border border-emerald-500/30 badge-nowrap">
+                      <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 font-extrabold text-[11px] rounded-full border border-emerald-500/40 badge-nowrap">
                         {group.items.length} máy
                       </span>
                     </div>
                   </div>
 
-                  {/* Child IMEIs List */}
-                  <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-900/40">
+                  {/* Child IMEIs List (Dark Container) */}
+                  <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-950">
                     {group.items.map((item) => {
                       const inCart = cart.some((c) => c.inventory.id === item.id);
                       return (
                         <div
                           key={item.id}
                           onClick={() => !inCart && addToCart(item)}
-                          className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                          className={`p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
                             inCart
-                              ? 'border-cyan-500 bg-cyan-950/40 ring-1 ring-cyan-500 shadow-glow-cyan'
-                              : 'border-slate-800 bg-slate-850/60 hover:border-slate-700 hover:bg-slate-800/80 hover:shadow-lg'
+                              ? 'border-cyan-400 bg-cyan-950/70 ring-2 ring-cyan-400 shadow-glow-cyan'
+                              : 'border-slate-800 bg-slate-900 hover:border-slate-600 hover:bg-slate-850 hover:shadow-xl'
                           }`}
                         >
-                          <div className="space-y-1.5">
+                          <div className="space-y-2">
                             {/* Badges Row */}
-                            <div className="flex flex-wrap items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               {item.color && (
-                                <span className="px-2 py-0.5 bg-slate-800 text-slate-200 rounded-md text-[11px] font-bold border border-slate-700 badge-nowrap">
+                                <span className="px-2.5 py-0.5 bg-slate-800 text-white rounded-lg text-[11px] font-black border border-slate-700 badge-nowrap">
                                   {item.color}
                                 </span>
                               )}
                               {item.storage && (
-                                <span className="px-2 py-0.5 bg-slate-950 text-cyan-300 rounded-md text-[10px] font-bold border border-cyan-500/30 badge-nowrap">
+                                <span className="px-2.5 py-0.5 bg-slate-800 text-white rounded-lg text-[11px] font-black border border-slate-700 badge-nowrap">
                                   {item.storage}
                                 </span>
                               )}
                               {item.battery_health && (
-                                <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 rounded-md text-[10px] font-bold border border-emerald-500/30 badge-nowrap">
+                                <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-lg text-[11px] font-black border border-emerald-500/40 badge-nowrap">
                                   🔋 {item.battery_health}%
                                 </span>
                               )}
                               {item.condition && (
-                                <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-300 rounded-md text-[10px] font-bold border border-amber-500/30 badge-nowrap">
+                                <span className="px-2.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-lg text-[11px] font-black border border-amber-500/40 badge-nowrap">
                                   {item.condition}
                                 </span>
                               )}
                             </div>
 
                             {/* IMEI Number */}
-                            <div className="text-[11px] font-mono font-bold text-slate-400">
-                              IMEI: <span className="text-white font-black">{item.imei}</span>
+                            <div className="text-xs font-mono font-bold text-slate-300">
+                              IMEI: <span className="text-white font-black tracking-wider">{item.imei}</span>
                             </div>
                           </div>
 
-                          {/* Price & Add Action (Clean Bold Sans Typography) */}
-                          <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between">
-                            <div className="text-sm font-black text-cyan-300 font-sans tracking-tight badge-nowrap">
+                          {/* Price & Add Action */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2">
+                            <div className="text-base font-black text-white font-sans tracking-tight badge-nowrap">
                               {formatVND(item.selling_price)}
                             </div>
 
                             <button
                               type="button"
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 badge-nowrap ${
+                              className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center space-x-1.5 badge-nowrap active:scale-95 ${
                                 inCart
-                                  ? 'bg-cyan-500 text-slate-950 font-black shadow-glow-cyan'
-                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                                  ? 'bg-cyan-400 text-slate-950 font-black shadow-glow-cyan'
+                                  : 'bg-white hover:bg-slate-100 text-slate-950 shadow-md font-black'
                               }`}
                             >
                               {inCart ? (
                                 <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
+                                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
                                   <span>Đã chọn</span>
                                 </>
                               ) : (
                                 <>
-                                  <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                                  <Plus className="w-4 h-4 text-slate-950" />
                                   <span>Chọn máy</span>
                                 </>
                               )}
