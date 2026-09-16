@@ -370,15 +370,9 @@ export default function TrainingView({ user }: TrainingViewProps) {
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide flex items-center space-x-2">
-                <span>Hệ Thống Đào Tạo Nhân Viên & Onboarding</span>
-                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 text-[10px] font-extrabold rounded-full border border-cyan-500/30">
-                  TD Mobile 2026
-                </span>
+              <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
+                GIỚI THIỆU VÀ CHƯƠNG TRÌNH
               </h2>
-              <div className="text-xs text-slate-400 mt-0.5">
-                Quy chuẩn 3 khối: Tác phong làm việc • Nghiệp vụ POS kỹ thuật • Bảng giá & khuyến mãi
-              </div>
             </div>
           </div>
 
@@ -434,13 +428,13 @@ export default function TrainingView({ user }: TrainingViewProps) {
             </div>
             <div>
               <div className="font-bold text-white flex items-center space-x-2">
-                <span>Tiến độ học tập của bạn:</span>
+                <span>Tiến độ học việc của bạn:</span>
                 <span className="text-emerald-400 font-extrabold">{myCompletedCount}/{myTotalCount} bài học đã hoàn thành</span>
               </div>
               <div className="text-[11px] text-slate-400">
                 {myCompletedCount === myTotalCount && myTotalCount > 0
-                  ? '🎉 Xuất sắc! Bạn đã hoàn thành 100% tất cả tài liệu đào tạo bắt buộc!'
-                  : 'Hãy mở đọc kỹ từng tài liệu và bấm "[Xác nhận đã đọc & hiểu]" để ghi nhận.'}
+                  ? '🎉 Xuất sắc! Bạn đã hoàn thành 100% tất cả tài liệu học việc bắt buộc!'
+                  : 'Hãy mở đọc kỹ từng tài liệu và bấm "Đã đọc" để ghi nhận.'}
               </div>
             </div>
           </div>
@@ -658,26 +652,26 @@ export default function TrainingView({ user }: TrainingViewProps) {
                     </div>
 
                     {/* Bottom: Action Confirmation Button */}
-                    <div className="p-3 sm:p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
-                      <div className="flex items-center space-x-1.5 text-[11px]">
+                    <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2 flex-nowrap">
+                      <div className="flex items-center space-x-1 text-xs shrink-0">
                         {isCompleted ? (
-                          <span className="text-emerald-400 font-bold flex items-center space-x-1 badge-nowrap">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                            <span>Đã hoàn thành</span>
+                          <span className="text-emerald-400 font-bold flex items-center space-x-1 badge-nowrap bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Đã đọc</span>
                           </span>
                         ) : (
-                          <span className="text-amber-400 font-bold flex items-center space-x-1 badge-nowrap">
-                            <HelpCircle className="w-4 h-4 text-amber-400" />
-                            <span>Chưa hoàn thành</span>
+                          <span className="text-amber-400 font-bold flex items-center space-x-1 badge-nowrap bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
+                            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Chưa đọc</span>
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1.5 shrink-0 flex-nowrap">
                         <button
                           type="button"
                           onClick={() => setPreviewMaterial(item)}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 badge-nowrap"
                         >
                           <Eye className="w-3.5 h-3.5 text-cyan-400" />
                           <span>Chi tiết</span>
@@ -687,22 +681,22 @@ export default function TrainingView({ user }: TrainingViewProps) {
                           type="button"
                           disabled={actionLoadingId === item.id}
                           onClick={() => handleToggleComplete(item.id, isCompleted)}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 badge-nowrap ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center space-x-1 active:scale-95 disabled:opacity-50 badge-nowrap ${
                             isCompleted
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40'
                               : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan'
                           }`}
-                          title={isCompleted ? 'Bấm để hủy trạng thái hoàn thành' : 'Xác nhận bạn đã đọc và hiểu'}
+                          title={isCompleted ? 'Bấm để hủy trạng thái đã đọc' : 'Xác nhận bạn đã đọc tài liệu này'}
                         >
                           {isCompleted ? (
                             <>
                               <Check className="w-3.5 h-3.5" />
-                              <span>✓ Đã hiểu</span>
+                              <span>✓ Đã đọc</span>
                             </>
                           ) : (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
-                              <span>[Xác nhận đã đọc & hiểu]</span>
+                              <span>Đã đọc</span>
                             </>
                           )}
                         </button>
@@ -938,11 +932,11 @@ export default function TrainingView({ user }: TrainingViewProps) {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3 flex-nowrap">
               <button
                 type="button"
                 onClick={() => setPreviewMaterial(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition badge-nowrap"
               >
                 Đóng lại
               </button>
@@ -953,7 +947,7 @@ export default function TrainingView({ user }: TrainingViewProps) {
                   handleToggleComplete(previewMaterial.id, previewMaterial.is_completed);
                   setPreviewMaterial((prev) => prev ? { ...prev, is_completed: !prev.is_completed } : null);
                 }}
-                className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center space-x-1.5 shadow-md ${
+                className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center space-x-1.5 shadow-md badge-nowrap ${
                   previewMaterial.is_completed
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-rose-500/20 hover:text-rose-300'
                     : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan'
@@ -962,12 +956,12 @@ export default function TrainingView({ user }: TrainingViewProps) {
                 {previewMaterial.is_completed ? (
                   <>
                     <Check className="w-4 h-4" />
-                    <span>✓ Đã xác nhận hiểu (Bấm để hủy)</span>
+                    <span>✓ Đã đọc (Bấm để hủy)</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                    <span>[Xác nhận đã đọc & hiểu]</span>
+                    <span>Đánh dấu đã đọc</span>
                   </>
                 )}
               </button>
