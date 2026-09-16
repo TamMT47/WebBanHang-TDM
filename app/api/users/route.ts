@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
-    if (!user || !canManageUsers(user.role)) {
-      return NextResponse.json({ error: 'Chỉ Admin hoặc Chủ cửa hàng mới có quyền quản lý tài khoản' }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 });
     }
 
     const result = await query(

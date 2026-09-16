@@ -795,6 +795,8 @@ export async function PATCH(request: NextRequest) {
     const oldDebtAdded = parseFloat(order.debt_added || 0);
     const debtDiff = newDebtAdded - oldDebtAdded;
 
+    const finalSellerId = seller_id !== undefined ? (seller_id || null) : (order.seller_id || null);
+
     // 5. Update Order record
     await client.query(
       `UPDATE orders SET
@@ -804,7 +806,7 @@ export async function PATCH(request: NextRequest) {
         paid_amount = $5,
         debt_added = $6,
         payment_method = COALESCE($7, payment_method),
-        seller_id = COALESCE($8, seller_id)
+        seller_id = $8
       WHERE id = $1`,
       [
         order_id,
@@ -814,7 +816,7 @@ export async function PATCH(request: NextRequest) {
         newPaidAmount,
         newDebtAdded,
         payment_method || null,
-        seller_id !== undefined ? seller_id : null,
+        finalSellerId,
       ]
     );
 

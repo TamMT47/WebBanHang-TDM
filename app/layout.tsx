@@ -19,6 +19,12 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
   title: 'TD MOBILE STORE - Quản Lý Bán Hàng & Bảo Hành Apple',
   description: 'Hệ thống quản lý bán hàng, tồn kho IMEI, bảo hành, trade-in thu cũ đổi mới và sổ quỹ chuyên dòng Apple.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'TD Mobile',
+  },
 };
 
 export const viewport: Viewport = {
@@ -37,6 +43,11 @@ export default function RootLayout({
   return (
     <html lang="vi" className={`${nunito.variable} ${robotoMono.variable} dark`}>
       <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="TD Mobile" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <link rel="manifest" href="/manifest.json" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
