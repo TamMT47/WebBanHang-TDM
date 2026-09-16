@@ -20,7 +20,7 @@ export default function BottomNav({ activeTab, setActiveTab, userRole = 'staff' 
     { id: 'utilities', label: 'Tiện ích', icon: Settings2 },
   ];
 
-  const isUtilitySubTab = ['partners', 'cash-flow', 'reports', 'orders', 'users', 'attendance', 'payroll'].includes(activeTab);
+  const isUtilitySubTab = ['partners', 'cash-flow', 'reports', 'orders', 'users', 'attendance', 'payroll', 'training', 'settings'].includes(activeTab);
 
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/90 backdrop-blur-2xl border-t border-slate-800/90 shadow-2xl px-1.5 py-1.5 flex items-center justify-around safe-area-pb">

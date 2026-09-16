@@ -21,7 +21,9 @@ import {
   Download,
   FileSpreadsheet,
   CheckCircle2,
-  Clock
+  Clock,
+  GraduationCap,
+  BookOpen
 } from 'lucide-react';
 import { UserRole } from '@/types/database';
 import { exportCustomersToCSV } from '@/lib/exportHelper';
@@ -60,6 +62,20 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
   };
 
   const utilitySections = [
+    {
+      title: 'Đào Tạo Nhân Viên & Học Việc (Onboarding)',
+      description: 'Quy định tác phong, nghiệp vụ kỹ thuật POS & chương trình khuyến mãi tháng',
+      items: [
+        {
+          id: 'training',
+          label: 'Đào Tạo & Onboarding Nhân Viên',
+          desc: '3 khối chuẩn: Quy định 5S, test máy 30 bước, thao tác bán hàng & bảng giá khuyến mãi',
+          icon: GraduationCap,
+          color: 'bg-gradient-to-tr from-cyan-600 to-blue-600 text-white shadow-glow-cyan',
+          tag: '3 Khối Chuẩn',
+        },
+      ],
+    },
     {
       title: 'Quản Lý Khách Hàng & Đối Tác',
       description: 'Danh bạ khách hàng, nhà cung cấp và công nợ',

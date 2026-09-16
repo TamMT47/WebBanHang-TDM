@@ -17,7 +17,8 @@ import {
   PlusCircle,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  GraduationCap
 } from 'lucide-react';
 import { UserRole } from '@/types/database';
 import { getSavedColorMode, applyColorMode, ColorMode } from '@/lib/themeHelper';
@@ -75,6 +76,7 @@ export default function Navbar({
     { id: 'warranty', label: 'Bảo Hành', icon: Shield, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'attendance', label: 'Chấm Công', icon: UserCheck, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'payroll', label: 'Tính Lương', icon: DollarSign, roles: ['admin', 'owner', 'manager', 'staff'] },
+    { id: 'training', label: 'Đào Tạo', icon: GraduationCap, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'import', label: 'Nhập Hàng', icon: PlusCircle, roles: ['admin', 'owner', 'manager'] },
     { id: 'partners', label: 'Khách & NCC', icon: Users, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'orders', label: 'Hóa Đơn', icon: FileText, roles: ['admin', 'owner', 'manager', 'staff'] },

@@ -285,3 +285,41 @@ export interface SalaryHistoryRecord {
   locked_at: string;
   created_by?: string | null;
 }
+
+// Training & Onboarding Module Types
+export type TrainingSection = 'regulations' | 'operations' | 'promotions';
+
+export type TrainingFileType = 'pdf' | 'doc' | 'excel' | 'image' | 'video' | 'link' | 'none';
+
+export interface TrainingMaterial {
+  id: string;
+  section: TrainingSection;
+  title: string;
+  description?: string;
+  content?: string;
+  file_url?: string;
+  file_type?: TrainingFileType;
+  file_name?: string;
+  file_size?: string;
+  video_url?: string;
+  order_index: number;
+  is_mandatory: boolean;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  // Progress joined fields
+  is_completed?: boolean;
+  completed_at?: string;
+}
+
+export interface TrainingUserProgress {
+  user_id: string;
+  user_name: string;
+  username?: string;
+  user_role: UserRole;
+  contract_type?: string;
+  total_materials: number;
+  completed_materials: number;
+  completion_percentage: number;
+  last_activity?: string;
+}

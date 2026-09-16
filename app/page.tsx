@@ -16,6 +16,7 @@ import WarrantyView from '@/components/views/WarrantyView';
 import UtilitiesView from '@/components/views/UtilitiesView';
 import AttendanceView from '@/components/views/AttendanceView';
 import PayrollView from '@/components/views/PayrollView';
+import TrainingView from '@/components/views/TrainingView';
 import SettingsView from '@/components/views/SettingsView';
 import WarrantyLookupModal from '@/components/WarrantyLookupModal';
 import { getSavedTheme, applyTheme } from '@/lib/themeHelper';
@@ -80,7 +81,7 @@ export default function HomePage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#080d1a] text-slate-100 flex flex-col pb-24 lg:pb-8">
+    <div className="min-h-screen bg-[#080d1a] text-slate-100 flex flex-col pb-24 lg:pb-8 max-w-full overflow-x-hidden">
       {/* Top Header & Desktop Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -91,12 +92,13 @@ export default function HomePage() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 lg:p-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 lg:p-8 overflow-x-hidden">
         {activeTab === 'pos' && <POSView user={user} />}
         {activeTab === 'inventory' && <InventoryView user={user} />}
         {activeTab === 'warranty' && <WarrantyView user={user} />}
         {activeTab === 'attendance' && <AttendanceView user={user} />}
         {activeTab === 'payroll' && <PayrollView user={user} />}
+        {activeTab === 'training' && <TrainingView user={user} />}
         {activeTab === 'import' && <ImportView user={user} />}
         {activeTab === 'utilities' && <UtilitiesView user={user} onNavigateTab={setActiveTab} />}
         {activeTab === 'orders' && <OrdersView user={user} initialSearch={ordersInitialSearch} />}
