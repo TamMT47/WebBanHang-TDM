@@ -36,6 +36,13 @@ async function ensureTrainingTablesExist() {
     );
   `);
 
+  // Fix any legacy mock unsplash pdf urls to real valid pdf urls
+  await query(`
+    UPDATE training_materials 
+    SET file_url = 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf'
+    WHERE file_type = 'pdf' AND file_url LIKE '%unsplash.com%'
+  `);
+
   // Check if sample data exists
   const countRes = await query(`SELECT COUNT(*) AS total FROM training_materials`);
   const total = parseInt(countRes.rows[0]?.total || '0', 10);
@@ -49,7 +56,7 @@ async function ensureTrainingTablesExist() {
         title: 'Nội quy Cửa hàng & Quy chuẩn Tác phong Tiếp Khách TD Mobile',
         description: 'Bộ quy tắc chuẩn 5S, tác phong chào đón, trang phục áo đen lịch sự và quy định giờ giấc chấm công 3 ca chuẩn.',
         content: `1. NỤ CƯỜI & CHÀO ĐÓN: Luôn đứng dậy, cúi chào mỉm cười "TD Mobile xin chào!" khi khách vừa bước vào cửa.\n2. TRANG PHỤC: Áo thun đen có logo TD Mobile, quần dài lịch sự, mang giày kín mũi.\n3. GIỜ GIẤC: Đến trước 10 phút ca làm để nhận bàn giao, kiểm tra vệ sinh quầy tủ và chuẩn bị tiền lẻ.\n4. ĐIỆN THOẠI CÁ NHÂN: Để chế độ rung trong giờ làm việc, không dùng điện thoại làm việc riêng khi có khách trong shop.\n5. TÍNH TRUNG THỰC: Báo đúng giá niêm yết, xuất đủ hóa đơn và bảo hành điện tử 100% đơn hàng.`,
-        file_url: 'https://images.unsplash.com/photo-1556742049-0a67e557b683?w=1200&auto=format&fit=crop',
+        file_url: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf',
         file_type: 'pdf',
         file_name: 'Noi_Quy_Va_Tac_Phong_TD_Mobile_2026.pdf',
         file_size: '1.2 MB',
@@ -63,8 +70,8 @@ async function ensureTrainingTablesExist() {
         description: 'Hướng dẫn kiểm đếm tiền mặt, kiểm tra tồn kho tủ kính và bàn giao sổ sách giữa ca Sáng - ca Chiều.',
         content: `1. Đếm tiền mặt thực tế trong két và đối soát với số dư trên phần mềm TD Mobile (Mục Sổ Quỹ).\n2. Kiểm đếm số lượng máy thực tế trong tủ trưng bày so với số lượng tồn kho trên hệ thống.\n3. Kiểm tra các đơn máy thu cũ, máy chờ kiểm tra bảo hành và ghi chú vào sổ bàn giao.\n4. Cả nhân viên ca trước và ca sau cùng ký nhận vào biên bản bàn giao.`,
         file_url: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&auto=format&fit=crop',
-        file_type: 'excel',
-        file_name: 'Mau_Ban_Giao_Ca_Kiem_Ke_Ket_Tien.xlsx',
+        file_type: 'image',
+        file_name: 'Mau_Ban_Giao_Ca_Kiem_Ke_Ket_Tien.png',
         file_size: '450 KB',
         video_url: '',
         order_index: 2,
@@ -78,9 +85,9 @@ async function ensureTrainingTablesExist() {
         description: 'Các bước chọn máy theo IMEI, áp dụng khuyến mãi, chọn phương thức thanh toán và in phiếu bảo hành.',
         content: `1. BƯỚC 1: Vào mục Bán Hàng (POS), tìm kiếm dòng máy hoặc quét/chọn đúng IMEI máy.\n2. BƯỚC 2: Nhập thông tin Khách hàng (Tên, SĐT, Địa chỉ để tra cứu bảo hành sau này).\n3. BƯỚC 3: Chọn phương thức thanh toán (Tiền mặt / Chuyển khoản / Thu cũ đổi mới).\n4. BƯỚC 4: Bấm Hoàn tất đơn -> Chọn In hóa đơn khổ K80 hoặc A5 giao cho khách.`,
         file_url: 'https://images.unsplash.com/photo-1556740758-90de374c12ad?w=1200&auto=format&fit=crop',
-        file_type: 'video',
-        file_name: 'Video_Huong_Dan_Ban_Hang_POS.mp4',
-        file_size: '18.5 MB',
+        file_type: 'image',
+        file_name: 'Huong_Dan_Ban_Hang_POS.png',
+        file_size: '1.8 MB',
         video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
         order_index: 1,
         is_mandatory: true,
@@ -90,9 +97,9 @@ async function ensureTrainingTablesExist() {
         title: 'Quy trình Test Máy Cũ 30 Bước Chuẩn TD Mobile Store',
         description: 'Tài liệu chi tiết các bước kiểm tra ngoại quan, màn hình TrueTone, FaceID, Camera, Pin và chức năng máy thu cũ/máy nhập.',
         content: `1. Ngoại quan: Khung viền, mặt kính, khay sim, cổng sạc, lỗ loa.\n2. Màn hình: True Tone, cảm ứng đa điểm, điểm chết, sọc phản quang.\n3. Bảo mật: FaceID / TouchID, tài khoản iCloud ẩn (reset dòng 2).\n4. Camera & Mic: Cam trước/sau, zoom quang học 0.5x 1x 3x 5x, mic thu âm video.\n5. Kết nối: Wifi, Bluetooth, sóng 4G/5G nghe gọi 2 chiều, loa thoại & loa ngoài.\n6. Pin & Hiệu năng: % Pin 3uTools/i4, chu kỳ sạc, test sạc nhanh.`,
-        file_url: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&auto=format&fit=crop',
-        file_type: 'doc',
-        file_name: 'Quy_Trinh_Test_May_30_Buoc_Chuan.docx',
+        file_url: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf',
+        file_type: 'pdf',
+        file_name: 'Quy_Trinh_Test_May_30_Buoc_Chuan.pdf',
         file_size: '820 KB',
         video_url: '',
         order_index: 2,
@@ -118,7 +125,7 @@ async function ensureTrainingTablesExist() {
         title: 'Chương Trình Trợ Giá "Thu Cũ Đổi Mới Lên Đời iPhone Đến 1.500.000đ"',
         description: 'Chính sách định giá máy cũ của khách, mức trợ giá đổi máy mới và ưu đãi mua kèm phụ kiện giảm 30%.',
         content: `1. ĐIỀU KIỆN ÁP DỤNG: Khách hàng mang máy cũ bất kỳ (kể cả máy vỡ kính, chai pin) đến TD Mobile Store để lên đời máy cao hơn.\n2. MỨC TRỢ GIÁ:\n   - Lên đời iPhone 13/14 Series: Trợ giá thêm 500.000đ vào giá thu máy cũ.\n   - Lên đời iPhone 15/16 Series: Trợ giá thêm 1.000.000đ - 1.500.000đ.\n3. ƯU ĐÃI KÈM THEO: Giảm ngay 30% khi mua kèm Tai nghe Airpods hoặc Combo sạc MagSafe chính hãng.`,
-        file_url: 'https://images.unsplash.com/photo-1556742111-a301076d9d18?w=1200&auto=format&fit=crop',
+        file_url: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf',
         file_type: 'pdf',
         file_name: 'Chinh_Sach_Thu_Cu_Doi_Moi_Tro_Gia.pdf',
         file_size: '1.5 MB',

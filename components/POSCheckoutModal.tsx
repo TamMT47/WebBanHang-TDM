@@ -414,7 +414,7 @@ export default function POSCheckoutModal({
             selling_price: tiSellingPrice || Math.round(tiValue * 1.15),
           }
         : null,
-      seller_id: sellerId || null,
+      seller_id: null, // Mặc định 100% hóa đơn mới là Khách của cửa hàng
     };
 
     await onCompleteOrder(payload);
@@ -1052,59 +1052,15 @@ export default function POSCheckoutModal({
                     <span className="font-sans text-sm font-black">+{formatVND(underpaidDifference)}</span>
                   </div>
                 )}
+                {/* Note */}
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Ghi chú đơn hàng (Tặng sạc cáp 20W, dán cường lực trọn đời...)"
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                />
               </div>
-
-              {/* Người Bán / Giới Thiệu Cá Nhân */}
-              <div className="p-3.5 bg-slate-850 rounded-2xl border border-slate-700/60 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-slate-200 uppercase tracking-wide flex items-center space-x-1.5">
-                    <User className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Người Bán / Gán Hoa Hồng Cá Nhân:</span>
-                  </label>
-                  {!isManagerOrAbove && (
-                    <span className="text-[10px] text-slate-400 italic">
-                      (Chỉ Quản lý / Admin mới được gán hoa hồng)
-                    </span>
-                  )}
-                </div>
-
-                {isManagerOrAbove ? (
-                  <select
-                    value={sellerId}
-                    onChange={(e) => setSellerId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500"
-                  >
-                    <option value="">🏢 Khách của cửa hàng (Mặc định - Không gán hoa hồng cá nhân)</option>
-                    {usersList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        👤 {u.full_name} ({u.role === 'admin' ? 'Admin' : u.role === 'owner' ? 'Chủ Shop' : u.role === 'manager' ? 'Quản lý' : 'Nhân viên'})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="w-full px-3.5 py-2.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs font-bold text-slate-300 flex items-center justify-between">
-                    <span className="flex items-center space-x-2">
-                      <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>
-                      <span>Khách của cửa hàng (Mặc định)</span>
-                    </span>
-                    <span className="text-[10px] text-slate-500 italic">Quản lý / Admin duyệt</span>
-                  </div>
-                )}
-                <div className="text-[10px] text-slate-400">
-                  {isManagerOrAbove
-                    ? 'Hoa hồng cá nhân (máy cũ 200k-500k, máy New 300k) sẽ tự động cộng dồn vào bảng lương của nhân sự này.'
-                    : 'Tất cả hóa đơn mới mặc định là Khách của cửa hàng. Quản lý / Admin sẽ kiểm tra và gán hoa hồng nếu có.'}
-                </div>
-              </div>
-
-              {/* Note */}
-              <input
-                type="text"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Ghi chú đơn hàng (Tặng sạc cáp 20W, dán cường lực trọn đời...)"
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
-              />
             </div>
           )}
 
@@ -1185,8 +1141,8 @@ export default function POSCheckoutModal({
 
                   <div className="flex justify-between text-xs font-bold text-slate-300 pt-1.5 border-t border-slate-700/60">
                     <span>Người bán ghi nhận:</span>
-                    <span className="font-bold text-cyan-300">
-                      {usersList.find((u) => u.id === sellerId)?.full_name || 'Không có'}
+                    <span className="font-bold text-slate-400">
+                      🏢 Khách của cửa hàng (Mặc định)
                     </span>
                   </div>
                 </div>

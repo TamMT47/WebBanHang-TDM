@@ -272,9 +272,9 @@ export async function POST(request: NextRequest) {
 
       // 3. Create Order Code
       const code = `HD${Date.now().toString().slice(-6)}`;
-      const isManagerOrAdmin = canViewSensitiveFinancials(user.role);
-      // Chỉ Quản lý / Admin / Chủ shop mới được quyền gán hoa hồng. Mặc định là null (Khách của cửa hàng).
-      const sellerId = isManagerOrAdmin && payload.seller_id ? payload.seller_id : null;
+      // Mặc định 100% hóa đơn mới tạo là Khách của cửa hàng (seller_id = null).
+      // Việc gán hoa hồng cá nhân chỉ thực hiện trong phần Chỉnh Sửa Hóa Đơn (bởi Admin/Quản lý).
+      const sellerId = null;
 
       const orderInsertRes = await client.query(
         `INSERT INTO orders (code, type, partner_id, total_amount, discount, trade_in_value, final_payment, paid_amount, payment_method, debt_added, created_by, seller_id)

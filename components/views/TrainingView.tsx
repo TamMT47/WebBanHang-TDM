@@ -921,12 +921,33 @@ export default function TrainingView({ user }: TrainingViewProps) {
 
                   {/* Inline PDF Viewer */}
                   {(previewMaterial.file_type === 'pdf' || previewMaterial.file_url.match(/\.pdf(\?.*)?$/i)) && (
-                    <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
-                      <iframe
-                        src={previewMaterial.file_url}
-                        title="Tài liệu PDF"
-                        className="w-full h-[460px] rounded-2xl bg-slate-950"
-                      />
+                    <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 flex flex-col">
+                      <div className="p-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                        <span className="font-bold flex items-center space-x-1.5 text-emerald-400">
+                          <FileText className="w-4 h-4" />
+                          <span>Trình Đọc Tài Liệu PDF Trực Tiếp</span>
+                        </span>
+                        <a
+                          href={previewMaterial.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-cyan-400 hover:underline flex items-center space-x-1"
+                        >
+                          <span>Mở toàn màn hình</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                      <object
+                        data={previewMaterial.file_url}
+                        type="application/pdf"
+                        className="w-full h-[520px] rounded-b-2xl bg-slate-950"
+                      >
+                        <iframe
+                          src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewMaterial.file_url)}&embedded=true`}
+                          title="Tài liệu PDF"
+                          className="w-full h-[520px] rounded-b-2xl bg-slate-950"
+                        />
+                      </object>
                     </div>
                   )}
 
@@ -937,7 +958,7 @@ export default function TrainingView({ user }: TrainingViewProps) {
                         <iframe
                           src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewMaterial.file_url)}&embedded=true`}
                           title="Tài liệu văn bản"
-                          className="w-full h-[420px] rounded-2xl bg-slate-950"
+                          className="w-full h-[460px] rounded-2xl bg-slate-950"
                         />
                       </div>
                     )}
