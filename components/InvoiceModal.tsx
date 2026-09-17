@@ -63,7 +63,15 @@ export default function InvoiceModal({ isOpen, onClose, order, initialDocType = 
         setPrintFormat(current.paperSize);
       }
     }
-  }, [isOpen, initialDocType]);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isEditSettingsOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, initialDocType, isEditSettingsOpen, onClose]);
 
   if (!isOpen || !order) return null;
 
@@ -209,9 +217,10 @@ export default function InvoiceModal({ isOpen, onClose, order, initialDocType = 
 
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+              title="Đóng / Bán Đơn Mới (ESC)"
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition border border-transparent hover:border-slate-700"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-slate-300 hover:text-rose-400" />
             </button>
           </div>
         </div>
@@ -578,6 +587,38 @@ export default function InvoiceModal({ isOpen, onClose, order, initialDocType = 
               </div>
             </div>
           )}
+        </div>
+
+        {/* Modal Bottom Action Bar (Hidden during Print) */}
+        <div className="no-print p-3 sm:p-4 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 z-10">
+          <div className="text-xs text-slate-400 hidden sm:flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>Đơn hàng <b>#{order.code}</b> đã lưu thành công</span>
+          </div>
+
+          <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className={`flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-4 py-2.5 rounded-xl text-xs font-black transition active:scale-95 ${
+                docType === 'warranty'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-glow-emerald'
+                  : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan'
+              }`}
+            >
+              <Printer className="w-4 h-4" />
+              <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành' : 'In Hóa Đơn'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-cyan-300 border border-slate-700 hover:border-cyan-500/50 rounded-xl text-xs font-black transition shadow-lg active:scale-95"
+            >
+              <RotateCcw className="w-4 h-4 text-cyan-400" />
+              <span>Đóng / Bán Đơn Mới</span>
+            </button>
+          </div>
         </div>
 
         {/* Modal Customize Invoice Template Settings */}

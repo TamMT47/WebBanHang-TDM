@@ -22,6 +22,7 @@ interface EditOrderModalProps {
   onClose: () => void;
   order: any;
   onOrderUpdated: () => void;
+  currentUser?: any;
 }
 
 export default function EditOrderModal({
@@ -29,7 +30,9 @@ export default function EditOrderModal({
   onClose,
   order,
   onOrderUpdated,
+  currentUser,
 }: EditOrderModalProps) {
+  const isManagerOrAbove = currentUser && ['admin', 'owner', 'manager'].includes(currentUser.role);
   const [partnerName, setPartnerName] = useState('');
   const [partnerPhone, setPartnerPhone] = useState('');
   const [partnerAddress, setPartnerAddress] = useState('');
@@ -265,21 +268,40 @@ export default function EditOrderModal({
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-[11px] font-semibold text-cyan-300 mb-1">
-                  👤 Người Bán / Giới Thiệu Cá Nhân (Ghi nhận Hoa hồng)
-                </label>
-                <select
-                  value={sellerId}
-                  onChange={(e) => setSellerId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-cyan-500/40 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-400"
-                >
-                  <option value="">-- Chưa chọn người bán / Khách vãng lai --</option>
-                  {usersList.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name} ({u.role === 'admin' ? 'Admin' : u.role === 'owner' ? 'Chủ Shop' : u.role === 'manager' ? 'Quản lý' : 'Nhân viên'})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-cyan-300">
+                    👤 Người Bán / Gán Hoa Hồng Cá Nhân:
+                  </label>
+                  {!isManagerOrAbove && (
+                    <span className="text-[10px] text-slate-400 italic">
+                      (Chỉ Quản lý / Admin mới được gán)
+                    </span>
+                  )}
+                </div>
+
+                {isManagerOrAbove ? (
+                  <select
+                    value={sellerId}
+                    onChange={(e) => setSellerId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-cyan-500/40 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-400"
+                  >
+                    <option value="">🏢 Khách của cửa hàng (Không gán hoa hồng cá nhân)</option>
+                    {usersList.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        👤 {u.full_name} ({u.role === 'admin' ? 'Admin' : u.role === 'owner' ? 'Chủ Shop' : u.role === 'manager' ? 'Quản lý' : 'Nhân viên'})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-3.5 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>
+                      {usersList.find((u) => u.id === sellerId)?.full_name
+                        ? `👤 ${usersList.find((u) => u.id === sellerId)?.full_name}`
+                        : '🏢 Khách của cửa hàng'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 italic">Chỉ Quản lý / Admin sửa</span>
+                  </div>
+                )}
                 <p className="text-[10px] text-slate-400 mt-1">
                   * Hoa hồng bán máy (200k-500k máy cũ / 300k máy new) sẽ tự động cộng dồn vào Bảng Lương tháng của nhân sự này.
                 </p>

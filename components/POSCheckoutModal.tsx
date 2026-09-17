@@ -204,6 +204,7 @@ export default function POSCheckoutModal({
       setDiscount(0);
       setPaymentMethod('transfer');
       setCustomPaidAmount(null);
+      setSellerId('');
       setNote('');
       setHasTradeIn(false);
       setTiModelName('iPhone 12');
@@ -1058,11 +1059,11 @@ export default function POSCheckoutModal({
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-slate-200 uppercase tracking-wide flex items-center space-x-1.5">
                     <User className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Người Bán / Giới Thiệu Cá Nhân:</span>
+                    <span>Người Bán / Gán Hoa Hồng Cá Nhân:</span>
                   </label>
                   {!isManagerOrAbove && (
                     <span className="text-[10px] text-slate-400 italic">
-                      (Chỉ Quản lý / Admin mới được sửa)
+                      (Chỉ Quản lý / Admin mới được gán hoa hồng)
                     </span>
                   )}
                 </div>
@@ -1073,20 +1074,26 @@ export default function POSCheckoutModal({
                     onChange={(e) => setSellerId(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500"
                   >
-                    <option value="">-- Không có (Không tính hoa hồng cá nhân) --</option>
+                    <option value="">🏢 Khách của cửa hàng (Mặc định - Không gán hoa hồng cá nhân)</option>
                     {usersList.map((u) => (
                       <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.role})
+                        👤 {u.full_name} ({u.role === 'admin' ? 'Admin' : u.role === 'owner' ? 'Chủ Shop' : u.role === 'manager' ? 'Quản lý' : 'Nhân viên'})
                       </option>
                     ))}
                   </select>
                 ) : (
-                  <div className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-xl text-xs font-bold text-slate-300">
-                    {usersList.find((u) => u.id === sellerId)?.full_name || 'Không có (Không tính hoa hồng cá nhân)'}
+                  <div className="w-full px-3.5 py-2.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center space-x-2">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>
+                      <span>Khách của cửa hàng (Mặc định)</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 italic">Quản lý / Admin duyệt</span>
                   </div>
                 )}
                 <div className="text-[10px] text-slate-400">
-                  Hoa hồng cá nhân (máy cũ 200k-500k, máy New 300k) sẽ tự động cộng dồn vào bảng lương của nhân sự này.
+                  {isManagerOrAbove
+                    ? 'Hoa hồng cá nhân (máy cũ 200k-500k, máy New 300k) sẽ tự động cộng dồn vào bảng lương của nhân sự này.'
+                    : 'Tất cả hóa đơn mới mặc định là Khách của cửa hàng. Quản lý / Admin sẽ kiểm tra và gán hoa hồng nếu có.'}
                 </div>
               </div>
 

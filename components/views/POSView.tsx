@@ -1116,7 +1116,10 @@ export default function POSView({ user }: POSViewProps) {
       {/* Invoice Modal */}
       <InvoiceModal
         isOpen={isInvoiceOpen}
-        onClose={() => setIsInvoiceOpen(false)}
+        onClose={() => {
+          setIsInvoiceOpen(false);
+          resetAllPOSState();
+        }}
         order={completedOrder}
       />
     </div>

@@ -6,6 +6,23 @@ import { POSSalePayload, ImportOrderPayload } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
+function calculateItemCommission(price: number, condition: string = '', category: string = ''): number {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('phukien') || cat.includes('phụ kiện') || cat.includes('dichvu') || cat.includes('dịch vụ')) {
+    return 0;
+  }
+  const cond = (condition || '').toLowerCase().trim();
+  const isNew = cond === 'new' || cond === 'mới' || cond === 'mới 100%' || cond === '100%';
+  if (isNew) {
+    return 300000;
+  }
+  // Máy cũ: <5tr (200k), 5tr - 10tr (300k), 10tr - 15tr (400k), >15tr (500k)
+  if (price < 5000000) return 200000;
+  if (price < 10000000) return 300000;
+  if (price < 15000000) return 400000;
+  return 500000;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
@@ -17,7 +34,10 @@ export async function GET(request: NextRequest) {
     const partnerIdParam = searchParams.get('partner_id') || '';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo = searchParams.get('dateTo') || '';
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const onlyMine = searchParams.get('only_mine') === 'true' || searchParams.get('my_orders') === 'true';
+    const userIdParam = searchParams.get('user_id') || '';
+    const targetUserId = onlyMine ? (user?.id || '') : userIdParam;
+    const limit = parseInt(searchParams.get('limit') || '100', 10);
 
     let sql = `
       SELECT 
@@ -57,6 +77,11 @@ export async function GET(request: NextRequest) {
     if (partnerIdParam) {
       params.push(partnerIdParam);
       sql += ` AND o.partner_id = $${params.length}`;
+    }
+
+    if (targetUserId) {
+      params.push(targetUserId);
+      sql += ` AND (o.created_by = $${params.length} OR o.seller_id = $${params.length})`;
     }
 
     if (search.trim()) {
@@ -115,12 +140,19 @@ export async function GET(request: NextRequest) {
       const itemsRes = await query(itemsSql);
       const itemsByOrder: Record<string, any[]> = {};
       for (const item of itemsRes.rows) {
+        const itemComm = calculateItemCommission(parseFloat(item.price || 0), item.condition, item.category);
+        item.commission = itemComm;
         if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
         itemsByOrder[item.order_id].push(item);
       }
 
       for (const order of orders) {
-        order.items = itemsByOrder[order.id] || [];
+        const orderItems = itemsByOrder[order.id] || [];
+        order.items = orderItems;
+        // If seller_id is assigned, compute commission sum
+        order.commission_amount = order.seller_id
+          ? orderItems.reduce((sum, it) => sum + (it.commission || 0), 0)
+          : 0;
       }
     }
 
@@ -240,7 +272,9 @@ export async function POST(request: NextRequest) {
 
       // 3. Create Order Code
       const code = `HD${Date.now().toString().slice(-6)}`;
-      const sellerId = payload.seller_id || user.id;
+      const isManagerOrAdmin = canViewSensitiveFinancials(user.role);
+      // Chỉ Quản lý / Admin / Chủ shop mới được quyền gán hoa hồng. Mặc định là null (Khách của cửa hàng).
+      const sellerId = isManagerOrAdmin && payload.seller_id ? payload.seller_id : null;
 
       const orderInsertRes = await client.query(
         `INSERT INTO orders (code, type, partner_id, total_amount, discount, trade_in_value, final_payment, paid_amount, payment_method, debt_added, created_by, seller_id)
@@ -795,7 +829,10 @@ export async function PATCH(request: NextRequest) {
     const oldDebtAdded = parseFloat(order.debt_added || 0);
     const debtDiff = newDebtAdded - oldDebtAdded;
 
-    const finalSellerId = seller_id !== undefined ? (seller_id || null) : (order.seller_id || null);
+    const isManagerOrAdmin = canViewSensitiveFinancials(user.role);
+    const finalSellerId = isManagerOrAdmin
+      ? (seller_id !== undefined ? (seller_id || null) : (order.seller_id || null))
+      : (order.seller_id || null);
 
     // 5. Update Order record
     await client.query(

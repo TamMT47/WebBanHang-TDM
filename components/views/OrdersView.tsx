@@ -34,14 +34,16 @@ interface OrdersViewProps {
 export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps) {
   const isAdminOrOwner = user && ['admin', 'owner'].includes(user.role);
   const isManagerOrOwner = user && ['admin', 'owner', 'manager'].includes(user.role);
+  const isStaff = user?.role === 'staff';
 
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'personal'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'sell' | 'import'>('all');
   const [search, setSearch] = useState(initialSearch);
 
-  // Time Range Filter
-  const [timeRange, setTimeRange] = useState<'today' | '7days' | 'this_month' | 'all' | 'custom'>('all');
+  // Time Range Filter (Tháng này mặc định cho tab cá nhân hoặc All)
+  const [timeRange, setTimeRange] = useState<'today' | '7days' | 'this_month' | 'all' | 'custom'>('this_month');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -68,6 +70,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
     try {
       setLoading(true);
       const params = new URLSearchParams();
+      if (scopeFilter === 'personal') params.append('only_mine', 'true');
       if (typeFilter !== 'all') params.append('type', typeFilter);
       if (search.trim()) params.append('search', search.trim());
 
@@ -102,7 +105,19 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
 
   useEffect(() => {
     fetchOrders();
-  }, [typeFilter, search, timeRange, dateFrom, dateTo]);
+  }, [scopeFilter, typeFilter, search, timeRange, dateFrom, dateTo]);
+
+  // Personal metrics calculation
+  const personalOrdersCount = orders.length;
+  const personalTotalSales = orders.reduce((sum, o) => sum + parseFloat(o.final_payment || 0), 0);
+  const personalTotalCommission = orders.reduce(
+    (sum, o) => sum + (o.seller_id === user?.id ? parseFloat(o.commission_amount || 0) : 0),
+    0
+  );
+  const personalDevicesWithCommissionCount = orders.reduce(
+    (count, o) => count + (o.seller_id === user?.id ? (o.items?.length || 0) : 0),
+    0
+  );
 
   const handleDeleteConfirm = async () => {
     if (!orderToDelete) return;
@@ -135,22 +150,104 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-16">
-      {/* Top Header Card */}
-      <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl flex items-center justify-between">
+      {/* Top Header Card with Scope Navigation */}
+      <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan">
+          <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan flex-shrink-0">
             <FileText className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
-              Lịch Sử Hóa Đơn & Giao Dịch
+              {scopeFilter === 'personal' ? 'Hóa Đơn & Hoa Hồng Cá Nhân' : 'Lịch Sử Hóa Đơn & Giao Dịch'}
             </h2>
             <p className="text-xs text-slate-400">
-              Tra cứu hóa đơn bán lẻ (#HD), phiếu nhập (#NH), xem chi tiết bảo hành, chỉnh sửa thông tin và in lại phiếu A4.
+              {scopeFilter === 'personal'
+                ? `Danh sách các hóa đơn do bạn (${user?.full_name}) tạo hoặc được Quản lý gán hoa hồng bán hàng.`
+                : 'Tra cứu toàn bộ hóa đơn bán lẻ (#HD), phiếu nhập (#NH), bảo hành & in phiếu.'}
             </p>
           </div>
         </div>
+
+        {/* Scope Toggle: Tất cả vs Hóa đơn cá nhân */}
+        <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs">
+          <button
+            type="button"
+            onClick={() => setScopeFilter('all')}
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition badge-nowrap ${
+              scopeFilter === 'all'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            🏢 Tất Cả Hóa Đơn
+          </button>
+          <button
+            type="button"
+            onClick={() => setScopeFilter('personal')}
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition badge-nowrap flex items-center space-x-1.5 ${
+              scopeFilter === 'personal'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black shadow-glow-emerald'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>⭐ Hóa Đơn Cá Nhân</span>
+            {personalTotalCommission > 0 && (
+              <span className="px-1.5 py-0.2 bg-emerald-950 text-emerald-300 text-[10px] rounded-full font-sans font-bold">
+                +{formatVND(personalTotalCommission)}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* KPI Dashboard Card for Personal Invoices Mode */}
+      {scopeFilter === 'personal' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in">
+          <div className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800 shadow-xl space-y-1">
+            <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center space-x-1">
+              <FileText className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Đơn Hàng Của Bạn</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-white font-sans">
+              {personalOrdersCount} <span className="text-xs text-slate-400 font-normal">đơn</span>
+            </div>
+            <div className="text-[10px] text-slate-400">Do bạn tạo hoặc nhận hoa hồng</div>
+          </div>
+
+          <div className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800 shadow-xl space-y-1">
+            <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center space-x-1">
+              <Smartphone className="w-3.5 h-3.5 text-blue-400" />
+              <span>Máy Được Gán Hoa Hồng</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-cyan-300 font-sans">
+              {personalDevicesWithCommissionCount} <span className="text-xs text-slate-400 font-normal">máy</span>
+            </div>
+            <div className="text-[10px] text-slate-400">Máy bán được gán hoa hồng</div>
+          </div>
+
+          <div className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800 shadow-xl space-y-1">
+            <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center space-x-1">
+              <span className="text-amber-400">💰</span>
+              <span>Tổng Doanh Số Đơn</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-white font-sans">
+              {formatVND(personalTotalSales)}
+            </div>
+            <div className="text-[10px] text-slate-400">Trong khoảng thời gian đã chọn</div>
+          </div>
+
+          <div className="p-4 bg-gradient-to-br from-emerald-950/60 to-slate-900 rounded-2xl border border-emerald-500/40 shadow-glow-emerald space-y-1">
+            <div className="text-[11px] font-bold text-emerald-300 uppercase flex items-center space-x-1">
+              <span className="text-emerald-400">🎁</span>
+              <span>Hoa Hồng Nhận Được</span>
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-emerald-400 font-sans">
+              +{formatVND(personalTotalCommission)}
+            </div>
+            <div className="text-[10px] text-emerald-300/80 font-semibold">Tự động cộng dồn vào bảng lương</div>
+          </div>
+        </div>
+      )}
 
       {/* Filter Bar with Time Range */}
       <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3">
@@ -196,10 +293,10 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
               onChange={(e) => setTimeRange(e.target.value as any)}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
             >
-              <option value="all">📅 Toàn bộ thời gian</option>
+              <option value="this_month">📅 Tháng này (Mặc định)</option>
               <option value="today">📅 Hôm nay</option>
               <option value="7days">📅 7 ngày qua</option>
-              <option value="this_month">📅 Tháng này</option>
+              <option value="all">📅 Toàn bộ thời gian</option>
               <option value="custom">📅 Tùy chọn khoảng ngày...</option>
             </select>
           </div>
@@ -290,12 +387,28 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
                         {order.partner_address && (
                           <div className="text-[10px] text-slate-500 truncate max-w-[150px]">{order.partner_address}</div>
                         )}
-                        {order.seller_name && (
-                          <div className="mt-1 flex items-center space-x-1 text-[10px] text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/50 w-fit badge-nowrap">
-                            <span>👤 Bán:</span>
-                            <span className="font-bold">{order.seller_name}</span>
-                          </div>
-                        )}
+                        <div className="mt-1 space-y-0.5">
+                          {order.created_by === user?.id && (
+                            <div className="text-[9px] font-bold text-blue-300 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-800/40 w-fit badge-nowrap">
+                              ✍️ Bạn tạo đơn
+                            </div>
+                          )}
+                          {order.seller_id === user?.id ? (
+                            <div className="flex items-center space-x-1 text-[10px] text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded-lg border border-emerald-500/40 w-fit badge-nowrap font-bold">
+                              <span>🎁 Hoa hồng của bạn:</span>
+                              <span className="font-sans font-black">+{formatVND(order.commission_amount || 0)}</span>
+                            </div>
+                          ) : order.seller_name ? (
+                            <div className="flex items-center space-x-1 text-[10px] text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/50 w-fit badge-nowrap">
+                              <span>👤 Bán:</span>
+                              <span className="font-bold">{order.seller_name}</span>
+                            </div>
+                          ) : (
+                            <div className="text-[9px] text-slate-500 italic">
+                              🏢 Khách của cửa hàng
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3.5 text-slate-300">
                         <div className="space-y-1.5">
@@ -415,6 +528,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
             setEditingOrder(null);
           }}
           order={editingOrder}
+          currentUser={user}
           onOrderUpdated={() => {
             fetchOrders();
           }}

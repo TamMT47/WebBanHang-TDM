@@ -831,7 +831,7 @@ export default function TrainingView({ user }: TrainingViewProps) {
       {/* ======================================================== */}
       {previewMaterial && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="p-4 sm:p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center space-x-2.5 min-w-0">
@@ -900,33 +900,90 @@ export default function TrainingView({ user }: TrainingViewProps) {
                 </div>
               )}
 
-              {/* Attached File Download & View */}
+              {/* Attached File Viewer & Download */}
               {previewMaterial.file_url && (
-                <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <div className="p-2 bg-slate-800 text-cyan-400 rounded-xl flex-shrink-0">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-black text-white text-xs truncate">
-                        {previewMaterial.file_name || 'Tài liệu đính kèm'}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-semibold">
-                        Định dạng: {previewMaterial.file_type?.toUpperCase()} {previewMaterial.file_size ? `• ${previewMaterial.file_size}` : ''}
-                      </div>
-                    </div>
+                <div className="space-y-2">
+                  <div className="font-bold text-white uppercase text-[11px] flex items-center space-x-1.5">
+                    <FolderOpen className="w-4 h-4 text-cyan-400" />
+                    <span>Tài Liệu Đính Kèm ({previewMaterial.file_type?.toUpperCase() || 'FILE'})</span>
                   </div>
 
-                  <a
-                    href={previewMaterial.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={previewMaterial.file_name || 'tai_lieu_dao_tao'}
-                    className="px-3 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl text-xs flex items-center space-x-1 shadow-glow-cyan transition flex-shrink-0"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Tải Về / Mở File</span>
-                  </a>
+                  {/* Inline Image Preview */}
+                  {(previewMaterial.file_type === 'image' || previewMaterial.file_url.match(/\.(jpeg|jpg|png|gif|webp)(\?.*)?$/i)) && (
+                    <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 p-2 flex items-center justify-center">
+                      <img
+                        src={previewMaterial.file_url}
+                        alt={previewMaterial.file_name || 'Tài liệu'}
+                        className="max-h-[420px] w-auto max-w-full rounded-xl object-contain shadow-lg"
+                      />
+                    </div>
+                  )}
+
+                  {/* Inline PDF Viewer */}
+                  {(previewMaterial.file_type === 'pdf' || previewMaterial.file_url.match(/\.pdf(\?.*)?$/i)) && (
+                    <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
+                      <iframe
+                        src={previewMaterial.file_url}
+                        title="Tài liệu PDF"
+                        className="w-full h-[460px] rounded-2xl bg-slate-950"
+                      />
+                    </div>
+                  )}
+
+                  {/* Inline Office Document Viewer via Google Docs Viewer if http(s) URL */}
+                  {(['doc', 'excel', 'other'].includes(previewMaterial.file_type || '') || previewMaterial.file_url.match(/\.(docx?|xlsx?|pptx?)(\?.*)?$/i)) &&
+                    previewMaterial.file_url.startsWith('http') && (
+                      <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
+                        <iframe
+                          src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewMaterial.file_url)}&embedded=true`}
+                          title="Tài liệu văn bản"
+                          className="w-full h-[420px] rounded-2xl bg-slate-950"
+                        />
+                      </div>
+                    )}
+
+                  {/* File Metadata & Dual Action Links */}
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className="p-2 bg-slate-800 text-cyan-400 rounded-xl flex-shrink-0">
+                        {previewMaterial.file_type === 'excel' ? (
+                          <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+                        ) : previewMaterial.file_type === 'image' ? (
+                          <ImageIcon className="w-5 h-5 text-purple-400" />
+                        ) : (
+                          <FileText className="w-5 h-5 text-cyan-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-black text-white text-xs truncate">
+                          {previewMaterial.file_name || 'Tài liệu đào tạo đính kèm'}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-semibold">
+                          Định dạng: {previewMaterial.file_type?.toUpperCase()} {previewMaterial.file_size ? `• ${previewMaterial.file_size}` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      <a
+                        href={previewMaterial.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Mở Tab Mới</span>
+                      </a>
+                      <a
+                        href={previewMaterial.file_url}
+                        download={previewMaterial.file_name || 'tai_lieu_td_mobile'}
+                        className="px-3 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-xl text-xs flex items-center space-x-1.5 shadow-glow-cyan transition"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Tải Về Máy</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
