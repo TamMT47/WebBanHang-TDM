@@ -20,9 +20,12 @@ import {
   Coffee,
   Check,
   AlertCircle,
-  Users
+  Users,
+  Plus,
+  Edit2
 } from 'lucide-react';
 import { ShiftType } from '@/types/database';
+import ManualAttendanceModal from '@/components/ManualAttendanceModal';
 
 interface AttendanceViewProps {
   user: any;
@@ -45,6 +48,12 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
   // Admin Config State
   const [editingWifiIp, setEditingWifiIp] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Manual Attendance Modal State (Bù công & Sửa giờ làm cho Quản lý)
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [selectedManualRecord, setSelectedManualRecord] = useState<any>(null);
+  const [selectedManualUserId, setSelectedManualUserId] = useState<string | undefined>(undefined);
+  const [usersList, setUsersList] = useState<any[]>([]);
 
   // Shift & Records State
   const [assignedShift, setAssignedShift] = useState<string>('shift1');
@@ -101,6 +110,17 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     return () => clearInterval(interval);
   }, []);
 
+  const getPublicIp = async (): Promise<string> => {
+    try {
+      const res = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
+      const data = await res.json();
+      if (data && data.ip) return data.ip.trim();
+    } catch (e) {
+      console.warn('Could not fetch public IP from ipify:', e);
+    }
+    return clientIp || '';
+  };
+
   const fetchAttendanceData = async () => {
     try {
       setLoading(true);
@@ -108,10 +128,21 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi tải dữ liệu chấm công');
 
-      setClientIp(data.clientIp || '');
-      setStoreWifiIp(data.storeWifiIp || '');
-      setEditingWifiIp(data.storeWifiIp || '');
-      setIsWifiMatch(data.isWifiMatch ?? false);
+      let detectedIp = data.clientIp || '';
+      try {
+        const ipifyRes = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
+        const ipifyData = await ipifyRes.json();
+        if (ipifyData && ipifyData.ip) detectedIp = ipifyData.ip.trim();
+      } catch (e) {
+        // use server detected IP
+      }
+
+      const shopIp = data.storeWifiIp?.trim() || '';
+
+      setClientIp(detectedIp);
+      setStoreWifiIp(shopIp);
+      setEditingWifiIp(shopIp);
+      setIsWifiMatch(!shopIp || detectedIp === shopIp);
       setAssignedShift(data.assignedShift || 'shift1');
       setWeekNumber(data.weekNumber || 1);
       setMorningRecord(data.morningRecord || null);
@@ -133,15 +164,32 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       const data = await res.json();
       if (res.ok) {
         setOffDaysData(data);
+        if (data.users && data.users.length > 0) {
+          setUsersList(data.users);
+        }
       }
     } catch (err) {
       console.error('Error fetching off-days:', err);
     }
   };
 
+  const fetchUsersList = async () => {
+    if (!isManagerOrAbove) return;
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (data && data.users) {
+        setUsersList(data.users);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     fetchAttendanceData();
     fetchOffDaysData();
+    fetchUsersList();
   }, []);
 
   const handleSaveStoreWifiIp = async () => {
@@ -168,15 +216,24 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     }
   };
 
-  // Session Check In handler
+  // Session Check In handler with STRICT IP check
   const handleSessionCheckIn = async (session: 'morning' | 'afternoon') => {
     try {
       setSubmitting(true);
       setMessage(null);
+
+      const currentIp = await getPublicIp();
+      if (storeWifiIp && currentIp !== storeWifiIp) {
+        const errText = `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${currentIp || 'Không xác định'} != IP Shop: ${storeWifiIp})`;
+        setMessage({ type: 'error', text: errText });
+        setIsWifiMatch(false);
+        return;
+      }
+
       const res = await fetch('/api/attendance/check-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shift: assignedShift, session }),
+        body: JSON.stringify({ shift: assignedShift, session, client_public_ip: currentIp }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi chấm công vào ca');
@@ -190,15 +247,24 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     }
   };
 
-  // Session Check Out handler
+  // Session Check Out handler with STRICT IP check
   const handleSessionCheckOut = async (session: 'morning' | 'afternoon', recordId?: string) => {
     try {
       setSubmitting(true);
       setMessage(null);
+
+      const currentIp = await getPublicIp();
+      if (storeWifiIp && currentIp !== storeWifiIp) {
+        const errText = `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${currentIp || 'Không xác định'} != IP Shop: ${storeWifiIp})`;
+        setMessage({ type: 'error', text: errText });
+        setIsWifiMatch(false);
+        return;
+      }
+
       const res = await fetch('/api/attendance/check-out', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session, attendance_id: recordId }),
+        body: JSON.stringify({ session, attendance_id: recordId, client_public_ip: currentIp }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi chấm công ra ca');
@@ -620,15 +686,31 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       {/* 3. LỊCH SỬ CHẤM CÔNG (BẢNG DẠNG DÒNG NẰM NGANG) */}
       {/* ======================================================== */}
       <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl p-4 sm:p-5 space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
           <div className="flex items-center space-x-2">
             <Clock className="w-4 h-4 text-cyan-400" />
             <h3 className="text-xs font-black text-white uppercase">
               {isManagerOrAbove ? 'Lịch Sử Chấm Công Toàn Cửa Hàng' : 'Lịch Sử Chấm Công Của Bạn'}
             </h3>
           </div>
-          <div className="text-[11px] text-slate-400">
-            Tổng cộng: <b className="text-white font-sans">{summary.actual_days}</b> ngày công ({summary.total_work_hours}h làm việc • +{summary.total_ot_hours}h OT)
+          <div className="flex items-center space-x-3">
+            <div className="text-[11px] text-slate-400">
+              Tổng cộng: <b className="text-white font-sans">{summary.actual_days}</b> ngày công ({summary.total_work_hours}h làm việc • +{summary.total_ot_hours}h OT)
+            </div>
+            {isManagerOrAbove && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedManualRecord(null);
+                  setSelectedManualUserId(undefined);
+                  setIsManualModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition flex items-center space-x-1.5 active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Bù công / Sửa giờ làm</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -656,6 +738,8 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                   <th className="px-3.5 py-2.5">Về Sớm</th>
                   <th className="px-3.5 py-2.5">Tăng Ca OT</th>
                   <th className="px-3.5 py-2.5">Trạng Thái</th>
+                  <th className="px-3.5 py-2.5">Ghi Chú</th>
+                  {isManagerOrAbove && <th className="px-3.5 py-2.5 text-center">Hành Động</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/70">
@@ -719,6 +803,25 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                           {rec.status === 'completed' ? 'Hoàn thành' : 'Đang làm'}
                         </span>
                       </td>
+                      <td className="px-3.5 py-2.5 text-[11px] text-slate-400 max-w-xs truncate" title={rec.note || ''}>
+                        {rec.note || '-'}
+                      </td>
+                      {isManagerOrAbove && (
+                        <td className="px-3.5 py-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedManualRecord(rec);
+                              setSelectedManualUserId(rec.user_id);
+                              setIsManualModalOpen(true);
+                            }}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white rounded-lg transition"
+                            title="Chỉnh sửa ca chấm công này"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -727,6 +830,25 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
           </div>
         )}
       </div>
+
+      {/* Manual Attendance & Shift Edit Modal */}
+      {isManualModalOpen && (
+        <ManualAttendanceModal
+          isOpen={isManualModalOpen}
+          onClose={() => {
+            setIsManualModalOpen(false);
+            setSelectedManualRecord(null);
+            setSelectedManualUserId(undefined);
+          }}
+          onSuccess={() => {
+            setMessage({ type: 'success', text: 'Đã cập nhật dữ liệu chấm công thành công!' });
+            fetchAttendanceData();
+          }}
+          users={usersList.length > 0 ? usersList : offDaysData?.users || []}
+          initialUserId={selectedManualUserId}
+          initialRecord={selectedManualRecord}
+        />
+      )}
 
     </div>
   );

@@ -32,6 +32,7 @@ import {
 import { formatVND } from '@/lib/format';
 import { MonthlyPayrollItem, SalaryHistoryRecord } from '@/types/database';
 import PayslipModal from '@/components/PayslipModal';
+import ManualAttendanceModal from '@/components/ManualAttendanceModal';
 import { exportPayrollToCSV } from '@/lib/exportHelper';
 
 interface PayrollViewProps {
@@ -93,6 +94,10 @@ export default function PayrollView({ user }: PayrollViewProps) {
   const [isDeductionModalOpen, setIsDeductionModalOpen] = useState(false);
   const [deductionReason, setDeductionReason] = useState('');
   const [deductionAmount, setDeductionAmount] = useState<number>(0);
+
+  // Manual Attendance & Shift Edit Modal State
+  const [isManualAttendanceModalOpen, setIsManualAttendanceModalOpen] = useState(false);
+  const [selectedManualUserId, setSelectedManualUserId] = useState<string | undefined>(undefined);
 
   // 1. Fetch live payroll computation for selected month
   const fetchLivePayroll = async () => {
@@ -635,13 +640,28 @@ export default function PayrollView({ user }: PayrollViewProps) {
       ) : (
         /* MÀN HÌNH ADMIN / QUẢN LÝ: BẢNG CHI TIẾT TẤT CẢ NHÂN SỰ */
         <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3.5 sm:p-4 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-2.5 mb-3 gap-2">
             <div className="text-xs font-black text-white uppercase flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
               <span>Bảng Lương Tháng {selectedMonth}</span>
             </div>
-            <div className="text-[11px] text-slate-400">
-              Tổng thực lĩnh: <b className="text-cyan-300 font-sans">{formatVND(payrollItems.reduce((s, i) => s + i.final_salary, 0))}</b> ({payrollItems.length} nhân sự)
+            <div className="flex items-center space-x-3">
+              <div className="text-[11px] text-slate-400">
+                Tổng thực lĩnh: <b className="text-cyan-300 font-sans">{formatVND(payrollItems.reduce((s, i) => s + i.final_salary, 0))}</b> ({payrollItems.length} nhân sự)
+              </div>
+              {isManagerOrAbove && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedManualUserId(undefined);
+                    setIsManualAttendanceModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition flex items-center space-x-1.5 active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Bù công / Sửa giờ làm</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -735,6 +755,17 @@ export default function PayrollView({ user }: PayrollViewProps) {
                                 className="w-14 px-1 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-white text-center focus:outline-none focus:border-cyan-500"
                               />
                               <span className="text-slate-400 text-[11px] font-bold">/ {item.standard_days}c</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedManualUserId(item.user_id);
+                                  setIsManualAttendanceModalOpen(true);
+                                }}
+                                title="Bù công / Sửa giờ làm chi tiết cho nhân viên này"
+                                className="p-1 text-slate-500 hover:text-amber-300 transition"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           ) : (
                             <span className="font-bold text-white font-sans text-xs">
@@ -1230,6 +1261,23 @@ export default function PayrollView({ user }: PayrollViewProps) {
         record={selectedPayslipRecord}
         month={selectedMonth}
       />
+
+      {/* 5. Manual Attendance & Shift Edit Modal */}
+      {isManualAttendanceModalOpen && (
+        <ManualAttendanceModal
+          isOpen={isManualAttendanceModalOpen}
+          onClose={() => {
+            setIsManualAttendanceModalOpen(false);
+            setSelectedManualUserId(undefined);
+          }}
+          onSuccess={() => {
+            setMessage({ type: 'success', text: 'Đã cập nhật dữ liệu chấm công và tính lại bảng lương!' });
+            fetchLivePayroll();
+          }}
+          users={payrollItems.map((p) => ({ id: p.user_id, full_name: p.user_name, role: p.user_role }))}
+          initialUserId={selectedManualUserId}
+        />
+      )}
 
     </div>
   );

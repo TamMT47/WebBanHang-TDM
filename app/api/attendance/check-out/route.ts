@@ -10,23 +10,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 });
     }
 
-    const { attendance_id, session, note } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { attendance_id, session, note, client_public_ip } = body;
 
     // IP Wifi Validation
-    const clientIp = getClientIp(request);
+    const requestIp = getClientIp(request);
+    const effectiveIp = (client_public_ip || requestIp || '').trim();
     const settingsRes = await query("SELECT value FROM store_settings WHERE key = 'store_wifi_ip'");
     const storeWifiIp = settingsRes.rows[0]?.value?.trim() || '';
 
-    if (storeWifiIp && storeWifiIp !== clientIp && clientIp !== '127.0.0.1' && clientIp !== '::1') {
-      return NextResponse.json(
-        {
-          error: `Vui lòng kết nối Wifi cửa hàng để chấm công! (IP của bạn: ${clientIp} - Yêu cầu: ${storeWifiIp})`,
-          isWifiMatch: false,
-          clientIp,
-          storeWifiIp,
-        },
-        { status: 403 }
-      );
+    if (storeWifiIp) {
+      const isMatched = effectiveIp === storeWifiIp || requestIp === storeWifiIp;
+      if (!isMatched) {
+        return NextResponse.json(
+          {
+            error: `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${effectiveIp || requestIp} != IP Shop: ${storeWifiIp})`,
+            isWifiMatch: false,
+            clientIp: effectiveIp || requestIp,
+            storeWifiIp,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const now = new Date();

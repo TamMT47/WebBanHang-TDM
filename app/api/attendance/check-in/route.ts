@@ -10,25 +10,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 });
     }
 
-    const { shift, session, note } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { shift, session, note, client_public_ip } = body;
     const validShifts = ['shift1', 'shift2', 'manager', 'morning', 'afternoon', 'evening', 'full'];
     const chosenShift = shift && validShifts.includes(shift) ? shift : 'shift1';
 
     // IP Wifi Validation
-    const clientIp = getClientIp(request);
+    const requestIp = getClientIp(request);
+    const effectiveIp = (client_public_ip || requestIp || '').trim();
     const settingsRes = await query("SELECT value FROM store_settings WHERE key = 'store_wifi_ip'");
     const storeWifiIp = settingsRes.rows[0]?.value?.trim() || '';
 
-    if (storeWifiIp && storeWifiIp !== clientIp && clientIp !== '127.0.0.1' && clientIp !== '::1') {
-      return NextResponse.json(
-        {
-          error: `Vui lòng kết nối Wifi cửa hàng để chấm công! (IP của bạn: ${clientIp} - Yêu cầu: ${storeWifiIp})`,
-          isWifiMatch: false,
-          clientIp,
-          storeWifiIp,
-        },
-        { status: 403 }
-      );
+    if (storeWifiIp) {
+      const isMatched = effectiveIp === storeWifiIp || requestIp === storeWifiIp;
+      if (!isMatched) {
+        return NextResponse.json(
+          {
+            error: `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${effectiveIp || requestIp} != IP Shop: ${storeWifiIp})`,
+            isWifiMatch: false,
+            clientIp: effectiveIp || requestIp,
+            storeWifiIp,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const now = new Date();
@@ -102,7 +107,7 @@ export async function POST(request: NextRequest) {
       `INSERT INTO attendance (user_id, date, shift, session, check_in, ip_address, status, late_minutes, is_off_day, note)
        VALUES ($1, $2, $3, $4, NOW(), $5, 'working', $6, $7, $8)
        RETURNING *`,
-      [user.id, todayStr, chosenShift, targetSession, clientIp, lateMinutes, isOffDay, note || null]
+      [user.id, todayStr, chosenShift, targetSession, effectiveIp || requestIp, lateMinutes, isOffDay, note || null]
     );
 
     return NextResponse.json({
