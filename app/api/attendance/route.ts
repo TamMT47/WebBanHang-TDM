@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
     const settingsRes = await query("SELECT value FROM store_settings WHERE key = 'store_wifi_ip'");
     const storeWifiIp = settingsRes.rows[0]?.value?.trim() || '';
 
-    // Wifi Match check
-    const isWifiMatch = !storeWifiIp || storeWifiIp === clientIp || clientIp === '127.0.0.1' || clientIp === '::1';
+    // Wifi Match check: MUST have storeWifiIp and match clientIp
+    const isWifiMatch = Boolean(storeWifiIp) && (storeWifiIp === clientIp);
 
     // 2 Fulltime Shifts (11 hours/day) + Manager Shift
     const shifts = [

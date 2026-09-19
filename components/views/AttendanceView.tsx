@@ -142,7 +142,7 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       setClientIp(detectedIp);
       setStoreWifiIp(shopIp);
       setEditingWifiIp(shopIp);
-      setIsWifiMatch(!shopIp || detectedIp === shopIp);
+      setIsWifiMatch(Boolean(shopIp) && detectedIp === shopIp);
       setAssignedShift(data.assignedShift || 'shift1');
       setWeekNumber(data.weekNumber || 1);
       setMorningRecord(data.morningRecord || null);
@@ -223,7 +223,14 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       setMessage(null);
 
       const currentIp = await getPublicIp();
-      if (storeWifiIp && currentIp !== storeWifiIp) {
+      if (!storeWifiIp) {
+        const errText = 'Cửa hàng chưa thiết lập IP Wifi chấm công. Vui lòng liên hệ Quản lý / Admin để cấu hình!';
+        setMessage({ type: 'error', text: errText });
+        setIsWifiMatch(false);
+        return;
+      }
+
+      if (currentIp !== storeWifiIp) {
         const errText = `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${currentIp || 'Không xác định'} != IP Shop: ${storeWifiIp})`;
         setMessage({ type: 'error', text: errText });
         setIsWifiMatch(false);
@@ -254,7 +261,14 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       setMessage(null);
 
       const currentIp = await getPublicIp();
-      if (storeWifiIp && currentIp !== storeWifiIp) {
+      if (!storeWifiIp) {
+        const errText = 'Cửa hàng chưa thiết lập IP Wifi chấm công. Vui lòng liên hệ Quản lý / Admin để cấu hình!';
+        setMessage({ type: 'error', text: errText });
+        setIsWifiMatch(false);
+        return;
+      }
+
+      if (currentIp !== storeWifiIp) {
         const errText = `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${currentIp || 'Không xác định'} != IP Shop: ${storeWifiIp})`;
         setMessage({ type: 'error', text: errText });
         setIsWifiMatch(false);
@@ -311,6 +325,10 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       ? 'Ca 2 (Sáng: 08:30-13:00 | Chiều: 14:30-21:00)'
       : 'Ca Quản Lý (08:30 - 21:00)';
 
+  // Controls whether staff is locked out from checking in/out
+  const isStaffLocked = isStaff && !isWifiMatch;
+  const isButtonDisabled = submitting || (!isWifiMatch && isStaff);
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-16">
       
@@ -334,6 +352,80 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
           <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-white">✕</button>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* 0. BẢNG HIỂN THỊ KIỂM SOÁT IP WIFI CỬA HÀNG (ADMIN & STAFF) */}
+      {/* ======================================================== */}
+      <div
+        className={`p-4 rounded-3xl border shadow-xl transition backdrop-blur-xl ${
+          isWifiMatch
+            ? 'bg-emerald-950/40 border-emerald-500/30'
+            : 'bg-slate-900/90 border-rose-500/30'
+        }`}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+          <div className="flex items-start sm:items-center space-x-3">
+            <div
+              className={`p-3 rounded-2xl flex-shrink-0 border ${
+                isWifiMatch
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                  : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+              }`}
+            >
+              {isWifiMatch ? <Wifi className="w-6 h-6" /> : <WifiOff className="w-6 h-6" />}
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg border ${
+                    isWifiMatch
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  }`}
+                >
+                  {isWifiMatch
+                    ? '🟢 ĐÃ KẾT NỐI ĐÚNG WIFI CỬA HÀNG'
+                    : '🔴 CHƯA KẾT NỐI ĐÚNG WIFI CỬA HÀNG'}
+                </span>
+                {isStaffLocked && (
+                  <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-md text-[10px] font-black uppercase">
+                    🔒 ĐÃ KHÓA NÚT CHẤM CÔNG CỦA NHÂN VIÊN
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 mt-1 font-medium">
+                {isWifiMatch
+                  ? 'Địa chỉ IP thiết bị trùng khớp 100% với IP Wifi Shop đã lưu. Toàn bộ tính năng chấm công đã sẵn sàng.'
+                  : !storeWifiIp
+                  ? 'Cửa hàng chưa lưu cấu hình IP Wifi. Quản lý / Admin vui lòng cài đặt IP Wifi phía dưới để kích hoạt chấm công.'
+                  : 'IP thiết bị của bạn không trùng với IP Wifi của cửa hàng. Toàn bộ nút chấm công đã bị vô hiệu hóa để chống chấm công ngoài cửa hàng.'}
+              </p>
+            </div>
+          </div>
+
+          {/* IP Diagnostic Badges */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">IP Shop Đã Lưu:</span>
+              <span className="font-mono font-bold text-amber-300">{storeWifiIp || 'Chưa lưu'}</span>
+            </div>
+            <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">IP Máy Hiện Tại:</span>
+              <span className={`font-mono font-bold ${isWifiMatch ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {clientIp || 'Đang lấy...'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchAttendanceData()}
+              title="Kiểm tra lại mạng & IP"
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-2xl transition border border-slate-700 active:scale-95"
+            >
+              <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* ======================================================== */}
       {/* 1. KHUNG CHẤM CÔNG DẠNG DỌC (VERTICAL STACK - RESPONSIVE MOBILE) */}
@@ -375,16 +467,16 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
               <span className="text-[10px] text-slate-400 capitalize">({currentDateStr})</span>
             </div>
 
-            {/* Wifi Status */}
+            {/* Wifi Status Badge */}
             {isWifiMatch ? (
               <div className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold">
                 <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Wifi Shop: Sẵn sàng</span>
+                <span>Wifi: Khớp ({clientIp})</span>
               </div>
             ) : (
               <div className="flex items-center space-x-1 px-2.5 py-1 bg-rose-500/15 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold">
                 <WifiOff className="w-3.5 h-3.5 text-rose-400" />
-                <span>Chưa kết nối Wifi Shop</span>
+                <span>Sai Wifi ({clientIp || 'Chưa nhận'})</span>
               </div>
             )}
 
@@ -415,11 +507,15 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
               <button
                 type="button"
                 onClick={() => handleSessionCheckIn('morning')}
-                disabled={submitting}
-                className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black rounded-xl text-xs shadow-md hover:brightness-110 active:scale-98 transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                disabled={isButtonDisabled}
+                className={`w-full py-2.5 font-black rounded-xl text-xs transition flex items-center justify-center space-x-2 ${
+                  isStaffLocked
+                    ? 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-60'
+                    : 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md hover:brightness-110 active:scale-98 disabled:opacity-50'
+                }`}
               >
                 <LogIn className="w-4 h-4" />
-                <span>VÀO CA SÁNG</span>
+                <span>{isStaffLocked ? '🔒 KHÓA CHẤM CÔNG (SAI WIFI)' : 'VÀO CA SÁNG'}</span>
               </button>
             ) : morningRecord.status === 'working' ? (
               <div className="space-y-2">
@@ -429,11 +525,15 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                 <button
                   type="button"
                   onClick={() => handleSessionCheckOut('morning', morningRecord.id)}
-                  disabled={submitting}
-                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/50 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                  disabled={isButtonDisabled}
+                  className={`w-full py-2 border rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 ${
+                    isStaffLocked
+                      ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
+                      : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-amber-500/50 disabled:opacity-50'
+                  }`}
                 >
                   <Coffee className="w-4 h-4 text-amber-400" />
-                  <span>RA CA SÁNG (Nghỉ trưa)</span>
+                  <span>{isStaffLocked ? '🔒 KHÓA RA CA (SAI WIFI)' : 'RA CA SÁNG (Nghỉ trưa)'}</span>
                 </button>
               </div>
             ) : (
@@ -466,11 +566,15 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
               <button
                 type="button"
                 onClick={() => handleSessionCheckIn('afternoon')}
-                disabled={submitting}
-                className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-xl text-xs shadow-glow-cyan hover:brightness-110 active:scale-98 transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                disabled={isButtonDisabled}
+                className={`w-full py-2.5 font-black rounded-xl text-xs transition flex items-center justify-center space-x-2 ${
+                  isStaffLocked
+                    ? 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-60'
+                    : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan hover:brightness-110 active:scale-98 disabled:opacity-50'
+                }`}
               >
                 <LogIn className="w-4 h-4" />
-                <span>VÀO CA CHIỀU</span>
+                <span>{isStaffLocked ? '🔒 KHÓA CHẤM CÔNG (SAI WIFI)' : 'VÀO CA CHIỀU'}</span>
               </button>
             ) : afternoonRecord.status === 'working' ? (
               <div className="space-y-2">
@@ -480,11 +584,15 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                 <button
                   type="button"
                   onClick={() => handleSessionCheckOut('afternoon', afternoonRecord.id)}
-                  disabled={submitting}
-                  className="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs transition flex items-center justify-center space-x-1.5 disabled:opacity-50 shadow-md"
+                  disabled={isButtonDisabled}
+                  className={`w-full py-2 font-black rounded-xl text-xs transition flex items-center justify-center space-x-1.5 ${
+                    isStaffLocked
+                      ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                      : 'bg-rose-600 hover:bg-rose-500 text-white shadow-md disabled:opacity-50'
+                  }`}
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>RA CA CHIỀU (Hết ngày)</span>
+                  <span>{isStaffLocked ? '🔒 KHÓA RA CA (SAI WIFI)' : 'RA CA CHIỀU (Hết ngày)'}</span>
                 </button>
               </div>
             ) : (

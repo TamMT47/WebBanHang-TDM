@@ -21,19 +21,29 @@ export async function POST(request: NextRequest) {
     const settingsRes = await query("SELECT value FROM store_settings WHERE key = 'store_wifi_ip'");
     const storeWifiIp = settingsRes.rows[0]?.value?.trim() || '';
 
-    if (storeWifiIp) {
-      const isMatched = effectiveIp === storeWifiIp || requestIp === storeWifiIp;
-      if (!isMatched) {
-        return NextResponse.json(
-          {
-            error: `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${effectiveIp || requestIp} != IP Shop: ${storeWifiIp})`,
-            isWifiMatch: false,
-            clientIp: effectiveIp || requestIp,
-            storeWifiIp,
-          },
-          { status: 403 }
-        );
-      }
+    if (!storeWifiIp) {
+      return NextResponse.json(
+        {
+          error: 'Cửa hàng chưa cấu hình IP Wifi chấm công. Vui lòng liên hệ Quản lý / Admin để cài đặt IP trước khi chấm công!',
+          isWifiMatch: false,
+          clientIp: effectiveIp || requestIp,
+          storeWifiIp: '',
+        },
+        { status: 403 }
+      );
+    }
+
+    const isMatched = effectiveIp === storeWifiIp || requestIp === storeWifiIp;
+    if (!isMatched) {
+      return NextResponse.json(
+        {
+          error: `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${effectiveIp || requestIp} != IP Shop: ${storeWifiIp})`,
+          isWifiMatch: false,
+          clientIp: effectiveIp || requestIp,
+          storeWifiIp,
+        },
+        { status: 403 }
+      );
     }
 
     const now = new Date();
