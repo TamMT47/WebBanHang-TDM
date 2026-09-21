@@ -4,11 +4,10 @@ export interface PrintResult {
   success: boolean;
   message?: string;
   error?: string;
-  fallbackTriggered?: boolean;
 }
 
 /**
- * Send Test Print directly to LAN / Wifi Printer
+ * Send Test Print (5cm bill) directly to LAN / Wifi Printer without opening browser print dialog
  */
 export async function testLanPrinter(
   ip?: string,
@@ -16,7 +15,7 @@ export async function testLanPrinter(
   customSettings?: Partial<InvoiceSettings>
 ): Promise<PrintResult> {
   const settings = getInvoiceSettings();
-  const targetIp = ip || settings.printerIp || '192.168.1.133';
+  const targetIp = (ip || settings.printerIp || '192.168.1.133').trim();
   const targetPort = port || settings.printerPort || 9100;
 
   try {
@@ -32,38 +31,35 @@ export async function testLanPrinter(
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Lỗi khi gửi lệnh in kiểm tra');
+      throw new Error(data.error || `Không kết nối được máy in LAN (${targetIp}:${targetPort})`);
     }
 
     return {
       success: true,
-      message: data.message || `Đã gửi mẫu in kiểm tra tới ${targetIp}:${targetPort}!`,
+      message: `🟢 Đã gửi lệnh in thử nghiệm thành công tới máy in ${targetIp}`,
     };
   } catch (err: any) {
     return {
       success: false,
-      error: err.message || `Không kết nối được máy in LAN (${targetIp}:${targetPort})`,
+      error: `🔴 ${err.message || `Không thể kết nối máy in ${targetIp}:${targetPort}`}`,
     };
   }
 }
 
 /**
- * Print order or warranty slip directly to LAN / Wifi Printer (ESC/POS)
- * With automatic Fallback to Web Print if connection fails.
+ * Print order or warranty slip SILENTLY & DIRECTLY to LAN / Wifi Printer (ESC/POS)
+ * Completely bypasses and prevents iOS AirPrint popup & window.print() dialog.
  */
 export async function printToLanPrinter(
   order: any,
   docType: 'invoice' | 'warranty' = 'invoice',
   options?: {
     customSettings?: Partial<InvoiceSettings>;
-    fallbackToWebPrint?: boolean;
-    onFallback?: (errorMsg: string) => void;
   }
 ): Promise<PrintResult> {
   const settings = getInvoiceSettings();
-  const targetIp = options?.customSettings?.printerIp || settings.printerIp || '192.168.1.133';
+  const targetIp = (options?.customSettings?.printerIp || settings.printerIp || '192.168.1.133').trim();
   const targetPort = options?.customSettings?.printerPort || settings.printerPort || 9100;
-  const shouldFallback = options?.fallbackToWebPrint !== false;
 
   try {
     const res = await fetch('/api/printer/print', {
@@ -85,30 +81,13 @@ export async function printToLanPrinter(
 
     return {
       success: true,
-      message: data.message || `Đã in hóa đơn trực tiếp thành công tới máy in (${targetIp})!`,
+      message: `🟢 Đã gửi lệnh in thành công tới máy in ${targetIp}`,
     };
   } catch (err: any) {
-    const errorMsg = `Không kết nối được máy in LAN (${targetIp}), chuyển sang in giao diện Web`;
-    
-    if (options?.onFallback) {
-      options.onFallback(errorMsg);
-    }
-
-    if (shouldFallback && typeof window !== 'undefined') {
-      // Automatic trigger web print
-      setTimeout(() => {
-        try {
-          window.print();
-        } catch (e) {
-          console.error('Web print fallback error:', e);
-        }
-      }, 300);
-    }
-
+    const errorMsg = `🔴 Không kết nối được máy in LAN (${targetIp}:${targetPort}). Vui lòng kiểm tra Wifi shop & nguồn máy in.`;
     return {
       success: false,
       error: errorMsg,
-      fallbackTriggered: shouldFallback,
     };
   }
 }

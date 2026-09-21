@@ -349,7 +349,7 @@ export default function PrinterConfigCard({
               ) : (
                 <>
                   <PlayCircle className="w-4 h-4 text-white" />
-                  <span>[In Kiểm Tra Kết Nối]</span>
+                  <span>[In Thử Nghiệm]</span>
                 </>
               )}
             </button>

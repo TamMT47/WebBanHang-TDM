@@ -115,39 +115,29 @@ export default function InvoiceModal({
   };
 
   /**
-   * Primary Print: Tries direct ESC/POS printing over LAN IP (192.168.1.133:9100)
-   * Falls back automatically to Web Print if unreachable.
+   * Pure Silent Direct Print: Sends ESC/POS binary directly to LAN IP (192.168.1.133:9100).
+   * Completely bypasses window.print() and blocks iOS AirPrint popup.
    */
   const handleDirectLanPrint = async () => {
     if (!order) return;
     setIsPrintingLan(true);
-    setPrintNotice({ text: `Đang gửi lệnh in tới máy in LAN (${settings.printerIp}:${settings.printerPort})...` });
+    setPrintNotice({ text: `Đang gửi lệnh in trực tiếp tới máy in ${settings.printerIp}...` });
 
     try {
       const res = await printToLanPrinter(order, docType, {
         customSettings: settings,
-        fallbackToWebPrint: true,
-        onFallback: (errorMsg) => {
-          showToast(errorMsg, true);
-        },
       });
 
       if (res.success) {
-        showToast(`Đã in ${docType === 'warranty' ? 'phiếu bảo hành' : 'hóa đơn'} thành công tới máy in LAN (${settings.printerIp})!`);
+        showToast(res.message || `🟢 Đã gửi lệnh in thành công tới máy in ${settings.printerIp}`);
+      } else {
+        showToast(res.error || `🔴 Không kết nối được máy in LAN (${settings.printerIp})`, true);
       }
     } catch (err: any) {
-      showToast(`Không kết nối được máy in LAN (${settings.printerIp}), chuyển sang in giao diện Web`, true);
-      setTimeout(() => window.print(), 300);
+      showToast(`🔴 Không kết nối được máy in LAN (${settings.printerIp}:${settings.printerPort})`, true);
     } finally {
       setIsPrintingLan(false);
     }
-  };
-
-  /**
-   * Standard Web Print
-   */
-  const handleWebPrint = () => {
-    window.print();
   };
 
   /**
@@ -324,11 +314,11 @@ export default function InvoiceModal({
               </button>
             </div>
 
-            {/* DIRECT LAN PRINT (Primary) */}
+            {/* DIRECT SILENT LAN PRINT */}
             <button
               onClick={handleDirectLanPrint}
               disabled={isPrintingLan}
-              title={`In trực tiếp qua máy in LAN (${settings.printerIp})`}
+              title={`In trực tiếp qua máy in LAN (${settings.printerIp}:9100) - Không mở popup AirPrint`}
               className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-black transition badge-nowrap active:scale-95 disabled:opacity-50 ${
                 docType === 'warranty'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-glow-emerald'
@@ -340,17 +330,7 @@ export default function InvoiceModal({
               ) : (
                 <Printer className="w-4 h-4 text-slate-950" />
               )}
-              <span>In LAN (192.168.1.133)</span>
-            </button>
-
-            {/* Fallback Web Print Button */}
-            <button
-              onClick={handleWebPrint}
-              title="In qua hộp thoại trình duyệt (Web Print)"
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1"
-            >
-              <Globe className="w-3.5 h-3.5 text-slate-400" />
-              <span>In Web</span>
+              <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành' : 'In Hóa Đơn'}</span>
             </button>
 
             <button
@@ -728,12 +708,12 @@ export default function InvoiceModal({
           </div>
 
           <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
-            {/* DIRECT LAN PRINT BUTTON */}
+            {/* DIRECT SILENT LAN PRINT BUTTON */}
             <button
               type="button"
               onClick={handleDirectLanPrint}
               disabled={isPrintingLan}
-              className={`flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-5 py-2.5 rounded-xl text-xs font-black transition active:scale-95 disabled:opacity-50 ${
+              className={`flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-6 py-2.5 rounded-xl text-xs font-black transition active:scale-95 disabled:opacity-50 ${
                 docType === 'warranty'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-glow-emerald'
                   : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan'
@@ -747,19 +727,9 @@ export default function InvoiceModal({
               ) : (
                 <>
                   <Printer className="w-4 h-4 text-slate-950" />
-                  <span>In Máy In LAN ({settings.printerIp || '192.168.1.133'})</span>
+                  <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành (LAN)' : 'In Hóa Đơn (LAN)'}</span>
                 </>
               )}
-            </button>
-
-            {/* WEB PRINT BUTTON */}
-            <button
-              type="button"
-              onClick={handleWebPrint}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
-            >
-              <Globe className="w-4 h-4 text-slate-400" />
-              <span>In Giao Diện Web</span>
             </button>
 
             {/* CLOSE BUTTON */}
@@ -812,7 +782,7 @@ export default function InvoiceModal({
                       ) : (
                         <PlayCircle className="w-3 h-3" />
                       )}
-                      <span>[In Kiểm Tra Kết Nối]</span>
+                      <span>[In Thử Nghiệm]</span>
                     </button>
                   </div>
 
