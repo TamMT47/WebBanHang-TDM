@@ -47,7 +47,7 @@ export async function pingPrinterStatus(customSettings?: Partial<InvoiceSettings
 }
 
 /**
- * Send Test Print (K80 bill) directly via Cloudflare Tunnel
+ * Send Test Print (K80 bill) directly via /api/print (Cloudflare Tunnel & RAW TCP Socket)
  * Completely silent, no AirPrint / window.print()
  */
 export async function testLanPrinter(
@@ -62,19 +62,20 @@ export async function testLanPrinter(
   const tunnelUrl = (merged.printerTunnelUrl || DEFAULT_TUNNEL_URL).trim();
 
   try {
-    const res = await fetch('/api/print-relay', {
+    const res = await fetch('/api/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'test',
-        connectionMode: 'tunnel',
+        connectionMode: merged.printerConnectionMode || 'tunnel',
         tunnelUrl,
         ip: targetIp,
         port: targetPort,
         settings: {
           ...merged,
-          printerConnectionMode: 'tunnel',
           printerTunnelUrl: tunnelUrl,
+          printerIp: targetIp,
+          printerPort: targetPort,
         },
       }),
     });
@@ -91,13 +92,13 @@ export async function testLanPrinter(
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới máy in qua Cloudflare Tunnel'}`,
+      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới máy in qua Socket/Tunnel'}`,
     };
   }
 }
 
 /**
- * Print order or warranty slip SILENTLY & DIRECTLY via Cloudflare Tunnel
+ * Print order or warranty slip SILENTLY & DIRECTLY via /api/print
  * Completely bypasses and prevents iOS AirPrint popup & window.print() dialog.
  */
 export async function printToLanPrinter(
@@ -114,12 +115,12 @@ export async function printToLanPrinter(
   const tunnelUrl = (merged.printerTunnelUrl || DEFAULT_TUNNEL_URL).trim();
 
   try {
-    const res = await fetch('/api/print-relay', {
+    const res = await fetch('/api/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'print',
-        connectionMode: 'tunnel',
+        connectionMode: merged.printerConnectionMode || 'tunnel',
         tunnelUrl,
         ip: targetIp,
         port: targetPort,
@@ -127,8 +128,9 @@ export async function printToLanPrinter(
         docType,
         settings: {
           ...merged,
-          printerConnectionMode: 'tunnel',
           printerTunnelUrl: tunnelUrl,
+          printerIp: targetIp,
+          printerPort: targetPort,
         },
       }),
     });
@@ -145,8 +147,9 @@ export async function printToLanPrinter(
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || 'Không thể kết nối máy in qua Cloudflare Tunnel'}`,
+      error: `🔴 ${err.message || 'Không thể kết nối máy in qua Socket/Tunnel'}`,
     };
   }
 }
+
 
