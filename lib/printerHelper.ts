@@ -7,7 +7,8 @@ export interface PrintResult {
 }
 
 /**
- * Send Test Print (5cm bill) directly to LAN / Wifi Printer without opening browser print dialog
+ * Send Test Print (5cm bill) directly via Web Print Relay (/api/print-relay)
+ * Completely silent, no AirPrint / window.print()
  */
 export async function testLanPrinter(
   ip?: string,
@@ -19,10 +20,11 @@ export async function testLanPrinter(
   const targetPort = port || settings.printerPort || 9100;
 
   try {
-    const res = await fetch('/api/printer/test', {
+    const res = await fetch('/api/print-relay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        action: 'test',
         ip: targetIp,
         port: targetPort,
         settings: { ...settings, ...customSettings },
@@ -36,18 +38,18 @@ export async function testLanPrinter(
 
     return {
       success: true,
-      message: `🟢 Đã gửi lệnh in thử nghiệm thành công tới máy in ${targetIp}`,
+      message: `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${targetIp})`,
     };
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || `Không thể kết nối máy in ${targetIp}:${targetPort}`}`,
+      error: `🔴 ${err.message || `Không thể kết nối máy in Xprinter (${targetIp}:${targetPort})`}`,
     };
   }
 }
 
 /**
- * Print order or warranty slip SILENTLY & DIRECTLY to LAN / Wifi Printer (ESC/POS)
+ * Print order or warranty slip SILENTLY & DIRECTLY via Web Print Relay (/api/print-relay)
  * Completely bypasses and prevents iOS AirPrint popup & window.print() dialog.
  */
 export async function printToLanPrinter(
@@ -62,10 +64,11 @@ export async function printToLanPrinter(
   const targetPort = options?.customSettings?.printerPort || settings.printerPort || 9100;
 
   try {
-    const res = await fetch('/api/printer/print', {
+    const res = await fetch('/api/print-relay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        action: 'print',
         ip: targetIp,
         port: targetPort,
         order,
@@ -81,7 +84,7 @@ export async function printToLanPrinter(
 
     return {
       success: true,
-      message: `🟢 Đã gửi lệnh in thành công tới máy in ${targetIp}`,
+      message: `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${targetIp})`,
     };
   } catch (err: any) {
     const errorMsg = `🔴 Không kết nối được máy in LAN (${targetIp}:${targetPort}). Vui lòng kiểm tra Wifi shop & nguồn máy in.`;

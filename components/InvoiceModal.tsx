@@ -129,7 +129,7 @@ export default function InvoiceModal({
       });
 
       if (res.success) {
-        showToast(res.message || `🟢 Đã gửi lệnh in thành công tới máy in ${settings.printerIp}`);
+        showToast(res.message || `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${settings.printerIp})`);
       } else {
         showToast(res.error || `🔴 Không kết nối được máy in LAN (${settings.printerIp})`, true);
       }
