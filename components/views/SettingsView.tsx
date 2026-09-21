@@ -30,6 +30,7 @@ import {
   getInvoiceSettings,
   saveInvoiceSettings
 } from '@/lib/invoiceSettings';
+import PrinterConfigCard from '@/components/PrinterConfigCard';
 
 interface SettingsViewProps {
   user: any;
@@ -447,6 +448,13 @@ export default function SettingsView({ user }: SettingsViewProps) {
           </div>
 
         </form>
+      </div>
+
+      {/* ======================================================= */}
+      {/* SECTION 3: LAN IP PRINTER MANAGER (XPRINTER XP-Q80BS) */}
+      {/* ======================================================= */}
+      <div className="space-y-4">
+        <PrinterConfigCard user={user} />
       </div>
 
     </div>

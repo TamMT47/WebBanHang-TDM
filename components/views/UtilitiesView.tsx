@@ -23,10 +23,13 @@ import {
   CheckCircle2,
   Clock,
   GraduationCap,
-  BookOpen
+  BookOpen,
+  Printer,
+  Wifi
 } from 'lucide-react';
 import { UserRole } from '@/types/database';
 import { exportCustomersToCSV } from '@/lib/exportHelper';
+import PrinterConfigCard from '@/components/PrinterConfigCard';
 
 interface UtilitiesViewProps {
   user: any;
@@ -39,6 +42,7 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
 
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [showPrinterCard, setShowPrinterCard] = useState(true);
 
   const handleDirectExportCustomers = async () => {
     try {
@@ -198,7 +202,7 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
   const isStaff = user?.role === 'staff';
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto pb-16">
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Export Success Toast */}
       {exportNotice && (
         <div className="fixed top-5 right-5 z-50 bg-emerald-500 text-slate-950 px-4 py-3 rounded-2xl font-black text-xs shadow-glow-emerald flex items-center space-x-2 animate-in slide-in-from-top border border-emerald-300">
@@ -219,7 +223,7 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
             </h2>
             {!isStaff && (
               <p className="text-xs text-slate-400 mt-0.5">
-                Tổng hợp các chức năng quản lý nâng cao & xuất dữ liệu của hệ thống TD MOBILE STORE.
+                Tổng hợp các chức năng quản lý nâng cao, cấu hình máy in LAN IP & xuất dữ liệu TD MOBILE STORE.
               </p>
             )}
           </div>
@@ -229,6 +233,27 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
           <span className="font-bold text-white badge-nowrap">{user?.full_name}</span>
         </div>
       </div>
+
+      {/* ======================================================= */}
+      {/* SPECIAL SECTION: LAN IP PRINTER MANAGER (XPRINTER XP-Q80BS) */}
+      {/* ======================================================= */}
+      {isManagerOrAbove && (
+        <div className="space-y-3">
+          <div className="px-1 flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center space-x-2">
+                <Printer className="w-4 h-4 text-cyan-400" />
+                <span>Cấu Hình Máy In Hóa Đơn LAN / Wifi (Xprinter XP-Q80BS)</span>
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                In hóa đơn trực tiếp qua IP mạng nội bộ 192.168.1.133:9100 từ Máy tính / iPhone / iPad / Android
+              </p>
+            </div>
+          </div>
+
+          <PrinterConfigCard user={user} />
+        </div>
+      )}
 
       {/* Sections */}
       {utilitySections.map((sec, idx) => (
