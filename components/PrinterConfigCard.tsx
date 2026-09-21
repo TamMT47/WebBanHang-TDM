@@ -77,20 +77,23 @@ export default function PrinterConfigCard({
     try {
       const res = await testLanPrinter(form.printerIp, form.printerPort, form);
       if (res.success) {
+        const msg = res.message || '🟢 Đã gửi lệnh in tới Xprinter thành công';
         setTestResult({
           success: true,
-          message: res.message || `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${form.printerIp})`,
+          message: msg,
         });
+        setSaveNotice(msg);
+        setTimeout(() => setSaveNotice(null), 4000);
       } else {
         setTestResult({
           success: false,
-          message: res.error || `🔴 Không kết nối được máy in (${form.printerIp})`,
+          message: res.error || '🔴 Lỗi gửi lệnh in tới Xprinter qua Cloudflare Tunnel',
         });
       }
     } catch (err: any) {
       setTestResult({
         success: false,
-        message: `🔴 ${err.message || 'Lỗi kiểm tra kết nối'}`,
+        message: `🔴 ${err.message || 'Lỗi gửi lệnh in qua Cloudflare Tunnel'}`,
       });
     } finally {
       setTesting(false);

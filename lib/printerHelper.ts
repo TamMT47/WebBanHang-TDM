@@ -1,4 +1,4 @@
-import { getInvoiceSettings, InvoiceSettings } from './invoiceSettings';
+import { getInvoiceSettings, InvoiceSettings, DEFAULT_INVOICE_SETTINGS } from './invoiceSettings';
 
 export interface PrintResult {
   success: boolean;
@@ -14,38 +14,40 @@ export interface PrinterPingResult {
   error?: string;
 }
 
+const DEFAULT_TUNNEL_URL = 'https://cet-step-perfectly-joseph.trycloudflare.com';
+
 /**
- * Check/Ping Printer connection status (Tunnel or LAN)
+ * Check/Ping Printer connection status via Cloudflare Tunnel Gateway
  */
 export async function pingPrinterStatus(customSettings?: Partial<InvoiceSettings>): Promise<PrinterPingResult> {
   const settings = getInvoiceSettings();
   const merged = { ...settings, ...customSettings };
-  const mode = merged.printerConnectionMode || 'tunnel';
-  const tunnelUrl = encodeURIComponent(merged.printerTunnelUrl || 'https://cet-step-perfectly-joseph.trycloudflare.com');
-  const ip = encodeURIComponent(merged.printerIp || '192.168.1.133');
+  const tunnelUrl = merged.printerTunnelUrl || DEFAULT_TUNNEL_URL;
+  const ip = merged.printerIp || '192.168.1.133';
   const port = merged.printerPort || 9100;
+  const startTime = Date.now();
 
   try {
-    const res = await fetch(`/api/print-relay?check=ping&mode=${mode}&tunnelUrl=${tunnelUrl}&ip=${ip}&port=${port}`);
+    const res = await fetch(`/api/print-relay?check=ping&mode=tunnel&tunnelUrl=${encodeURIComponent(tunnelUrl)}&ip=${encodeURIComponent(ip)}&port=${port}`);
     const data = await res.json();
     return {
       online: Boolean(data.online),
-      message: data.message || (data.online ? 'Máy in Xprinter sẵn sàng' : 'Không kết nối được máy in'),
-      latencyMs: data.latencyMs,
-      mode: data.mode,
+      message: data.message || (data.online ? 'Máy in Xprinter sẵn sàng qua Cloudflare Tunnel' : 'Chưa kết nối Cloudflare Tunnel'),
+      latencyMs: data.latencyMs || (Date.now() - startTime),
+      mode: 'tunnel',
       error: data.error,
     };
   } catch (err: any) {
     return {
       online: false,
-      message: 'Không thể kết nối dịch vụ kiểm tra',
+      message: 'Không thể kết nối Cloudflare Tunnel',
       error: err.message,
     };
   }
 }
 
 /**
- * Send Test Print (5cm bill) directly via Cloudflare Tunnel / Web Print Relay
+ * Send Test Print (K80 bill) directly via Cloudflare Tunnel
  * Completely silent, no AirPrint / window.print()
  */
 export async function testLanPrinter(
@@ -57,8 +59,7 @@ export async function testLanPrinter(
   const merged = { ...settings, ...customSettings };
   const targetIp = (ip || merged.printerIp || '192.168.1.133').trim();
   const targetPort = port || merged.printerPort || 9100;
-  const connectionMode = merged.printerConnectionMode || 'tunnel';
-  const tunnelUrl = merged.printerTunnelUrl || 'https://cet-step-perfectly-joseph.trycloudflare.com';
+  const tunnelUrl = (merged.printerTunnelUrl || DEFAULT_TUNNEL_URL).trim();
 
   try {
     const res = await fetch('/api/print-relay', {
@@ -66,33 +67,37 @@ export async function testLanPrinter(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'test',
-        connectionMode,
+        connectionMode: 'tunnel',
         tunnelUrl,
         ip: targetIp,
         port: targetPort,
-        settings: merged,
+        settings: {
+          ...merged,
+          printerConnectionMode: 'tunnel',
+          printerTunnelUrl: tunnelUrl,
+        },
       }),
     });
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || `Không kết nối được máy in (${targetIp})`);
+      throw new Error(data.error || 'Lỗi gửi lệnh in tới máy in');
     }
 
     return {
       success: true,
-      message: `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${targetIp})`,
+      message: '🟢 Đã gửi lệnh in tới Xprinter thành công',
     };
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || `Không thể kết nối máy in Xprinter (${targetIp}:${targetPort})`}`,
+      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới máy in qua Cloudflare Tunnel'}`,
     };
   }
 }
 
 /**
- * Print order or warranty slip SILENTLY & DIRECTLY via Cloudflare Tunnel / Web Print Relay
+ * Print order or warranty slip SILENTLY & DIRECTLY via Cloudflare Tunnel
  * Completely bypasses and prevents iOS AirPrint popup & window.print() dialog.
  */
 export async function printToLanPrinter(
@@ -106,8 +111,7 @@ export async function printToLanPrinter(
   const merged = { ...settings, ...options?.customSettings };
   const targetIp = (options?.customSettings?.printerIp || merged.printerIp || '192.168.1.133').trim();
   const targetPort = options?.customSettings?.printerPort || merged.printerPort || 9100;
-  const connectionMode = merged.printerConnectionMode || 'tunnel';
-  const tunnelUrl = merged.printerTunnelUrl || 'https://cet-step-perfectly-joseph.trycloudflare.com';
+  const tunnelUrl = (merged.printerTunnelUrl || DEFAULT_TUNNEL_URL).trim();
 
   try {
     const res = await fetch('/api/print-relay', {
@@ -115,30 +119,34 @@ export async function printToLanPrinter(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'print',
-        connectionMode,
+        connectionMode: 'tunnel',
         tunnelUrl,
         ip: targetIp,
         port: targetPort,
         order,
         docType,
-        settings: merged,
+        settings: {
+          ...merged,
+          printerConnectionMode: 'tunnel',
+          printerTunnelUrl: tunnelUrl,
+        },
       }),
     });
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || `Không kết nối được máy in LAN (${targetIp})`);
+      throw new Error(data.error || 'Lỗi gửi lệnh in hóa đơn');
     }
 
     return {
       success: true,
-      message: `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${targetIp})`,
+      message: '🟢 Đã gửi lệnh in tới Xprinter thành công',
     };
   } catch (err: any) {
-    const errorMsg = `🔴 Không kết nối được máy in (${targetIp}:${targetPort}). Vui lòng kiểm tra Wifi shop & nguồn máy in.`;
     return {
       success: false,
-      error: errorMsg,
+      error: `🔴 ${err.message || 'Không thể kết nối máy in qua Cloudflare Tunnel'}`,
     };
   }
 }
+

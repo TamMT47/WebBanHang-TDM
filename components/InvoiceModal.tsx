@@ -121,7 +121,7 @@ export default function InvoiceModal({
   const handleDirectLanPrint = async () => {
     if (!order) return;
     setIsPrintingLan(true);
-    setPrintNotice({ text: `Đang gửi lệnh in trực tiếp tới máy in ${settings.printerIp}...` });
+    setPrintNotice({ text: 'Đang gửi lệnh in tới Xprinter qua Cloudflare Tunnel...' });
 
     try {
       const res = await printToLanPrinter(order, docType, {
@@ -129,12 +129,12 @@ export default function InvoiceModal({
       });
 
       if (res.success) {
-        showToast(res.message || `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${settings.printerIp})`);
+        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter thành công');
       } else {
-        showToast(res.error || `🔴 Không kết nối được máy in LAN (${settings.printerIp})`, true);
+        showToast(res.error || '🔴 Không kết nối được máy in qua Cloudflare Tunnel', true);
       }
     } catch (err: any) {
-      showToast(`🔴 Không kết nối được máy in LAN (${settings.printerIp}:${settings.printerPort})`, true);
+      showToast('🔴 Lỗi gửi lệnh in tới máy in qua Cloudflare Tunnel', true);
     } finally {
       setIsPrintingLan(false);
     }
@@ -148,12 +148,12 @@ export default function InvoiceModal({
     try {
       const res = await testLanPrinter(editForm.printerIp, editForm.printerPort, editForm);
       if (res.success) {
-        showToast(res.message || `Đã gửi mẫu test thành công tới ${editForm.printerIp}:${editForm.printerPort}!`);
+        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter thành công');
       } else {
-        showToast(res.error || `Không kết nối được máy in LAN (${editForm.printerIp}:${editForm.printerPort})`, true);
+        showToast(res.error || '🔴 Lỗi gửi lệnh in tới Xprinter qua Cloudflare Tunnel', true);
       }
     } catch (err: any) {
-      showToast(err.message || 'Lỗi kiểm tra kết nối', true);
+      showToast(err.message || '🔴 Lỗi kiểm tra kết nối Cloudflare Tunnel', true);
     } finally {
       setIsTestingLan(false);
     }

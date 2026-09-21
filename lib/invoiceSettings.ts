@@ -46,7 +46,7 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
     '3. Từ chối bảo hành đối với các trường hợp rơi vỡ, cấn móp, ngấm nước, tự ý tháo mở máy hoặc can thiệp phần mềm.',
     '4. Quý khách vui lòng xuất trình hóa đơn này hoặc cung cấp SĐT đã mua hàng khi cần hỗ trợ kỹ thuật / bảo hành.',
   ],
-  // LAN & Cloudflare Tunnel Printer defaults for Xprinter XP-Q80BS
+  // Cloudflare Tunnel & LAN Printer defaults for Xprinter XP-Q80BS
   printerConnectionMode: 'tunnel',
   printerTunnelUrl: 'https://cet-step-perfectly-joseph.trycloudflare.com',
   printerIp: '192.168.1.133',
@@ -64,7 +64,15 @@ export function getInvoiceSettings(): InvoiceSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_INVOICE_SETTINGS;
-    return { ...DEFAULT_INVOICE_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_INVOICE_SETTINGS,
+      ...parsed,
+      printerTunnelUrl: parsed.printerTunnelUrl || DEFAULT_INVOICE_SETTINGS.printerTunnelUrl,
+      printerConnectionMode: parsed.printerConnectionMode || 'tunnel',
+      printerIp: parsed.printerIp || '192.168.1.133',
+      printerPort: parsed.printerPort || 9100,
+    };
   } catch (err) {
     console.error('Error reading invoice settings:', err);
     return DEFAULT_INVOICE_SETTINGS;
