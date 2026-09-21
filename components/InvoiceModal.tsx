@@ -244,9 +244,13 @@ export default function InvoiceModal({
                 {docType === 'warranty' ? 'PHIẾU BẢO HÀNH CHÍNH HÃNG' : 'HÓA ĐƠN BÁN HÀNG'} #{order.code}
               </h3>
               <div className="flex items-center space-x-1.5 text-[10px] text-slate-400">
-                <Wifi className="w-3 h-3 text-cyan-400" />
-                <span>Máy in LAN:</span>
-                <span className="font-mono text-cyan-300 font-bold">{settings.printerIp || '192.168.1.133'}:9100</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{settings.printerConnectionMode === 'tunnel' ? 'Cloudflare Tunnel:' : 'Máy in LAN:'}</span>
+                <span className="font-mono text-cyan-300 font-bold">
+                  {settings.printerConnectionMode === 'tunnel'
+                    ? (settings.printerTunnelUrl ? settings.printerTunnelUrl.replace('https://', '').split('.')[0] + '...' : 'Tunnel Active')
+                    : `${settings.printerIp || '192.168.1.133'}:9100`}
+                </span>
               </div>
             </div>
           </div>
@@ -764,12 +768,12 @@ export default function InvoiceModal({
 
               <form onSubmit={handleSaveSettings} className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
                 
-                {/* LAN PRINTER SETTINGS BLOCK */}
+                {/* LAN & CLOUDFLARE TUNNEL PRINTER SETTINGS BLOCK */}
                 <div className="p-3.5 bg-slate-950 rounded-2xl border border-cyan-500/40 space-y-3 shadow-inner">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                     <span className="font-black text-cyan-300 flex items-center space-x-1.5">
                       <Wifi className="w-4 h-4" />
-                      <span>Cấu Hình Máy In LAN (Xprinter XP-Q80BS)</span>
+                      <span>Cấu Hình Máy In (Xprinter XP-Q80BS)</span>
                     </span>
                     <button
                       type="button"
@@ -786,9 +790,50 @@ export default function InvoiceModal({
                     </button>
                   </div>
 
+                  {/* Mode selector */}
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-bold">Phương thức kết nối:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, printerConnectionMode: 'tunnel' })}
+                        className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition text-left ${
+                          editForm.printerConnectionMode === 'tunnel'
+                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                            : 'bg-slate-900 text-slate-400 border-slate-800'
+                        }`}
+                      >
+                        ⚡ Cloudflare Tunnel (Khuyên dùng)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, printerConnectionMode: 'lan' })}
+                        className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition text-left ${
+                          editForm.printerConnectionMode === 'lan'
+                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                            : 'bg-slate-900 text-slate-400 border-slate-800'
+                        }`}
+                      >
+                        📶 Trực tiếp IP LAN
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Cloudflare Tunnel URL */}
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-bold">Cloudflare Tunnel URL:</label>
+                    <input
+                      type="text"
+                      value={editForm.printerTunnelUrl}
+                      onChange={(e) => setEditForm({ ...editForm, printerTunnelUrl: e.target.value.trim() })}
+                      placeholder="https://cet-step-perfectly-joseph.trycloudflare.com"
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-cyan-300 font-mono text-[11px]"
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-400 mb-1 font-bold">Địa chỉ IP Máy in:</label>
+                      <label className="block text-slate-400 mb-1 font-bold">IP Máy in LAN:</label>
                       <input
                         type="text"
                         value={editForm.printerIp}
@@ -799,7 +844,7 @@ export default function InvoiceModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1 font-bold">Cổng kết nối (Port):</label>
+                      <label className="block text-slate-400 mb-1 font-bold">Port:</label>
                       <input
                         type="number"
                         value={editForm.printerPort}

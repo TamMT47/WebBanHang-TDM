@@ -14,7 +14,9 @@ export interface InvoiceSettings {
   bankAccount: string;
   bankAccountHolder: string;
   warrantyPolicies: string[];
-  // LAN / Wifi Printer Settings (Xprinter XP-Q80BS)
+  // LAN / Wifi / Tunnel Printer Settings (Xprinter XP-Q80BS)
+  printerConnectionMode: 'tunnel' | 'lan';
+  printerTunnelUrl: string;
   printerIp: string;
   printerPort: number;
   printerPaperSize: 'k80' | 'k57' | 'a4';
@@ -44,7 +46,9 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
     '3. Từ chối bảo hành đối với các trường hợp rơi vỡ, cấn móp, ngấm nước, tự ý tháo mở máy hoặc can thiệp phần mềm.',
     '4. Quý khách vui lòng xuất trình hóa đơn này hoặc cung cấp SĐT đã mua hàng khi cần hỗ trợ kỹ thuật / bảo hành.',
   ],
-  // LAN Printer defaults for Xprinter XP-Q80BS
+  // LAN & Cloudflare Tunnel Printer defaults for Xprinter XP-Q80BS
+  printerConnectionMode: 'tunnel',
+  printerTunnelUrl: 'https://cet-step-perfectly-joseph.trycloudflare.com',
   printerIp: '192.168.1.133',
   printerPort: 9100,
   printerPaperSize: 'k80',

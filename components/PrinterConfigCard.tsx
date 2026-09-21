@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Printer,
   Wifi,
+  Cloud,
   CheckCircle2,
   AlertCircle,
   Save,
@@ -14,7 +15,12 @@ import {
   Scissors,
   DollarSign,
   Zap,
-  Info
+  Activity,
+  Globe,
+  Radio,
+  Sparkles,
+  HelpCircle,
+  Check
 } from 'lucide-react';
 import {
   InvoiceSettings,
@@ -22,7 +28,7 @@ import {
   getInvoiceSettings,
   saveInvoiceSettings
 } from '@/lib/invoiceSettings';
-import { testLanPrinter } from '@/lib/printerHelper';
+import { testLanPrinter, pingPrinterStatus, PrinterPingResult } from '@/lib/printerHelper';
 
 interface PrinterConfigCardProps {
   user?: any;
@@ -39,6 +45,8 @@ export default function PrinterConfigCard({
 }: PrinterConfigCardProps) {
   const [form, setForm] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
   const [testing, setTesting] = useState(false);
+  const [pinging, setPinging] = useState(false);
+  const [pingResult, setPingResult] = useState<PrinterPingResult | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
@@ -47,7 +55,23 @@ export default function PrinterConfigCard({
     setForm(current);
   }, []);
 
-  const handleTestConnection = async () => {
+  const handlePing = async () => {
+    setPinging(true);
+    setPingResult(null);
+    try {
+      const res = await pingPrinterStatus(form);
+      setPingResult(res);
+    } catch (err: any) {
+      setPingResult({
+        online: false,
+        message: err.message || 'Lỗi kiểm tra trạng thái',
+      });
+    } finally {
+      setPinging(false);
+    }
+  };
+
+  const handleTestPrint = async () => {
     setTesting(true);
     setTestResult(null);
     try {
@@ -55,18 +79,18 @@ export default function PrinterConfigCard({
       if (res.success) {
         setTestResult({
           success: true,
-          message: res.message || `Đã gửi lệnh in kiểm tra thành công tới ${form.printerIp}:${form.printerPort}!`,
+          message: res.message || `🟢 Đã gửi lệnh in thành công tới máy in Xprinter (${form.printerIp})`,
         });
       } else {
         setTestResult({
           success: false,
-          message: res.error || `Không kết nối được máy in LAN (${form.printerIp}:${form.printerPort})`,
+          message: res.error || `🔴 Không kết nối được máy in (${form.printerIp})`,
         });
       }
     } catch (err: any) {
       setTestResult({
         success: false,
-        message: err.message || 'Lỗi kiểm tra kết nối',
+        message: `🔴 ${err.message || 'Lỗi kiểm tra kết nối'}`,
       });
     } finally {
       setTesting(false);
@@ -78,20 +102,40 @@ export default function PrinterConfigCard({
     const updated = saveInvoiceSettings(form);
     setForm(updated);
 
-    // If Admin/Owner, also sync to database settings
+    // If Admin/Owner, sync settings to Database
     if (user && ['admin', 'owner'].includes(user.role)) {
       try {
-        await fetch('/api/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key: 'printer_ip',
-            value: form.printerIp,
-            description: 'Địa chỉ IP Máy in LAN Xprinter',
+        await Promise.all([
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: 'printer_ip',
+              value: form.printerIp,
+              description: 'Địa chỉ IP Máy in LAN Xprinter',
+            }),
           }),
-        });
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: 'printer_tunnel_url',
+              value: form.printerTunnelUrl,
+              description: 'Cloudflare Tunnel URL máy in',
+            }),
+          }),
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: 'printer_connection_mode',
+              value: form.printerConnectionMode,
+              description: 'Phương thức kết nối máy in (tunnel / lan)',
+            }),
+          }),
+        ]);
       } catch (err) {
-        console.error('Error syncing printer IP to DB:', err);
+        console.error('Error syncing printer settings to DB:', err);
       }
     }
 
@@ -104,8 +148,10 @@ export default function PrinterConfigCard({
   };
 
   const handleReset = () => {
-    if (confirm('Khôi phục cấu hình máy in về mặc định (192.168.1.133:9100 - K80)?')) {
+    if (confirm('Khôi phục cấu hình máy in về thiết lập mặc định (Cloudflare Tunnel & Xprinter XP-Q80BS 192.168.1.133:9100)?')) {
       const reset = saveInvoiceSettings({
+        printerConnectionMode: 'tunnel',
+        printerTunnelUrl: 'https://cet-step-perfectly-joseph.trycloudflare.com',
         printerIp: '192.168.1.133',
         printerPort: 9100,
         printerPaperSize: 'k80',
@@ -115,6 +161,7 @@ export default function PrinterConfigCard({
       });
       setForm(reset);
       setTestResult(null);
+      setPingResult(null);
       setSaveNotice('Đã khôi phục cấu hình máy in về mặc định!');
       setTimeout(() => setSaveNotice(null), 3000);
     }
@@ -143,73 +190,207 @@ export default function PrinterConfigCard({
           <div>
             <div className="flex items-center space-x-2">
               <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
-                Cấu Hình Máy In LAN / Wifi (Xprinter XP-Q80BS)
+                Quản Lý & Cấu Hình Máy In Hóa Đơn (Xprinter XP-Q80BS)
               </h3>
               <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px] font-black rounded-lg badge-nowrap">
-                ESC/POS Port 9100
+                ESC/POS K80
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              In hóa đơn & phiếu bảo hành trực tiếp qua địa chỉ IP mạng nội bộ từ Máy tính, iPhone, iPad, Android.
+              Hỗ trợ in ẩn trực tiếp qua Cloudflare Tunnel / LAN IP từ iPhone, iPad, Android và PC không qua AirPrint.
             </p>
           </div>
         </div>
 
+        {/* Live Status Badge */}
         <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-1.5 px-3 py-1 bg-slate-950 rounded-xl border border-slate-800 text-[11px]">
-            <Wifi className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span className="text-slate-400">IP hiện tại:</span>
-            <span className="font-mono font-bold text-cyan-300">{form.printerIp || '192.168.1.133'}</span>
-          </div>
+          {pingResult ? (
+            <div
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold ${
+                pingResult.online
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+              }`}
+            >
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  pingResult.online ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
+                }`}
+              />
+              <span>{pingResult.online ? `🟢 Sẵn Sàng (${pingResult.latencyMs || 0}ms)` : '🔴 Ngắt Kết Nối'}</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
+              <Wifi className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="font-mono text-cyan-300">{form.printerIp || '192.168.1.133'}:9100</span>
+            </div>
+          )}
+
+          <button
+            type="button"
+            disabled={pinging}
+            onClick={handlePing}
+            title="Kiểm tra ping kết nối tới máy in"
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50"
+          >
+            {pinging ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+            )}
+            <span>Test Ping</span>
+          </button>
         </div>
       </div>
 
       {/* Body Form */}
-      <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-4">
+      <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-5">
+        
+        {/* ========================================================= */}
+        {/* 1. CONNECTION MODE SELECTION */}
+        {/* ========================================================= */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-slate-200 uppercase tracking-wide">
+            1. Phương Thức Kết Nối Máy In:
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            
+            {/* Mode: Cloudflare Tunnel (Recommended) */}
+            <div
+              onClick={() => setForm({ ...form, printerConnectionMode: 'tunnel' })}
+              className={`p-3.5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden ${
+                form.printerConnectionMode === 'tunnel'
+                  ? 'bg-cyan-950/40 border-cyan-500/70 shadow-glow-cyan ring-1 ring-cyan-500/30'
+                  : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className={`p-2 rounded-xl ${form.printerConnectionMode === 'tunnel' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                    <Cloud className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-white flex items-center space-x-1.5">
+                      <span>Cloudflare Tunnel / Relay</span>
+                      <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-extrabold rounded-md">
+                        Khuyên dùng
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Bypass 100% chặn Mixed Content & Timeout khi chạy web HTTPS trên iPhone/iPad/Vercel
+                    </p>
+                  </div>
+                </div>
+
+                {form.printerConnectionMode === 'tunnel' && (
+                  <Check className="w-4 h-4 text-cyan-400 stroke-[3] mt-1" />
+                )}
+              </div>
+            </div>
+
+            {/* Mode: Direct LAN IP */}
+            <div
+              onClick={() => setForm({ ...form, printerConnectionMode: 'lan' })}
+              className={`p-3.5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden ${
+                form.printerConnectionMode === 'lan'
+                  ? 'bg-cyan-950/40 border-cyan-500/70 shadow-glow-cyan ring-1 ring-cyan-500/30'
+                  : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className={`p-2 rounded-xl ${form.printerConnectionMode === 'lan' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                    <Wifi className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-white">
+                      Trực Tiếp IP LAN Nội Bộ
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Kết nối trực tiếp cổng TCP Socket 9100 qua mạng WiFi shop (Thích hợp môi trường Localhost)
+                    </p>
+                  </div>
+                </div>
+
+                {form.printerConnectionMode === 'lan' && (
+                  <Check className="w-4 h-4 text-cyan-400 stroke-[3] mt-1" />
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* 2. TUNNEL URL INPUT & NETWORK ADDRESSES */}
+        {/* ========================================================= */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           
-          {/* IP Address */}
-          <div className="sm:col-span-1">
-            <label className="block text-xs font-bold text-slate-300 mb-1">
-              Địa chỉ IP Máy in LAN *
-            </label>
+          {/* Cloudflare Tunnel URL */}
+          <div className="sm:col-span-3">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
+                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Đường dẫn Cloudflare Tunnel / Server URL:</span>
+              </label>
+              <span className="text-[11px] text-slate-500 font-mono">
+                HTTPS Secure Endpoint
+              </span>
+            </div>
             <div className="relative">
               <input
                 type="text"
-                value={form.printerIp}
-                onChange={(e) => setForm({ ...form, printerIp: e.target.value.trim() })}
-                placeholder="VD: 192.168.1.133"
+                value={form.printerTunnelUrl}
+                onChange={(e) => setForm({ ...form, printerTunnelUrl: e.target.value.trim() })}
+                placeholder="https://cet-step-perfectly-joseph.trycloudflare.com"
                 className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shadow-inner"
-                required
               />
             </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Mặc định gợi ý: <span className="font-mono text-cyan-300 font-bold">https://cet-step-perfectly-joseph.trycloudflare.com</span>
+            </p>
+          </div>
+
+          {/* IP Address */}
+          <div className="sm:col-span-1">
+            <label className="block text-xs font-bold text-slate-300 mb-1">
+              IP Máy In LAN *
+            </label>
+            <input
+              type="text"
+              value={form.printerIp}
+              onChange={(e) => setForm({ ...form, printerIp: e.target.value.trim() })}
+              placeholder="192.168.1.133"
+              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shadow-inner"
+              required
+            />
             <p className="text-[10px] text-slate-500 mt-1">
-              Mặc định: <span className="font-mono text-slate-400">192.168.1.133</span> (Máy in quầy thu ngân)
+              Mặc định: <span className="font-mono text-slate-400">192.168.1.133</span>
             </p>
           </div>
 
           {/* Port */}
           <div className="sm:col-span-1">
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              Cổng kết nối (Port) *
+              Port *
             </label>
             <input
               type="number"
               value={form.printerPort}
               onChange={(e) => setForm({ ...form, printerPort: parseInt(e.target.value, 10) || 9100 })}
-              placeholder="VD: 9100"
+              placeholder="9100"
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
               required
             />
             <p className="text-[10px] text-slate-500 mt-1">
-              Mặc định cổng JetDirect RAW: <span className="font-mono text-slate-400">9100</span>
+              Mặc định: <span className="font-mono text-slate-400">9100</span> (RAW TCP)
             </p>
           </div>
 
-          {/* Paper Size Dropdown */}
+          {/* Paper Size */}
           <div className="sm:col-span-1">
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              Khổ Giấy In Mặc Định *
+              Khổ Giấy In *
             </label>
             <select
               value={form.printerPaperSize || 'k80'}
@@ -222,22 +403,24 @@ export default function PrinterConfigCard({
               }
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500 cursor-pointer shadow-inner"
             >
-              <option value="k80">🧾 K80 (80mm) - Xprinter XP-Q80BS (Khuyên dùng)</option>
-              <option value="k57">🧾 K57 (57mm) - Máy in nhiệt nhỏ mini</option>
+              <option value="k80">🧾 K80 (80mm) - Xprinter XP-Q80BS</option>
+              <option value="k57">🧾 K57 (57mm) - Máy in nhiệt nhỏ</option>
               <option value="a4">📄 Khổ A4 / A5 - Máy in laser văn phòng</option>
             </select>
             <p className="text-[10px] text-slate-500 mt-1">
-              Tự động căn lề 48 cột chuẩn cho bill nhiệt K80
+              Căn 48 cột chuẩn cho giấy K80
             </p>
           </div>
 
         </div>
 
-        {/* Feature Switches */}
+        {/* ========================================================= */}
+        {/* 3. ESC/POS SWITCHES */}
+        {/* ========================================================= */}
         <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
           <div className="flex items-center space-x-2 text-xs font-bold text-slate-300">
             <Sliders className="w-4 h-4 text-cyan-400" />
-            <span>Tùy Chọn Lệnh Điều Khiển Máy In Nhiệt (ESC/POS Control):</span>
+            <span>Tùy Chọn Lệnh Điều Khiển ESC/POS (Silent Printing):</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -251,9 +434,9 @@ export default function PrinterConfigCard({
               <div>
                 <div className="text-xs font-bold text-white flex items-center space-x-1">
                   <Scissors className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Tự động Cắt Giấy (GS V 0)</span>
+                  <span>Auto-Cut (GS V 0)</span>
                 </div>
-                <div className="text-[10px] text-slate-400">Cắt giấy sau khi in xong bill</div>
+                <div className="text-[10px] text-slate-400">Tự cắt giấy sau khi in xong</div>
               </div>
             </label>
 
@@ -267,9 +450,9 @@ export default function PrinterConfigCard({
               <div>
                 <div className="text-xs font-bold text-white flex items-center space-x-1">
                   <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Tự Bật Két Tiền (DLE DC4)</span>
+                  <span>Open Cash Drawer (DLE DC4)</span>
                 </div>
-                <div className="text-[10px] text-slate-400">Kích mở két đựng tiền khi bán hàng</div>
+                <div className="text-[10px] text-slate-400">Tự mở két tiền khi bán hàng</div>
               </div>
             </label>
 
@@ -283,9 +466,9 @@ export default function PrinterConfigCard({
               <div>
                 <div className="text-xs font-bold text-white flex items-center space-x-1">
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  <span>In Trực Tiếp Tức Thì</span>
+                  <span>Direct Print (In Ẩn)</span>
                 </div>
-                <div className="text-[10px] text-slate-400">Tự động gửi lệnh in không cần hộp thoại</div>
+                <div className="text-[10px] text-slate-400">Bỏ qua popup AirPrint/Browser</div>
               </div>
             </label>
           </div>
@@ -309,7 +492,7 @@ export default function PrinterConfigCard({
               <p className="font-bold">{testResult.message}</p>
               {!testResult.success && (
                 <p className="text-[11px] text-rose-400/80 mt-1">
-                  Gợi ý: Hãy đảm bảo máy in Xprinter XP-Q80BS đã bật nguồn, cắm dây mạng LAN và thiết bị của bạn đang kết nối chung Wifi với cửa hàng.
+                  Gợi ý: Hãy kiểm tra Cloudflare Tunnel đã chạy trên máy tính quầy thu ngân hoặc máy in Xprinter 192.168.1.133 đã bật nguồn & cắm dây LAN.
                 </p>
               )}
             </div>
@@ -319,8 +502,8 @@ export default function PrinterConfigCard({
         {/* Action Buttons */}
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800">
           <div className="flex items-center space-x-2 text-xs text-slate-400">
-            <Info className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-            <span>Mẫu in test sẽ in thử 1 đoạn văn bản K80 + mã QR + lệnh cắt giấy.</span>
+            <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <span>Chế độ Cloudflare Tunnel giải quyết triệt để Timeout & lỗi Mixed Content trên Safari iOS.</span>
           </div>
 
           <div className="flex items-center space-x-2 w-full sm:w-auto">
@@ -334,11 +517,11 @@ export default function PrinterConfigCard({
               <span>Mặc Định</span>
             </button>
 
-            {/* Test Connection Button */}
+            {/* Test Print Button */}
             <button
               type="button"
               disabled={testing}
-              onClick={handleTestConnection}
+              onClick={handleTestPrint}
               className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-glow-emerald transition flex items-center justify-center space-x-1.5 disabled:opacity-50 active:scale-95"
             >
               {testing ? (
@@ -360,7 +543,7 @@ export default function PrinterConfigCard({
               className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan transition flex items-center justify-center space-x-1.5 active:scale-95"
             >
               <Save className="w-4 h-4" />
-              <span>Lưu Cấu Hình Máy In</span>
+              <span>Lưu Cấu Hình</span>
             </button>
           </div>
         </div>
