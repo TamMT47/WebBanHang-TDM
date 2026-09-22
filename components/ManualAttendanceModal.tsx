@@ -41,8 +41,8 @@ export default function ManualAttendanceModal({
   const [date, setDate] = useState<string>(todayStr);
   const [shift, setShift] = useState<string>('shift1');
   const [session, setSession] = useState<'morning' | 'afternoon'>('morning');
-  const [checkInTime, setCheckInTime] = useState<string>('08:30');
-  const [checkOutTime, setCheckOutTime] = useState<string>('11:30');
+  const [checkInTime, setCheckInTime] = useState<string>('09:00');
+  const [checkOutTime, setCheckOutTime] = useState<string>('12:00');
   const [workHours, setWorkHours] = useState<number>(3.0);
   const [otHours, setOtHours] = useState<number>(0);
   const [lateMinutes, setLateMinutes] = useState<number>(0);
@@ -72,14 +72,14 @@ export default function ManualAttendanceModal({
           const inD = new Date(initialRecord.check_in);
           setCheckInTime(inD.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
         } else {
-          setCheckInTime('08:30');
+          setCheckInTime('09:00');
         }
 
         if (initialRecord.check_out) {
           const outD = new Date(initialRecord.check_out);
           setCheckOutTime(outD.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
         } else {
-          setCheckOutTime(initialRecord.session === 'afternoon' ? '21:00' : '11:30');
+          setCheckOutTime(initialRecord.session === 'afternoon' ? '21:00' : '12:00');
         }
 
         setWorkHours(parseFloat(initialRecord.work_hours || '0') || 3.0);
@@ -102,8 +102,8 @@ export default function ManualAttendanceModal({
       case 'morning1':
         setShift('shift1');
         setSession('morning');
-        setCheckInTime('08:30');
-        setCheckOutTime('11:30');
+        setCheckInTime('09:00');
+        setCheckOutTime('12:00');
         setWorkHours(3.0);
         setOtHours(0);
         setLateMinutes(0);
@@ -112,9 +112,9 @@ export default function ManualAttendanceModal({
       case 'morning2':
         setShift('shift2');
         setSession('morning');
-        setCheckInTime('08:30');
+        setCheckInTime('09:00');
         setCheckOutTime('13:00');
-        setWorkHours(4.5);
+        setWorkHours(4.0);
         setOtHours(0);
         setLateMinutes(0);
         setEarlyMinutes(0);
@@ -132,9 +132,9 @@ export default function ManualAttendanceModal({
       case 'afternoon2':
         setShift('shift2');
         setSession('afternoon');
-        setCheckInTime('14:30');
+        setCheckInTime('14:00');
         setCheckOutTime('21:00');
-        setWorkHours(6.5);
+        setWorkHours(7.0);
         setOtHours(0);
         setLateMinutes(0);
         setEarlyMinutes(0);
@@ -142,7 +142,7 @@ export default function ManualAttendanceModal({
       case 'full1':
         setShift('shift1');
         setSession('afternoon');
-        setCheckInTime('08:30');
+        setCheckInTime('09:00');
         setCheckOutTime('21:00');
         setWorkHours(11.0);
         setOtHours(0);
@@ -343,7 +343,7 @@ export default function ManualAttendanceModal({
                   <Sun className="w-3.5 h-3.5" />
                   <span>Sáng Ca 1</span>
                 </div>
-                <div className="text-[10px] text-slate-400">08:30-11:30 (3h)</div>
+                <div className="text-[10px] text-slate-400">09:00-12:00 (3h)</div>
               </button>
 
               <button
@@ -355,7 +355,7 @@ export default function ManualAttendanceModal({
                   <Sun className="w-3.5 h-3.5" />
                   <span>Sáng Ca 2</span>
                 </div>
-                <div className="text-[10px] text-slate-400">08:30-13:00 (4.5h)</div>
+                <div className="text-[10px] text-slate-400">09:00-13:00 (4h)</div>
               </button>
 
               <button
@@ -379,7 +379,7 @@ export default function ManualAttendanceModal({
                   <Sunset className="w-3.5 h-3.5" />
                   <span>Chiều Ca 2</span>
                 </div>
-                <div className="text-[10px] text-slate-400">14:30-21:00 (6.5h)</div>
+                <div className="text-[10px] text-slate-400">14:00-21:00 (7h)</div>
               </button>
 
               <button
@@ -391,7 +391,7 @@ export default function ManualAttendanceModal({
                   <Briefcase className="w-3.5 h-3.5" />
                   <span>Full Cả Ngày</span>
                 </div>
-                <div className="text-[10px] text-slate-400">08:30-21:00 (11h)</div>
+                <div className="text-[10px] text-slate-400">09:00-21:00 (11h)</div>
               </button>
 
               <button

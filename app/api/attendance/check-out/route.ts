@@ -99,17 +99,17 @@ export async function POST(request: NextRequest) {
 
     if (isMorning) {
       // Morning end times:
-      // Ca 1: 11:30 (690 min) -> 3.0 hours
-      // Ca 2: 13:00 (780 min) -> 4.5 hours
-      // Manager: 12:00 (720 min) -> 3.5 hours
-      let scheduledEnd = 690;
+      // Ca 1: 12:00 (720 min) -> 3.0 hours
+      // Ca 2: 13:00 (780 min) -> 4.0 hours
+      // Manager: 12:00 (720 min) -> 3.0 hours
+      let scheduledEnd = 720;
       standardDuration = 3.0;
       if (shift === 'shift2') {
         scheduledEnd = 780;
-        standardDuration = 4.5;
+        standardDuration = 4.0;
       } else if (shift === 'manager') {
         scheduledEnd = 720;
-        standardDuration = 3.5;
+        standardDuration = 3.0;
       }
 
       if (totalMinutes < scheduledEnd) {
@@ -120,14 +120,14 @@ export async function POST(request: NextRequest) {
       // Afternoon end times:
       // Standard end: 21:00 (1260 min)
       // Ca 1: 13:00 - 21:00 -> 8.0 hours
-      // Ca 2: 14:30 - 21:00 -> 6.5 hours
-      // Manager: 13:30 - 21:00 -> 7.5 hours
+      // Ca 2: 14:00 - 21:00 -> 7.0 hours
+      // Manager: 13:00 - 21:00 -> 8.0 hours
       const scheduledEnd = 1260;
       standardDuration = 8.0;
       if (shift === 'shift2') {
-        standardDuration = 6.5;
+        standardDuration = 7.0;
       } else if (shift === 'manager') {
-        standardDuration = 7.5;
+        standardDuration = 8.0;
       }
 
       if (totalMinutes < scheduledEnd) {

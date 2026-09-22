@@ -320,10 +320,10 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
 
   const shiftLabel =
     assignedShift === 'shift1'
-      ? 'Ca 1 (Sáng: 08:30-11:30 | Chiều: 13:00-21:00)'
+      ? 'Ca 1 (Sáng: 09:00-12:00 | Chiều: 13:00-21:00)'
       : assignedShift === 'shift2'
-      ? 'Ca 2 (Sáng: 08:30-13:00 | Chiều: 14:30-21:00)'
-      : 'Ca Quản Lý (08:30 - 21:00)';
+      ? 'Ca 2 (Sáng: 09:00-13:00 | Chiều: 14:00-21:00)'
+      : 'Ca Quản Lý (09:00 - 21:00)';
 
   // Controls whether staff is locked out from checking in/out
   const isStaffLocked = isStaff && !isWifiMatch;
@@ -453,7 +453,7 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                   {assignedShift === 'shift1' ? 'Ca 1' : assignedShift === 'shift2' ? 'Ca 2' : 'Ca Quản Lý'}
                 </span>
                 <span className="text-slate-400 text-[11px]">
-                  ({assignedShift === 'shift1' ? '08:30-11:30 | 13:00-21:00' : assignedShift === 'shift2' ? '08:30-13:00 | 14:30-21:00' : '08:30-21:00'})
+                  ({assignedShift === 'shift1' ? '09:00-12:00 | 13:00-21:00' : assignedShift === 'shift2' ? '09:00-13:00 | 14:00-21:00' : '09:00-21:00'})
                 </span>
               </div>
             </div>
@@ -499,7 +499,7 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                 <span className="font-black text-xs text-white uppercase tracking-wider">CHẤM CÔNG CA SÁNG</span>
               </div>
               <span className="text-[11px] font-bold text-amber-300 font-sans">
-                {assignedShift === 'shift1' ? '08:30 - 11:30' : assignedShift === 'shift2' ? '08:30 - 13:00' : '08:30 - 13:00'}
+                {assignedShift === 'shift1' ? '09:00 - 12:00' : assignedShift === 'shift2' ? '09:00 - 13:00' : '09:00 - 12:00'}
               </span>
             </div>
 
@@ -558,7 +558,7 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                 <span className="font-black text-xs text-white uppercase tracking-wider">CHẤM CÔNG CA CHIỀU</span>
               </div>
               <span className="text-[11px] font-bold text-cyan-300 font-sans">
-                {assignedShift === 'shift1' ? '13:00 - 21:00' : assignedShift === 'shift2' ? '14:30 - 21:00' : '13:00 - 21:00'}
+                {assignedShift === 'shift1' ? '13:00 - 21:00' : assignedShift === 'shift2' ? '14:00 - 21:00' : '13:00 - 21:00'}
               </span>
             </div>
 

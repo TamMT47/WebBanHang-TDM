@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       date, // YYYY-MM-DD
       shift = 'shift1',
       session = 'morning',
-      check_in_time, // 'HH:mm' e.g. '08:30'
-      check_out_time, // 'HH:mm' e.g. '11:30' or '21:00'
+      check_in_time, // 'HH:mm' e.g. '09:00'
+      check_out_time, // 'HH:mm' e.g. '12:00' or '21:00'
       work_hours,
       ot_hours = 0,
       late_minutes = 0,
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const targetUser = userRes.rows[0];
 
     // Build timestamp strings
-    const inTime = check_in_time ? check_in_time.trim() : '08:30';
+    const inTime = check_in_time ? check_in_time.trim() : '09:00';
     const outTime = check_out_time ? check_out_time.trim() : '21:00';
     const checkInTimestamp = `${date}T${inTime}:00+07:00`;
     const checkOutTimestamp = `${date}T${outTime}:00+07:00`;

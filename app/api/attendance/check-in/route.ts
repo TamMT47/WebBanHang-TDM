@@ -60,20 +60,19 @@ export async function POST(request: NextRequest) {
       session === 'afternoon' || (session !== 'morning' && totalMinutes >= 750) ? 'afternoon' : 'morning';
 
     // Calculate Late Minutes based on shift & session:
-    // Ca 1: Sáng (08:30 - 11:30), Chiều (13:00 - 21:00)
-    // Ca 2: Sáng (08:30 - 13:00), Chiều (14:30 - 21:00)
-    // Manager: Sáng (08:30 - 12:00), Chiều (13:30 - 21:00)
+    // Ca 1: Sáng (09:00 - 12:00), Chiều (13:00 - 21:00)
+    // Ca 2: Sáng (09:00 - 13:00), Chiều (14:00 - 21:00)
+    // Manager: Sáng (09:00 - 12:00), Chiều (13:00 - 21:00)
     let lateMinutes = 0;
     if (targetSession === 'morning') {
-      const scheduledStart = 510; // 08:30
+      const scheduledStart = 540; // 09:00
       if (totalMinutes > scheduledStart) {
         lateMinutes = totalMinutes - scheduledStart;
       }
     } else {
       // Afternoon session
-      let scheduledStart = 780; // 13:00 for Ca 1
-      if (chosenShift === 'shift2') scheduledStart = 870; // 14:30 for Ca 2
-      else if (chosenShift === 'manager') scheduledStart = 810; // 13:30 for Manager
+      let scheduledStart = 780; // 13:00 for Ca 1 & Manager
+      if (chosenShift === 'shift2') scheduledStart = 840; // 14:00 for Ca 2
 
       if (totalMinutes > scheduledStart) {
         lateMinutes = totalMinutes - scheduledStart;

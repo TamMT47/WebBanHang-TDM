@@ -183,8 +183,8 @@ export type ShiftType = 'shift1' | 'shift2' | 'manager' | 'morning' | 'afternoon
 export interface ShiftConfig {
   id: ShiftType;
   name: string;
-  timeRange: string; // e.g. "08:30 - 21:00"
-  lunchBreak?: string; // e.g. "11:30 - 13:00"
+  timeRange: string; // e.g. "09:00 - 21:00"
+  lunchBreak?: string; // e.g. "12:00 - 13:00"
   standardHours: number; // 11.0
   isStaffShift: boolean;
 }
