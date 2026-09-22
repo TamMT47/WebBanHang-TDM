@@ -32,6 +32,7 @@ interface AttendanceViewProps {
 }
 
 export default function AttendanceView({ user }: AttendanceViewProps) {
+  const isAdmin = user?.role === 'admin';
   const isAdminOrOwner = user && ['admin', 'owner'].includes(user.role);
   const isManagerOrAbove = user && ['admin', 'owner', 'manager'].includes(user.role);
   const isStaff = user?.role === 'staff';
@@ -354,78 +355,80 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       )}
 
       {/* ======================================================== */}
-      {/* 0. BẢNG HIỂN THỊ KIỂM SOÁT IP WIFI CỬA HÀNG (ADMIN & STAFF) */}
+      {/* 0. BẢNG HIỂN THỊ KIỂM SOÁT IP WIFI CỬA HÀNG (CHỈ DÀNH CHO ADMIN) */}
       {/* ======================================================== */}
-      <div
-        className={`p-4 rounded-3xl border shadow-xl transition backdrop-blur-xl ${
-          isWifiMatch
-            ? 'bg-emerald-950/40 border-emerald-500/30'
-            : 'bg-slate-900/90 border-rose-500/30'
-        }`}
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
-          <div className="flex items-start sm:items-center space-x-3">
-            <div
-              className={`p-3 rounded-2xl flex-shrink-0 border ${
-                isWifiMatch
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                  : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-              }`}
-            >
-              {isWifiMatch ? <Wifi className="w-6 h-6" /> : <WifiOff className="w-6 h-6" />}
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg border ${
-                    isWifiMatch
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                  }`}
-                >
-                  {isWifiMatch
-                    ? '🟢 ĐÃ KẾT NỐI ĐÚNG WIFI CỬA HÀNG'
-                    : '🔴 CHƯA KẾT NỐI ĐÚNG WIFI CỬA HÀNG'}
-                </span>
-                {isStaffLocked && (
-                  <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-md text-[10px] font-black uppercase">
-                    🔒 ĐÃ KHÓA NÚT CHẤM CÔNG CỦA NHÂN VIÊN
-                  </span>
-                )}
+      {isAdmin && (
+        <div
+          className={`p-4 rounded-3xl border shadow-xl transition backdrop-blur-xl ${
+            isWifiMatch
+              ? 'bg-emerald-950/40 border-emerald-500/30'
+              : 'bg-slate-900/90 border-rose-500/30'
+          }`}
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+            <div className="flex items-start sm:items-center space-x-3">
+              <div
+                className={`p-3 rounded-2xl flex-shrink-0 border ${
+                  isWifiMatch
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                }`}
+              >
+                {isWifiMatch ? <Wifi className="w-6 h-6" /> : <WifiOff className="w-6 h-6" />}
               </div>
-              <p className="text-xs text-slate-300 mt-1 font-medium">
-                {isWifiMatch
-                  ? 'Địa chỉ IP thiết bị trùng khớp 100% với IP Wifi Shop đã lưu. Toàn bộ tính năng chấm công đã sẵn sàng.'
-                  : !storeWifiIp
-                  ? 'Cửa hàng chưa lưu cấu hình IP Wifi. Quản lý / Admin vui lòng cài đặt IP Wifi phía dưới để kích hoạt chấm công.'
-                  : 'IP thiết bị của bạn không trùng với IP Wifi của cửa hàng. Toàn bộ nút chấm công đã bị vô hiệu hóa để chống chấm công ngoài cửa hàng.'}
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg border ${
+                      isWifiMatch
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    }`}
+                  >
+                    {isWifiMatch
+                      ? '🟢 ĐÃ KẾT NỐI ĐÚNG WIFI CỬA HÀNG'
+                      : '🔴 CHƯA KẾT NỐI ĐÚNG WIFI CỬA HÀNG'}
+                  </span>
+                  {isStaffLocked && (
+                    <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-md text-[10px] font-black uppercase">
+                      🔒 ĐÃ KHÓA NÚT CHẤM CÔNG CỦA NHÂN VIÊN
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 mt-1 font-medium">
+                  {isWifiMatch
+                    ? 'Địa chỉ IP thiết bị trùng khớp 100% với IP Wifi Shop đã lưu. Toàn bộ tính năng chấm công đã sẵn sàng.'
+                    : !storeWifiIp
+                    ? 'Cửa hàng chưa lưu cấu hình IP Wifi. Quản lý / Admin vui lòng cài đặt IP Wifi phía dưới để kích hoạt chấm công.'
+                    : 'IP thiết bị của bạn không trùng với IP Wifi của cửa hàng. Toàn bộ nút chấm công đã bị vô hiệu hóa để chống chấm công ngoài cửa hàng.'}
+                </p>
+              </div>
             </div>
-          </div>
 
-          {/* IP Diagnostic Badges */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">IP Shop Đã Lưu:</span>
-              <span className="font-mono font-bold text-amber-300">{storeWifiIp || 'Chưa lưu'}</span>
+            {/* IP Diagnostic Badges */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">IP Shop Đã Lưu:</span>
+                <span className="font-mono font-bold text-amber-300">{storeWifiIp || 'Chưa lưu'}</span>
+              </div>
+              <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">IP Máy Hiện Tại:</span>
+                <span className={`font-mono font-bold ${isWifiMatch ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {clientIp || 'Đang lấy...'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchAttendanceData()}
+                title="Kiểm tra lại mạng & IP"
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-2xl transition border border-slate-700 active:scale-95"
+              >
+                <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
-            <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">IP Máy Hiện Tại:</span>
-              <span className={`font-mono font-bold ${isWifiMatch ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {clientIp || 'Đang lấy...'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => fetchAttendanceData()}
-              title="Kiểm tra lại mạng & IP"
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-2xl transition border border-slate-700 active:scale-95"
-            >
-              <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ======================================================== */}
       {/* 1. KHUNG CHẤM CÔNG DẠNG DỌC (VERTICAL STACK - RESPONSIVE MOBILE) */}
