@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getUserFromRequest, canViewSensitiveFinancials } from '@/lib/auth';
+import { calculateWorkHours } from '@/lib/attendanceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,27 +52,18 @@ export async function POST(request: NextRequest) {
     const targetUser = userRes.rows[0];
 
     // Build timestamp strings
-    const inTime = check_in_time ? check_in_time.trim() : '09:00';
-    const outTime = check_out_time ? check_out_time.trim() : '21:00';
+    const inTime = check_in_time ? check_in_time.trim() : (session === 'morning' ? '09:00' : shift === 'shift2' ? '14:00' : '13:00');
+    const outTime = check_out_time ? check_out_time.trim() : (session === 'morning' ? (shift === 'shift2' ? '13:00' : '12:00') : '21:00');
     const checkInTimestamp = `${date}T${inTime}:00+07:00`;
     const checkOutTimestamp = `${date}T${outTime}:00+07:00`;
 
-    // Compute work hours if not provided
-    let finalWorkHours = typeof work_hours === 'number' ? work_hours : parseFloat(work_hours || '0');
-    if (finalWorkHours <= 0) {
-      const [inH, inM] = inTime.split(':').map((v: string) => parseInt(v, 10));
-      const [outH, outM] = outTime.split(':').map((v: string) => parseInt(v, 10));
-      const diffMinutes = (outH * 60 + outM) - (inH * 60 + inM);
-      if (diffMinutes > 0) {
-        finalWorkHours = Math.round((diffMinutes / 60) * 10) / 10;
-      } else {
-        finalWorkHours = session === 'morning' ? 3.0 : session === 'afternoon' ? 8.0 : 11.0;
-      }
-    }
+    // Compute work hours and OT hours using calculateWorkHours
+    const calculated = calculateWorkHours(inTime, outTime, { shift, session });
 
-    const finalOtHours = typeof ot_hours === 'number' ? ot_hours : parseFloat(ot_hours || '0');
-    const finalLateMinutes = typeof late_minutes === 'number' ? late_minutes : parseInt(late_minutes || '0', 10);
-    const finalEarlyMinutes = typeof early_minutes === 'number' ? early_minutes : parseInt(early_minutes || '0', 10);
+    let finalWorkHours = typeof work_hours === 'number' && work_hours > 0 ? work_hours : (parseFloat(work_hours || '0') > 0 ? parseFloat(work_hours) : calculated.workHours);
+    let finalOtHours = typeof ot_hours === 'number' && ot_hours > 0 ? ot_hours : (parseFloat(ot_hours || '0') > 0 ? parseFloat(ot_hours) : calculated.otHours);
+    let finalLateMinutes = typeof late_minutes === 'number' && late_minutes > 0 ? late_minutes : (parseInt(late_minutes || '0', 10) > 0 ? parseInt(late_minutes, 10) : calculated.lateMinutes);
+    let finalEarlyMinutes = typeof early_minutes === 'number' && early_minutes > 0 ? early_minutes : (parseInt(early_minutes || '0', 10) > 0 ? parseInt(early_minutes, 10) : calculated.earlyMinutes);
 
     const noteText = `[Quản lý ${currentUser.full_name} bù công]: ${reason.trim() || 'Chỉnh sửa/Bù công nhân sự'}`;
 

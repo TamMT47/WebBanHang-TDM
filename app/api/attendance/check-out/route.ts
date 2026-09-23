@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 import { getClientIp } from '@/lib/ipHelper';
+import { calculateWorkHours } from '@/lib/attendanceHelper';
 
 export async function POST(request: NextRequest) {
   try {
@@ -86,62 +87,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const hour = vnDate.getHours();
-    const minute = vnDate.getMinutes();
-    const totalMinutes = hour * 60 + minute;
-
     const isMorning = record.session === 'morning';
     const shift = record.shift;
 
-    let earlyMinutes = 0;
-    let otHours = 0;
-    let standardDuration = 5.5;
+    // Calculate work hours, OT hours, early minutes using standardized helper
+    const calcResult = calculateWorkHours(record.check_in, now, {
+      shift,
+      session: isMorning ? 'morning' : 'afternoon',
+    });
 
-    if (isMorning) {
-      // Morning end times:
-      // Ca 1: 12:00 (720 min) -> 3.0 hours
-      // Ca 2: 13:00 (780 min) -> 4.0 hours
-      // Manager: 12:00 (720 min) -> 3.0 hours
-      let scheduledEnd = 720;
-      standardDuration = 3.0;
-      if (shift === 'shift2') {
-        scheduledEnd = 780;
-        standardDuration = 4.0;
-      } else if (shift === 'manager') {
-        scheduledEnd = 720;
-        standardDuration = 3.0;
-      }
-
-      if (totalMinutes < scheduledEnd) {
-        earlyMinutes = scheduledEnd - totalMinutes;
-      }
-      otHours = 0; // Morning does not generate OT
-    } else {
-      // Afternoon end times:
-      // Standard end: 21:00 (1260 min)
-      // Ca 1: 13:00 - 21:00 -> 8.0 hours
-      // Ca 2: 14:00 - 21:00 -> 7.0 hours
-      // Manager: 13:00 - 21:00 -> 8.0 hours
-      const scheduledEnd = 1260;
-      standardDuration = 8.0;
-      if (shift === 'shift2') {
-        standardDuration = 7.0;
-      } else if (shift === 'manager') {
-        standardDuration = 8.0;
-      }
-
-      if (totalMinutes < scheduledEnd) {
-        earlyMinutes = scheduledEnd - totalMinutes;
-        otHours = 0;
-      } else if (totalMinutes > scheduledEnd) {
-        earlyMinutes = 0;
-        otHours = Math.round(((totalMinutes - scheduledEnd) / 60 + Number.EPSILON) * 100) / 100;
-      }
-    }
-
-    const lateMin = parseInt(record.late_minutes || 0, 10);
-    const totalDeductedHours = (lateMin + earlyMinutes) / 60;
-    const workHours = Math.max(0, Math.round((standardDuration - totalDeductedHours + Number.EPSILON) * 100) / 100);
+    const workHours = calcResult.workHours;
+    const otHours = calcResult.otHours;
+    const earlyMinutes = calcResult.earlyMinutes;
 
     const updateRes = await query(
       `UPDATE attendance
@@ -160,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Đã chấm Ra ${sessionName} thành công! ${earlyMinutes > 0 ? `(Về sớm: ${earlyMinutes} phút)` : ''} ${otHours > 0 ? `• OT sau 21h: +${otHours} giờ (150%)` : ''}`,
+      message: `Đã chấm Ra ${sessionName} thành công! (${workHours}h làm việc${otHours > 0 ? ` • +${otHours}h OT` : ''}) ${earlyMinutes > 0 ? `• Về sớm: ${earlyMinutes} phút` : ''}`,
       attendance: updateRes.rows[0],
       workHours,
       otHours,

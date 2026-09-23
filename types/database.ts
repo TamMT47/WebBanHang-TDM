@@ -241,7 +241,9 @@ export interface MonthlyPayrollItem {
   effective_base_salary: number; // base_salary * (probation ? 0.85 : 1.0)
   standard_days: number; // 26 (30-day month) or 27 (31-day month)
   unit_daily_salary: number; // effective_base_salary / standard_days
+  unit_hourly_rate?: number; // unit_daily_salary / 11
   actual_days: number;   // Calculated from attendance (+1 if worked on registered off day)
+  total_work_hours?: number; // Total worked hours in month
   off_days_worked?: number;
   salary_by_days: number; // unit_daily_salary * actual_days
   ot_hours: number;      // Calculated from attendance (>21:00)
@@ -270,6 +272,7 @@ export interface SalaryHistoryRecord {
   base_salary: number;
   standard_days: number;
   actual_days: number;
+  total_work_hours?: number;
   ot_hours: number;
   salary_by_days: number;
   ot_salary: number;

@@ -34,6 +34,7 @@ import { MonthlyPayrollItem, SalaryHistoryRecord } from '@/types/database';
 import PayslipModal from '@/components/PayslipModal';
 import ManualAttendanceModal from '@/components/ManualAttendanceModal';
 import { exportPayrollToCSV } from '@/lib/exportHelper';
+import { calculateSalary } from '@/lib/attendanceHelper';
 
 interface PayrollViewProps {
   user: any;
@@ -156,23 +157,32 @@ export default function PayrollView({ user }: PayrollViewProps) {
 
     const baseSalary = parseFloat(item.base_salary as any) || 0;
     const contractType = item.contract_type || 'sales';
-    const effectiveBaseSalary = contractType === 'probation' ? Math.round(baseSalary * 0.85) : baseSalary;
     const standardDays = parseInt(item.standard_days as any) || 26;
     const actualDays = parseFloat(item.actual_days as any) || 0;
+    const totalWorkHours = typeof item.total_work_hours === 'number' && item.total_work_hours > 0 ? item.total_work_hours : actualDays * 11.0;
     const otHours = parseFloat(item.ot_hours as any) || 0;
-
-    const unitDailySalary = standardDays > 0 ? (effectiveBaseSalary / standardDays) : 0;
-    item.salary_by_days = Math.round(unitDailySalary * actualDays);
-    item.ot_salary = Math.round((unitDailySalary / 11) * otHours * 1.5);
-
     const sharedComm = parseFloat(item.shared_commission as any) || 0;
     const personalComm = parseFloat(item.personal_commission as any) || 0;
-    const customAllowances = (item.allowances || []).reduce((sum, al) => sum + (parseFloat(al.amount as any) || 0), 0);
-    const totalDeduction = (item.deductions || []).reduce((sum, de) => sum + (parseFloat(de.amount as any) || 0), 0);
 
-    item.total_allowance = sharedComm + personalComm + customAllowances;
-    item.total_deduction = totalDeduction;
-    item.final_salary = Math.max(0, item.salary_by_days + item.ot_salary + item.total_allowance - totalDeduction);
+    const salCalc = calculateSalary({
+      baseSalary,
+      contractType,
+      standardDays,
+      standardHoursPerDay: 11.0,
+      totalWorkHours,
+      otHours,
+      otRate: 1.5,
+      sharedCommission: sharedComm,
+      personalCommission: personalComm,
+      allowances: item.allowances || [],
+      deductions: item.deductions || [],
+    });
+
+    item.salary_by_days = salCalc.salaryByDays;
+    item.ot_salary = salCalc.otSalary;
+    item.total_allowance = salCalc.totalAllowance;
+    item.total_deduction = salCalc.totalDeduction;
+    item.final_salary = salCalc.finalSalary;
 
     updated[index] = item;
     setPayrollItems(updated);

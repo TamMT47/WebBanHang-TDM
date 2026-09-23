@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { ShiftType } from '@/types/database';
 import ManualAttendanceModal from '@/components/ManualAttendanceModal';
+import { calculateWorkHours } from '@/lib/attendanceHelper';
 
 interface AttendanceViewProps {
   user: any;
@@ -856,9 +857,17 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
               <tbody className="divide-y divide-slate-800/70">
                 {history.map((rec) => {
                   const dateFormatted = new Date(rec.date).toLocaleDateString('vi-VN');
-                  const isLate = rec.late_minutes > 0;
-                  const isEarly = rec.early_minutes > 0;
-                  const hasOt = rec.ot_hours > 0;
+                  const isLate = parseInt(rec.late_minutes || '0', 10) > 0;
+                  const isEarly = parseInt(rec.early_minutes || '0', 10) > 0;
+                  const otVal = parseFloat(rec.ot_hours || '0');
+                  const hasOt = otVal > 0;
+
+                  const rawWorkHours = parseFloat(rec.work_hours || '0');
+                  const displayWorkHours = rawWorkHours > 0
+                    ? `${rawWorkHours}h`
+                    : (rec.check_in && rec.check_out
+                        ? `${calculateWorkHours(rec.check_in, rec.check_out, { shift: rec.shift, session: rec.session }).workHours}h`
+                        : '--');
 
                   return (
                     <tr key={rec.id} className="hover:bg-slate-800/40 transition">
@@ -880,7 +889,7 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                       <td className="px-3.5 py-2.5 font-mono font-bold text-white">{formatHourMinute(rec.check_in)}</td>
                       <td className="px-3.5 py-2.5 font-mono font-bold text-white">{formatHourMinute(rec.check_out)}</td>
                       <td className="px-3.5 py-2.5 font-bold text-emerald-400 font-sans">
-                        {rec.work_hours > 0 ? `${rec.work_hours}h` : '--'}
+                        {displayWorkHours}
                       </td>
                       <td className="px-3.5 py-2.5">
                         {isLate ? (
@@ -898,7 +907,7 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                       </td>
                       <td className="px-3.5 py-2.5">
                         {hasOt ? (
-                          <span className="text-amber-400 font-bold font-sans">+{rec.ot_hours}h (150%)</span>
+                          <span className="text-amber-400 font-bold font-sans">+{otVal}h (150%)</span>
                         ) : (
                           <span className="text-slate-500">0h</span>
                         )}

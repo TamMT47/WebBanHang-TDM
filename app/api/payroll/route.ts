@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getUserFromRequest, canViewSensitiveFinancials } from '@/lib/auth';
 import { ContractType } from '@/types/database';
+import { calculateSalary } from '@/lib/attendanceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,6 +187,7 @@ export async function GET(request: NextRequest) {
             parseInt(lockedRecord.standard_days || standardDays.toString(), 10)
           ),
           actual_days: parseFloat(lockedRecord.actual_days || '0'),
+          total_work_hours: parseFloat(lockedRecord.total_work_hours || (parseFloat(lockedRecord.actual_days || '0') * 11).toString()),
           ot_hours: parseFloat(lockedRecord.ot_hours || '0'),
           salary_by_days: parseFloat(lockedRecord.salary_by_days || '0'),
           ot_salary: parseFloat(lockedRecord.ot_salary || '0'),
@@ -209,29 +211,30 @@ export async function GET(request: NextRequest) {
       const contractType = (u.contract_type || 'sales') as ContractType;
       const baseSalary = parseFloat(u.base_salary || '0');
 
-      // Contract factor: Thử việc = 85%, Bán hàng/Sale/Quản lý = 100%
-      const contractFactor = contractType === 'probation' ? 0.85 : 1.0;
-      const effectiveBaseSalary = Math.round(baseSalary * contractFactor);
-
-      // Đơn giá 1 ngày công = Lương CB Thực / standard_days (26 hoặc 27)
-      const unitDailySalary = Math.round(effectiveBaseSalary / standardDays);
-
-      // Actual workdays: active days + 1 extra for each off day worked
-      const actualDays = att.active_days_count + att.off_days_worked;
-      const otHours = att.total_ot_hours;
-
-      // Lương Ngày Công = Đơn giá 1 ngày công * Số ngày làm thực tế
-      const salaryByDays = Math.round(unitDailySalary * actualDays);
-
-      // Lương OT (11 tiếng/ngày): (Đơn giá 1 ngày công / 11) * Số giờ OT * 150%
-      const otSalary = Math.round((unitDailySalary / 11) * otHours * 1.5);
-
       // Personal & Shared Commission (check manual override first)
       const manualComm = manualCommMap.get(u.id);
       const personalCommission = manualComm !== undefined ? manualComm : (personalCommissionMap.get(u.id) || 0);
       const sharedCommission = sharedCommissionPerPerson;
 
-      const finalSalary = Math.max(0, salaryByDays + otSalary + sharedCommission + personalCommission);
+      // Actual workdays: derived from total_work_hours (11h/day) or active days + off days
+      const totalWorkHours = att.total_work_hours;
+      const actualDays = totalWorkHours > 0
+        ? Math.round((totalWorkHours / 11.0 + att.off_days_worked) * 10) / 10
+        : (att.active_days_count + att.off_days_worked);
+      const otHours = att.total_ot_hours;
+
+      const salCalc = calculateSalary({
+        baseSalary,
+        contractType,
+        standardDays,
+        standardHoursPerDay: 11.0,
+        totalWorkHours,
+        otHours,
+        otRate: 1.5,
+        offDaysWorked: att.off_days_worked,
+        sharedCommission,
+        personalCommission,
+      });
 
       return {
         user_id: u.id,
@@ -239,22 +242,24 @@ export async function GET(request: NextRequest) {
         user_role: u.role,
         contract_type: contractType,
         base_salary: baseSalary,
-        effective_base_salary: effectiveBaseSalary,
+        effective_base_salary: salCalc.effectiveBaseSalary,
         standard_days: standardDays,
-        unit_daily_salary: unitDailySalary,
+        unit_daily_salary: salCalc.unitDailySalary,
+        unit_hourly_rate: salCalc.unitHourlyRate,
         actual_days: actualDays,
+        total_work_hours: totalWorkHours,
         off_days_worked: att.off_days_worked,
         ot_hours: otHours,
-        salary_by_days: salaryByDays,
-        ot_salary: otSalary,
+        salary_by_days: salCalc.salaryByDays,
+        ot_salary: salCalc.otSalary,
         shared_commission: sharedCommission,
         personal_commission: personalCommission,
         main_devices_count: personalDevicesCountMap.get(u.id) || 0,
         allowances: [],
         deductions: [],
-        total_allowance: 0,
+        total_allowance: salCalc.totalAllowance,
         total_deduction: 0,
-        final_salary: finalSalary,
+        final_salary: salCalc.finalSalary,
         status: 'pending',
         is_locked: false,
         note: '',

@@ -16,6 +16,8 @@ import {
   Zap,
 } from 'lucide-react';
 
+import { calculateWorkHours } from '@/lib/attendanceHelper';
+
 interface ManualAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -159,13 +161,13 @@ export default function ManualAttendanceModal({
 
   const handleCalculateHours = (inTime: string, outTime: string) => {
     try {
-      const [inH, inM] = inTime.split(':').map((v) => parseInt(v, 10));
-      const [outH, outM] = outTime.split(':').map((v) => parseInt(v, 10));
-      const diffM = (outH * 60 + outM) - (inH * 60 + inM);
-      if (diffM > 0) {
-        const computed = Math.round((diffM / 60) * 10) / 10;
-        setWorkHours(computed);
+      const res = calculateWorkHours(inTime, outTime, { shift, session });
+      setWorkHours(res.workHours);
+      if (res.otHours > 0) {
+        setOtHours(res.otHours);
       }
+      setLateMinutes(res.lateMinutes);
+      setEarlyMinutes(res.earlyMinutes);
     } catch {
       // ignore
     }
