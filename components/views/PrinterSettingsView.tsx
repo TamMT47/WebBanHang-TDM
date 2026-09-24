@@ -15,6 +15,7 @@ import {
   Zap
 } from 'lucide-react';
 import PrinterConfigCard from '@/components/PrinterConfigCard';
+import PrintAgentWorker from '@/components/PrintAgentWorker';
 
 interface PrinterSettingsViewProps {
   user: any;
@@ -23,6 +24,9 @@ interface PrinterSettingsViewProps {
 export default function PrinterSettingsView({ user }: PrinterSettingsViewProps) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      
+      {/* Background Print Agent Worker & Queue Live Monitor */}
+      <PrintAgentWorker user={user} showQueueList={true} />
       
       {/* Top Header Banner */}
       <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -326,3 +326,23 @@ export interface TrainingUserProgress {
   completion_percentage: number;
   last_activity?: string;
 }
+
+// Print Queue Types (MacBook Host Print Agent)
+export type PrintJobStatus = 'PENDING' | 'PRINTING' | 'PRINTED' | 'FAILED';
+
+export interface PrintJob {
+  id: string;
+  order_id?: string | null;
+  order_code?: string | null;
+  doc_type: 'invoice' | 'warranty' | 'test';
+  status: PrintJobStatus;
+  printer_name: string;
+  payload_escpos?: string | null;
+  payload_html?: string | null;
+  payload_json?: any;
+  error_message?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  printed_at?: string | null;
+}

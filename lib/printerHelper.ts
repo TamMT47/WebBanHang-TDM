@@ -57,8 +57,8 @@ export async function pingPrinterStatus(customSettings?: Partial<InvoiceSettings
 }
 
 /**
- * Send Test Print (K80 bill) directly via /api/print (QZ Tray USB Print Server)
- * Completely silent, no AirPrint / window.print()
+ * Send Test Print (K80 bill) via Print Queue (/api/print-queue)
+ * Completely silent, queued for MacBook Print Server QZ Tray
  */
 export async function testLanPrinter(
   ip?: string,
@@ -70,51 +70,49 @@ export async function testLanPrinter(
   const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'MacBook-Air-cua-Truong.local');
   const qzPort = merged.qzPort || 8181;
   const qzSecure = merged.qzSecure ?? false;
+  const targetPrinter = merged.qzPrinterName || 'Xprinter USB Printer P';
 
   try {
-    const res = await fetch('/api/print', {
+    const res = await fetch('/api/print-queue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'test',
-        connectionMode: 'qz-tray',
-        qzHost,
-        qzPort,
-        qzSecure,
-        qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
-        settings: {
+        docType: 'test',
+        orderCode: 'TEST-K80',
+        customSettings: {
           ...merged,
           printerConnectionMode: 'qz-tray',
           qzHost,
           qzPort,
           qzSecure,
-          qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
+          qzPrinterName: targetPrinter,
         },
       }),
     });
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Lỗi gửi lệnh in tới máy in');
+      throw new Error(data.error || 'Lỗi gửi lệnh in tới hàng đợi');
     }
 
     return {
       success: true,
-      message: data.message || `🟢 Đã gửi lệnh in thử nghiệm thành công (${merged.qzPrinterName || 'Xprinter USB Printer P'})`,
-      printer: data.printer,
+      message: 'Đã gửi lệnh in tới máy chủ MacBook thành công!',
+      printer: targetPrinter,
       mode: 'qz-tray',
     };
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || 'Không thể gửi lệnh in qua QZ Tray Print Server'}`,
+      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới hàng đợi MacBook'}`,
     };
   }
 }
 
 /**
- * Print order or warranty slip SILENTLY & DIRECTLY via /api/print
+ * Print order or warranty slip via Print Queue (/api/print-queue)
  * Completely bypasses and prevents iOS AirPrint popup & window.print() dialog.
+ * Silent printing executed by MacBook Print Server.
  */
 export async function printToLanPrinter(
   order: any,
@@ -128,46 +126,43 @@ export async function printToLanPrinter(
   const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'MacBook-Air-cua-Truong.local');
   const qzPort = merged.qzPort || 8181;
   const qzSecure = merged.qzSecure ?? false;
+  const targetPrinter = merged.qzPrinterName || 'Xprinter USB Printer P';
 
   try {
-    const res = await fetch('/api/print', {
+    const res = await fetch('/api/print-queue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'print',
-        connectionMode: 'qz-tray',
-        qzHost,
-        qzPort,
-        qzSecure,
-        qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
         order,
+        orderId: order?.id,
+        orderCode: order?.code || order?.order_code,
         docType,
-        settings: {
+        customSettings: {
           ...merged,
           printerConnectionMode: 'qz-tray',
           qzHost,
           qzPort,
           qzSecure,
-          qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
+          qzPrinterName: targetPrinter,
         },
       }),
     });
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Lỗi gửi lệnh in hóa đơn');
+      throw new Error(data.error || 'Lỗi gửi lệnh in vào hàng đợi');
     }
 
     return {
       success: true,
-      message: data.message || `🟢 Đã in hóa đơn thành công (${data.printer || merged.qzPrinterName || 'Xprinter USB Printer P'})`,
-      printer: data.printer,
+      message: 'Đã gửi lệnh in tới máy chủ MacBook thành công!',
+      printer: targetPrinter,
       mode: 'qz-tray',
     };
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới máy in QZ Tray'}`,
+      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới hàng đợi MacBook'}`,
     };
   }
 }

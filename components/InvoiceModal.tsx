@@ -115,13 +115,13 @@ export default function InvoiceModal({
   };
 
   /**
-   * Pure Silent Direct Print: Sends ESC/POS binary directly to LAN IP (192.168.1.133:9100).
+   * Pure Silent Direct Print via Print Queue: Sends print job to MacBook Print Server
    * Completely bypasses window.print() and blocks iOS AirPrint popup.
    */
   const handleDirectLanPrint = async () => {
     if (!order) return;
     setIsPrintingLan(true);
-    setPrintNotice({ text: `Đang gửi lệnh in tới Xprinter USB Printer P qua QZ Tray...` });
+    setPrintNotice({ text: `Đang gửi lệnh in tới hàng đợi máy chủ MacBook...` });
 
     try {
       const res = await printToLanPrinter(order, docType, {
@@ -129,28 +129,28 @@ export default function InvoiceModal({
       });
 
       if (res.success) {
-        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter USB Printer P thành công');
+        showToast(res.message || 'Đã gửi lệnh in tới máy chủ MacBook thành công!');
       } else {
-        showToast(res.error || '🔴 Không kết nối được máy in qua QZ Tray Print Server', true);
+        showToast(res.error || '🔴 Không gửi được lệnh in tới máy chủ MacBook', true);
       }
     } catch (err: any) {
-      showToast('🔴 Lỗi gửi lệnh in tới máy in Xprinter', true);
+      showToast('🔴 Lỗi gửi lệnh in tới máy chủ MacBook', true);
     } finally {
       setIsPrintingLan(false);
     }
   };
 
   /**
-   * Test Connection inside Settings Modal
+   * Test Connection inside Settings Modal via Print Queue
    */
   const handleTestLanConnection = async () => {
     setIsTestingLan(true);
     try {
       const res = await testLanPrinter(undefined, undefined, editForm);
       if (res.success) {
-        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter USB Printer P thành công');
+        showToast(res.message || 'Đã gửi lệnh in tới máy chủ MacBook thành công!');
       } else {
-        showToast(res.error || '🔴 Lỗi gửi lệnh in qua QZ Tray Print Server', true);
+        showToast(res.error || '🔴 Lỗi gửi lệnh in qua hàng đợi MacBook', true);
       }
     } catch (err: any) {
       showToast(err.message || '🔴 Lỗi kiểm tra kết nối Print Server', true);

@@ -214,7 +214,7 @@ export default function PrinterConfigCard({
     try {
       const res = await testLanPrinter(undefined, undefined, form);
       if (res.success) {
-        const msg = res.message || `🟢 Đã gửi lệnh in thành công qua QZ Tray (${form.qzPrinterName || 'Xprinter USB Printer P'})`;
+        const msg = res.message || 'Đã gửi lệnh in tới máy chủ MacBook thành công!';
         setTestResult({
           success: true,
           message: msg,
@@ -222,7 +222,7 @@ export default function PrinterConfigCard({
         });
         setSaveNotice({
           type: 'success',
-          message: `🟢 Đã kết nối và in thử nghiệm thành công tại ${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181} (Máy in: ${res.printer || form.qzPrinterName})`,
+          message: msg,
         });
       } else {
         setTestResult({
