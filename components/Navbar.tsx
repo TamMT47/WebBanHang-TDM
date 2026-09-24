@@ -132,8 +132,8 @@ export default function Navbar({
             })}
           </nav>
 
-          {/* User Profile & Actions */}
-          <div className="flex items-center space-x-2.5">
+          {/* User Profile & Actions (Desktop & Mobile) */}
+          <div className="flex items-center space-x-2 sm:space-x-2.5">
             {/* Light / Dark Mode Toggle */}
             <button
               type="button"
@@ -152,31 +152,56 @@ export default function Navbar({
               <button
                 onClick={onOpenWarrantyLookup}
                 title="Tra cứu bảo hành nhanh"
-                className="flex items-center space-x-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800 text-cyan-300 text-xs font-bold rounded-xl border border-slate-700/80 hover:border-cyan-500/50 shadow-sm transition"
+                className="hidden xl:flex items-center space-x-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800 text-cyan-300 text-xs font-bold rounded-xl border border-slate-700/80 hover:border-cyan-500/50 shadow-sm transition"
               >
                 <Search className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hidden sm:inline badge-nowrap">Tra Bảo Hành</span>
+                <span className="badge-nowrap">Tra Bảo Hành</span>
               </button>
             )}
 
+            {/* Chi nhánh (Desktop) */}
+            <div className="hidden 2xl:flex items-center space-x-1 px-2.5 py-1.5 bg-slate-900/80 rounded-xl border border-slate-800 text-[11px] text-slate-300 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-glow-emerald mr-1"></span>
+              <span>CN Chính</span>
+            </div>
+
+            {/* Thông tin tài khoản / Tên nhân viên (Desktop >= lg) */}
             {user && (
-              <div className="hidden sm:flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner">
+              <div className="hidden lg:flex items-center space-x-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner">
                 <div className="text-right">
-                  <div className="text-xs font-bold text-slate-200">{user.full_name}</div>
-                  <div className="text-[10px] text-slate-400">{getRoleBadge(user.role)}</div>
+                  <div className="text-xs font-black text-slate-100">{user.full_name}</div>
+                  <div className="text-[10px] text-slate-400 flex items-center justify-end space-x-1">
+                    <span>{getRoleBadge(user.role)}</span>
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* Nút Cài Đặt (Desktop) */}
             <button
-              onClick={onLogout}
-              title="Đăng xuất"
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition border border-transparent hover:border-rose-500/20"
+              onClick={() => setActiveTab('settings')}
+              title="Cài Đặt Hệ Thống"
+              className={`hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition ${
+                activeTab === 'settings'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-glow-cyan'
+                  : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border-slate-700/80 hover:text-white'
+              }`}
             >
-              <LogOut className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="badge-nowrap">Cài Đặt</span>
             </button>
 
-            {/* Mobile menu toggle */}
+            {/* Nút ĐĂNG XUẤT (Desktop & Mobile) */}
+            <button
+              onClick={onLogout}
+              title="Đăng xuất khỏi hệ thống"
+              className="flex items-center space-x-1.5 px-3 py-2 text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-500/25 rounded-xl transition border border-rose-500/30 text-xs font-bold shadow-xs active:scale-95"
+            >
+              <LogOut className="w-4 h-4 text-rose-400" />
+              <span className="hidden lg:inline badge-nowrap font-black">ĐĂNG XUẤT</span>
+            </button>
+
+            {/* Mobile menu toggle (Mobile only < lg) */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-900 border border-slate-800"

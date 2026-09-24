@@ -8,17 +8,9 @@ import {
   Phone,
   MapPin,
   ShieldCheck,
-  Sparkles,
   Settings,
-  Save,
   RotateCcw,
-  Plus,
-  Trash2,
-  Wifi,
-  Loader2,
-  AlertCircle,
-  PlayCircle,
-  Globe
+  AlertCircle
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import {
@@ -27,7 +19,6 @@ import {
   InvoiceSettings,
   DEFAULT_INVOICE_SETTINGS
 } from '@/lib/invoiceSettings';
-import { printToLanPrinter, testLanPrinter } from '@/lib/printerHelper';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -81,10 +72,6 @@ export default function InvoiceModal({
   const [settings, setSettings] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
   const [isEditSettingsOpen, setIsEditSettingsOpen] = useState(false);
   const [editForm, setEditForm] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
-
-  // Printing state
-  const [isPrintingLan, setIsPrintingLan] = useState(false);
-  const [isTestingLan, setIsTestingLan] = useState(false);
   const [printNotice, setPrintNotice] = useState<{ text: string; isError?: boolean } | null>(null);
 
   useEffect(() => {
@@ -107,92 +94,21 @@ export default function InvoiceModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, initialDocType, isEditSettingsOpen, onClose]);
 
-  // Device detection
-  const [isMobile, setIsMobile] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const ua = navigator.userAgent || '';
-      const isTouchMac = navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
-      const isPhoneOrTablet = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || isTouchMac;
-      setIsMobile(isPhoneOrTablet);
-    }
-  }, []);
-
   const showToast = (text: string, isError = false) => {
     setPrintNotice({ text, isError });
-    setTimeout(() => setPrintNotice(null), 4500);
+    setTimeout(() => setPrintNotice(null), 4000);
   };
 
   /**
-   * 1. KiotViet Native Browser Print Dialog (For MacBook / Desktop)
+   * KiotViet Native Browser Print (window.print)
    * Opens standard browser print modal styled with 80mm @page @media print
    */
-  const handleBrowserPrint = () => {
+  const handlePrint = () => {
     if (!order) return;
     try {
       window.print();
     } catch (e) {
       console.error('window.print error:', e);
-    }
-  };
-
-  /**
-   * 2. Pure Silent Direct Print via Print Queue (For Mobile iPhone/iPad/Android)
-   * Sends print job to MacBook Print Server table with status 'PENDING'
-   * Displays immediate toast notification.
-   */
-  const handleDirectLanPrint = async () => {
-    if (!order) return;
-    setIsPrintingLan(true);
-    setPrintNotice({ text: `Đang gửi lệnh in tới hàng đợi máy chủ MacBook...` });
-
-    try {
-      const res = await printToLanPrinter(order, docType, {
-        customSettings: settings,
-      });
-
-      if (res.success) {
-        showToast(res.message || 'Đã gửi lệnh in tới máy chủ MacBook thành công!');
-      } else {
-        showToast(res.error || '🔴 Không gửi được lệnh in tới máy chủ MacBook', true);
-      }
-    } catch (err: any) {
-      showToast('🔴 Lỗi gửi lệnh in tới máy chủ MacBook', true);
-    } finally {
-      setIsPrintingLan(false);
-    }
-  };
-
-  /**
-   * Primary Smart Print:
-   * - If on Mobile: Sends to MacBook Print Queue (status PENDING) & shows Toast
-   * - If on MacBook/Desktop: Opens Native Browser Print Dialog (KiotViet style)
-   */
-  const handleSmartPrint = () => {
-    if (isMobile) {
-      handleDirectLanPrint();
-    } else {
-      handleBrowserPrint();
-    }
-  };
-
-  /**
-   * Test Connection inside Settings Modal via Print Queue
-   */
-  const handleTestLanConnection = async () => {
-    setIsTestingLan(true);
-    try {
-      const res = await testLanPrinter(undefined, undefined, editForm);
-      if (res.success) {
-        showToast(res.message || 'Đã gửi lệnh in tới máy chủ MacBook thành công!');
-      } else {
-        showToast(res.error || '🔴 Lỗi gửi lệnh in qua hàng đợi MacBook', true);
-      }
-    } catch (err: any) {
-      showToast(err.message || '🔴 Lỗi kiểm tra kết nối Print Server', true);
-    } finally {
-      setIsTestingLan(false);
     }
   };
 
@@ -204,11 +120,11 @@ export default function InvoiceModal({
       setPrintFormat(updated.paperSize === 'a4' ? 'a4' : 'k80');
     }
     setIsEditSettingsOpen(false);
-    showToast('Đã lưu cấu hình mẫu in & máy in thành công!');
+    showToast('Đã lưu cấu hình mẫu in hóa đơn thành công!');
   };
 
   const handleResetSettings = () => {
-    if (confirm('Khôi phục mẫu in và máy in về thiết lập mặc định của TD Mobile Store?')) {
+    if (confirm('Khôi phục mẫu in về thiết lập mặc định của TD Mobile Store?')) {
       const reset = saveInvoiceSettings(DEFAULT_INVOICE_SETTINGS);
       setSettings(reset);
       setEditForm(reset);
@@ -283,10 +199,10 @@ export default function InvoiceModal({
                 {docType === 'warranty' ? 'PHIẾU BẢO HÀNH CHÍNH HÃNG' : 'HÓA ĐƠN BÁN HÀNG'} #{order.code}
               </h3>
               <div className="flex items-center space-x-1.5 text-[10px] text-slate-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>QZ Tray:</span>
-                <span className="font-mono text-cyan-300 font-bold">
-                  {settings.qzPrinterName || 'Xprinter USB Printer P'} ({settings.qzHost || 'localhost'})
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span>Khổ in:</span>
+                <span className="font-mono text-cyan-300 font-bold uppercase">
+                  {printFormat === 'k80' ? 'Bill Nhiệt K80 (80mm)' : 'Khổ A4 / A5'}
                 </span>
               </div>
             </div>
@@ -326,7 +242,7 @@ export default function InvoiceModal({
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 badge-nowrap"
             >
               <Settings className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Cấu Hình Máy In</span>
+              <span>Cài Đặt Mẫu In</span>
             </button>
 
             {/* Format Toggle */}
@@ -355,42 +271,19 @@ export default function InvoiceModal({
               </button>
             </div>
 
-            {/* SMART PRINT BUTTON: Native Browser Print on Mac, Auto Print Queue on Mobile */}
+            {/* NATIVE BROWSER PRINT BUTTON (KiotViet Style window.print) */}
             <button
-              onClick={handleSmartPrint}
-              disabled={isPrintingLan}
-              title={isMobile ? 'Gửi lệnh in tới máy chủ MacBook' : 'Mở hộp thoại in mặc định của trình duyệt (KiotViet style)'}
-              className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-black transition badge-nowrap active:scale-95 disabled:opacity-50 ${
+              onClick={handlePrint}
+              title="Mở Hộp Thoại In Trình Duyệt (KiotViet Standard)"
+              className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-black transition badge-nowrap active:scale-95 shadow-lg ${
                 docType === 'warranty'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-glow-emerald'
                   : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan'
               }`}
             >
-              {isPrintingLan ? (
-                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-              ) : (
-                <Printer className="w-4 h-4 text-slate-950" />
-              )}
+              <Printer className="w-4 h-4 text-slate-950" />
               <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành' : 'In Hóa Đơn'}</span>
             </button>
-
-            {/* Desktop Option: Direct Silent Queue Trigger */}
-            {!isMobile && (
-              <button
-                type="button"
-                onClick={handleDirectLanPrint}
-                disabled={isPrintingLan}
-                title="Gửi lệnh in ngầm tới QZ Tray Xprinter USB"
-                className="hidden sm:flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition badge-nowrap"
-              >
-                {isPrintingLan ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                )}
-                <span>In Ẩn QZ Tray</span>
-              </button>
-            )}
 
             <button
               onClick={onClose}
@@ -408,7 +301,7 @@ export default function InvoiceModal({
           {/* A4 PRINT FORMAT */}
           {printFormat === 'a4' ? (
             <div
-              id="printable-receipt"
+              id="invoice-print-area"
               className="w-full max-w-[800px] bg-white p-8 sm:p-10 shadow-lg border border-gray-200 text-gray-900 font-sans min-h-[1050px] flex flex-col justify-between rounded-xl"
             >
               <div>
@@ -445,92 +338,107 @@ export default function InvoiceModal({
                     </div>
                   </div>
 
-                  {/* Mã Đơn & Ngày Giờ */}
-                  <div className="text-right space-y-1 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                    <div className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">
-                      {docType === 'warranty' ? 'Mã Phiếu BH' : 'Mã Hóa Đơn'}
+                  <div className="text-right space-y-1">
+                    <div className="inline-block px-3 py-1 bg-gray-100 border border-gray-300 rounded-lg text-xs font-black uppercase text-gray-900">
+                      {docType === 'warranty' ? 'PHIẾU BẢO HÀNH CHÍNH HÃNG' : 'HÓA ĐƠN BÁN HÀNG'}
                     </div>
-                    <div className="text-lg font-black text-gray-950 font-sans">
-                      #{order.code}
+                    <div className="text-sm font-black text-gray-950">
+                      Mã: <span className="font-mono text-cyan-800">#{order.code}</span>
                     </div>
-                    <div className="text-[11px] text-gray-600">
-                      {orderDate}
-                    </div>
+                    <div className="text-[11px] text-gray-500">{orderDate}</div>
                   </div>
                 </div>
 
-                {/* 2. Customer Details */}
+                {/* 2. Customer Info */}
                 <div className="py-4 border-b border-gray-200 grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="text-gray-500">Khách hàng:</span>
-                    <p className="font-black text-sm text-gray-950">{order.partner_name || 'Khách lẻ'}</p>
-                    <p className="text-gray-600">SĐT: <span className="font-bold text-gray-950 font-sans">{order.partner_phone || '---'}</span></p>
-                    {order.partner_address && <p className="text-gray-600">Đ/C: {order.partner_address}</p>}
-                    {order.partner_cccd && <p className="text-gray-600">CCCD: <span className="font-mono font-bold">{order.partner_cccd}</span></p>}
+                    <span className="text-gray-500">Khách hàng:</span>{' '}
+                    <b className="text-gray-950 text-sm">{order.partner_name || 'Khách lẻ trực tiếp'}</b>
+                    {order.partner_phone && (
+                      <div className="text-gray-600">SĐT: <b className="font-sans font-bold">{order.partner_phone}</b></div>
+                    )}
+                    {order.partner_address && (
+                      <div className="text-gray-600 truncate">Địa chỉ: {order.partner_address}</div>
+                    )}
+                    {order.partner_cccd && (
+                      <div className="text-gray-600">CCCD: <b className="font-mono">{order.partner_cccd}</b></div>
+                    )}
                   </div>
-
                   <div className="text-right">
-                    <span className="text-gray-500">Nhân viên phụ trách:</span>
-                    <p className="font-black text-sm text-gray-950">{order.creator_name || 'TD Mobile'}</p>
-                    <p className="text-gray-600">Hình thức: <span className="font-bold uppercase text-gray-950">{order.payment_method}</span></p>
-                    <p className="text-gray-600">Máy in nhiệt: <span className="font-mono font-bold text-cyan-800">{settings.printerIp}</span></p>
+                    <div className="text-gray-500">Nhân viên phục vụ:</div>
+                    <b className="text-gray-950">{order.creator_name || 'Admin'}</b>
+                    <div className="text-gray-500 text-[11px] pt-1">
+                      Phương thức: <b>{order.payment_method}</b>
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. Items Table */}
+                {/* 3. Products Table */}
                 <div className="py-4">
-                  <table className="w-full text-xs text-left border-collapse">
+                  <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b-2 border-gray-900 bg-gray-50 text-[11px] uppercase font-black text-gray-800">
-                        <th className="py-2.5 px-2 w-10 text-center">STT</th>
-                        <th className="py-2.5 px-3">Tên Sản Phẩm / Quy Cách</th>
-                        <th className="py-2.5 px-3">IMEI / Serial</th>
-                        <th className="py-2.5 px-2 text-center">Bảo Hành</th>
-                        <th className="py-2.5 px-3 text-right">Đơn Giá</th>
+                      <tr className="border-b-2 border-gray-900 bg-gray-50 text-gray-900">
+                        <th className="py-2.5 px-2 font-black">STT</th>
+                        <th className="py-2.5 px-2 font-black">Tên Sản Phẩm / Dịch Vụ</th>
+                        <th className="py-2.5 px-2 font-black">Mã IMEI / Serial</th>
+                        <th className="py-2.5 px-2 font-black text-center">Bảo Hành</th>
+                        <th className="py-2.5 px-2 font-black text-right">Đơn Giá</th>
+                        <th className="py-2.5 px-2 font-black text-right">Thành Tiền</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {order.items?.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="py-3 px-2 text-center font-bold text-gray-500">{idx + 1}</td>
-                          <td className="py-3 px-3">
-                            <div className="font-black text-gray-950 text-sm">
-                              {item.product_name || item.name}
-                            </div>
-                            <div className="text-[11px] text-gray-500">
-                              {[item.storage, item.color, item.condition].filter(Boolean).join(' | ')}
+                        <tr key={idx} className="hover:bg-gray-50/50">
+                          <td className="py-3 px-2 text-center text-gray-500">{idx + 1}</td>
+                          <td className="py-3 px-2">
+                            <div className="font-bold text-gray-950">{item.product_name || item.name}</div>
+                            <div className="text-[10px] text-gray-500 space-x-2">
+                              {item.storage && <span>Dung lượng: {item.storage}</span>}
+                              {item.color && <span>• Màu: {item.color}</span>}
+                              {item.condition && <span>• Tình trạng: {item.condition}</span>}
+                              {settings.showBatteryHealth && item.battery_health && (
+                                <span className="text-emerald-700 font-bold">• Pin: {item.battery_health}%</span>
+                              )}
                             </div>
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-gray-950">
+                          <td className="py-3 px-2 font-mono font-bold text-gray-900 text-[11px]">
                             {settings.showImei && item.imei ? item.imei : '---'}
-                            {settings.showBatteryHealth && item.battery_health ? (
-                              <span className="block text-[10px] text-emerald-700 font-sans">Pin: {item.battery_health}%</span>
-                            ) : null}
                           </td>
-                          <td className="py-3 px-2 text-center font-bold text-emerald-800">
-                            {item.warranty_months ? `${item.warranty_months} Tháng` : 'Cam kết'}
+                          <td className="py-3 px-2 text-center">
+                            <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md font-bold text-[10px]">
+                              {item.warranty_months || 12} Tháng
+                            </span>
                           </td>
-                          <td className="py-3 px-3 text-right font-sans font-black text-sm text-gray-950">
+                          <td className="py-3 px-2 text-right font-sans font-bold text-gray-900">
+                            {formatVND(item.price)}
+                          </td>
+                          <td className="py-3 px-2 text-right font-sans font-black text-gray-950">
                             {formatVND(item.price)}
                           </td>
                         </tr>
                       ))}
 
-                      {/* Trade-in */}
+                      {/* Trade in item */}
                       {order.trade_in_item && (
-                        <tr className="bg-amber-50/70 border-t border-amber-200">
-                          <td className="py-3 px-2 text-center font-bold text-amber-700">★</td>
-                          <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded text-[10px] font-black mr-2">
-                              THU CŨ ĐỔI MỚI
-                            </span>
-                            <span className="font-bold text-amber-950">{order.trade_in_item.name}</span>
+                        <tr className="bg-amber-50/60 border-t border-amber-200">
+                          <td className="py-3 px-2 text-center text-amber-800 font-bold">★</td>
+                          <td className="py-3 px-2">
+                            <div className="font-bold text-amber-950">
+                              Thu cũ: {order.trade_in_item.name}
+                            </div>
+                            <div className="text-[10px] text-amber-800">
+                              IMEI: {order.trade_in_item.imei}
+                              {order.trade_in_item.battery_health ? ` • Pin ${order.trade_in_item.battery_health}%` : ''}
+                            </div>
                           </td>
-                          <td className="py-3 px-3 font-mono text-xs text-amber-900">
-                            IMEI: {order.trade_in_item.imei || '---'}
+                          <td className="py-3 px-2 font-mono text-[11px] text-amber-900">
+                            {order.trade_in_item.imei}
                           </td>
-                          <td className="py-3 px-2 text-center text-amber-800 font-bold">Thu vào</td>
-                          <td className="py-3 px-3 text-right font-sans font-black text-sm text-amber-950">
+                          <td className="py-3 px-2 text-center text-amber-800 text-[10px] italic">Thu lại</td>
+                          <td className="py-3 px-2 text-right font-sans font-bold text-amber-900">
+                            -{formatVND(order.trade_in_item.value)}
+                          </td>
+                          <td className="py-3 px-2 text-right font-sans font-black text-amber-900">
                             -{formatVND(order.trade_in_item.value)}
                           </td>
                         </tr>
@@ -539,24 +447,18 @@ export default function InvoiceModal({
                   </table>
                 </div>
 
-                {/* 4. Payment Totals & QR Code */}
-                <div className="pt-2 pb-6 border-t-2 border-gray-900 grid grid-cols-2 gap-6 items-start">
-                  
-                  {/* Bank Transfer QR Code */}
-                  <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 flex items-center space-x-3.5">
-                    <div className="w-24 h-24 bg-white p-1 rounded-xl border border-gray-300 flex items-center justify-center flex-shrink-0">
-                      <img
-                        src={vietQrImgUrl}
-                        alt="VietQR Chuyển Khoản"
-                        className="w-full h-full object-contain"
-                      />
+                {/* 4. Financial Calculation */}
+                <div className="grid grid-cols-2 gap-8 py-4 border-t-2 border-gray-900">
+                  {/* Bank QR */}
+                  <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                    <div className="w-20 h-20 bg-white p-1 rounded-lg border border-gray-300 flex items-center justify-center flex-shrink-0">
+                      <img src={vietQrImgUrl} alt="VietQR" className="w-full h-full object-contain" />
                     </div>
-                    <div className="text-[11px] space-y-1">
-                      <p className="font-black text-gray-950 uppercase">Quét Mã QR Chuyển Khoản</p>
+                    <div className="text-[11px] space-y-0.5">
+                      <p className="font-bold text-gray-900">Chuyển Khoản / VietQR:</p>
                       <p className="text-gray-600">Ngân hàng: <b>{settings.bankName}</b></p>
                       <p className="text-gray-600">STK: <b className="font-mono text-gray-950 font-bold">{settings.bankAccount}</b></p>
                       <p className="text-gray-600">Chủ TK: <b>{settings.bankAccountHolder}</b></p>
-                      <p className="text-gray-500 text-[10px]">Nội dung: <b>TT DON {order.code}</b></p>
                     </div>
                   </div>
 
@@ -639,13 +541,20 @@ export default function InvoiceModal({
               </div>
             </div>
           ) : (
-            /* K80 THERMAL RECEIPT FORMAT */
+            /* K80 THERMAL RECEIPT FORMAT (KiotViet Standard) */
             <div
-              id="printable-receipt"
-              className="w-full max-w-[360px] bg-white p-5 shadow-lg border border-gray-300 text-gray-900 font-sans text-xs rounded-xl"
+              id="invoice-print-area"
+              className="w-full max-w-[360px] bg-white p-4 shadow-lg border border-gray-300 text-gray-900 font-sans text-xs rounded-xl"
             >
+              {/* Optional Shop Logo */}
+              {settings.shopLogoUrl && (
+                <div className="flex justify-center pb-2">
+                  <img src={settings.shopLogoUrl} alt="Logo" className="max-h-12 object-contain" />
+                </div>
+              )}
+
               <div className="text-center space-y-1 pb-3 border-b border-dashed border-gray-400">
-                <div className="font-black text-lg uppercase text-gray-950">{settings.shopName}</div>
+                <div className="font-black text-base uppercase text-gray-950">{settings.shopName}</div>
                 <div className="text-[10px] text-gray-600">{settings.shopAddress}</div>
                 <div className="text-[10px] font-bold text-gray-800">
                   Hotline: {settings.shopHotline} {settings.warrantyHotline ? `• BH: ${settings.warrantyHotline}` : ''}
@@ -767,28 +676,18 @@ export default function InvoiceModal({
           </div>
 
           <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
-            {/* DIRECT SILENT LAN PRINT BUTTON */}
+            {/* NATIVE BROWSER PRINT BUTTON */}
             <button
               type="button"
-              onClick={handleDirectLanPrint}
-              disabled={isPrintingLan}
-              className={`flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-6 py-2.5 rounded-xl text-xs font-black transition active:scale-95 disabled:opacity-50 ${
+              onClick={handlePrint}
+              className={`flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-6 py-2.5 rounded-xl text-xs font-black transition active:scale-95 shadow-lg ${
                 docType === 'warranty'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-glow-emerald'
                   : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-glow-cyan'
               }`}
             >
-              {isPrintingLan ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                  <span>Đang In LAN...</span>
-                </>
-              ) : (
-                <>
-                  <Printer className="w-4 h-4 text-slate-950" />
-                  <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành (LAN)' : 'In Hóa Đơn (LAN)'}</span>
-                </>
-              )}
+              <Printer className="w-4 h-4 text-slate-950" />
+              <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành (Browser)' : 'In Hóa Đơn (Browser)'}</span>
             </button>
 
             {/* CLOSE BUTTON */}
@@ -803,14 +702,14 @@ export default function InvoiceModal({
           </div>
         </div>
 
-        {/* Modal Customize Invoice Template & Printer Settings */}
+        {/* Modal Customize Invoice Template */}
         {isEditSettingsOpen && (
           <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
             <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
               <div className="px-5 py-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
                 <div className="flex items-center space-x-2">
                   <Settings className="w-4 h-4 text-cyan-400" />
-                  <h3 className="text-sm font-black uppercase">Cấu Hình Mẫu In & Máy In QZ Tray</h3>
+                  <h3 className="text-sm font-black uppercase">Cấu Hình Mẫu In Hóa Đơn K80 / A4</h3>
                 </div>
                 <button
                   type="button"
@@ -822,85 +721,13 @@ export default function InvoiceModal({
               </div>
 
               <form onSubmit={handleSaveSettings} className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
-                
-                {/* QZ TRAY PRINTER SETTINGS BLOCK */}
-                <div className="p-3.5 bg-slate-950 rounded-2xl border border-cyan-500/40 space-y-3 shadow-inner">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <span className="font-black text-cyan-300 flex items-center space-x-1.5">
-                      <Printer className="w-4 h-4" />
-                      <span>Máy Chủ MacBook (USB via QZ Tray)</span>
-                    </span>
-                    <button
-                      type="button"
-                      disabled={isTestingLan}
-                      onClick={handleTestLanConnection}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] flex items-center space-x-1 shadow-glow-emerald"
-                    >
-                      {isTestingLan ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <PlayCircle className="w-3 h-3" />
-                      )}
-                      <span>[In Thử Nghiệm]</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-400 mb-1 font-bold">Tên Máy In Target:</label>
-                      <input
-                        type="text"
-                        value={editForm.qzPrinterName || 'Xprinter USB Printer P'}
-                        onChange={(e) => setEditForm({ ...editForm, qzPrinterName: e.target.value })}
-                        placeholder="Xprinter USB Printer P"
-                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-cyan-300 font-mono font-bold"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 mb-1 font-bold">Host IP MacBook:</label>
-                      <input
-                        type="text"
-                        value={editForm.qzHost || 'localhost'}
-                        onChange={(e) => setEditForm({ ...editForm, qzHost: e.target.value.trim() })}
-                        placeholder="192.168.1.133 hoặc localhost"
-                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono font-bold"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
-                    <label className="flex items-center space-x-2 text-[11px] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editForm.printerAutoCut}
-                        onChange={(e) => setEditForm({ ...editForm, printerAutoCut: e.target.checked })}
-                        className="w-3.5 h-3.5 rounded text-cyan-500"
-                      />
-                      <span className="text-slate-300">Tự cắt giấy (GS V 0)</span>
-                    </label>
-
-                    <label className="flex items-center space-x-2 text-[11px] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editForm.printerOpenDrawer}
-                        onChange={(e) => setEditForm({ ...editForm, printerOpenDrawer: e.target.checked })}
-                        className="w-3.5 h-3.5 rounded text-cyan-500"
-                      />
-                      <span className="text-slate-300">Tự mở két tiền (DLE DC4)</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* STORE INFO BLOCK */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Tên cửa hàng / Thương hiệu</label>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Tên cửa hàng *</label>
                   <input
                     type="text"
                     value={editForm.shopName}
                     onChange={(e) => setEditForm({ ...editForm, shopName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-black text-white focus:outline-none"
                     required
                   />
                 </div>

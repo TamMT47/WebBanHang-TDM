@@ -19,7 +19,6 @@ import PayrollView from '@/components/views/PayrollView';
 import TrainingView from '@/components/views/TrainingView';
 import SettingsView from '@/components/views/SettingsView';
 import PrinterSettingsView from '@/components/views/PrinterSettingsView';
-import PrintAgentWorker from '@/components/PrintAgentWorker';
 import WarrantyLookupModal from '@/components/WarrantyLookupModal';
 import { getSavedTheme, applyTheme } from '@/lib/themeHelper';
 
@@ -113,13 +112,6 @@ export default function HomePage() {
         {activeTab === 'users' && <UsersView currentUser={user} />}
         {activeTab === 'settings' && <SettingsView user={user} onNavigateTab={setActiveTab} />}
       </main>
-
-      {/* Global Background Print Agent Worker on MacBook (Runs silently when on other tabs) */}
-      {activeTab !== 'printer-settings' && (
-        <div className="hidden">
-          <PrintAgentWorker user={user} showQueueList={false} />
-        </div>
-      )}
 
       {/* Mobile Bottom Navigation Bar (5 Fixed Main Tabs) */}
       <BottomNav
