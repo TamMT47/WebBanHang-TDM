@@ -199,7 +199,7 @@ body {
   background: #475569;
 }
 
-/* Print styles for Receipts (KiotViet K80 Native Browser Print - Single Page Fixed) */
+/* Print styles for Receipts (KiotViet K80 Native Browser Print) */
 @media print {
   @page {
     size: 80mm auto;
@@ -226,14 +226,10 @@ body {
   }
   body * {
     visibility: hidden !important;
-    height: 0 !important;
-    overflow: hidden !important;
   }
   #invoice-print-area, #invoice-print-area *,
   #printable-receipt, #printable-receipt * {
     visibility: visible !important;
-    height: auto !important;
-    overflow: visible !important;
   }
   #invoice-print-area,
   #printable-receipt {
@@ -249,10 +245,10 @@ body {
     box-shadow: none !important;
     background: #ffffff !important;
     color: #000000 !important;
-    font-family: 'Courier New', Courier, monospace, sans-serif !important;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
     font-size: 12px !important;
-    line-height: 1.25 !important;
-    font-weight: 600 !important;
+    line-height: 1.3 !important;
+    font-weight: 500 !important;
     border: none !important;
   }
   .no-print {

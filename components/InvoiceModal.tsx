@@ -546,8 +546,8 @@ export default function InvoiceModal({
               id="invoice-print-area"
               className="w-full max-w-[360px] bg-white p-3.5 shadow-lg border border-black text-black text-xs rounded-xl"
               style={{
-                fontFamily: "'Courier New', Courier, monospace, sans-serif",
-                fontWeight: 600,
+                fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
+                fontWeight: 500,
                 color: '#000000'
               }}
             >
@@ -558,43 +558,45 @@ export default function InvoiceModal({
                     src={settings.shopLogoUrl}
                     alt="Logo"
                     className="max-h-12 object-contain"
-                    style={{ imageRendering: 'pixelated' }}
                   />
                 </div>
               )}
 
-              {/* Shop Header */}
-              <div className="text-center space-y-1 pb-2.5 border-b border-dashed border-black">
+              {/* 1. Header (Tên Shop & Tiêu đề Hóa đơn) */}
+              <div className="text-center space-y-1 pb-3 border-b border-dashed border-black">
                 <div className="font-black text-base uppercase text-black tracking-tight">{settings.shopName}</div>
-                <div className="text-[11px] text-black font-semibold">{settings.shopAddress}</div>
+                <div className="text-[11px] text-black font-medium leading-tight">{settings.shopAddress}</div>
                 <div className="text-[11px] font-bold text-black">
                   Hotline: {settings.shopHotline} {settings.warrantyHotline ? `• BH: ${settings.warrantyHotline}` : ''}
                 </div>
                 <div className="text-xs font-black text-black pt-1.5 uppercase tracking-wide">
                   {docType === 'warranty' ? 'PHIẾU BẢO HÀNH ĐIỆN TỬ' : 'HÓA ĐƠN BÁN HÀNG'}
                 </div>
-                <div className="text-[11px] font-semibold text-black">#{order.code} • {orderDate}</div>
+                <div className="text-[11px] font-medium text-black">#{order.code} • {orderDate}</div>
               </div>
 
-              {/* Customer & Cashier Info */}
-              <div className="py-2 border-b border-dashed border-black space-y-0.5 text-[11px]">
-                <div><b>Khách:</b> {order.partner_name || 'Khách lẻ'} ({order.partner_phone || '---'})</div>
+              {/* 2. Thông tin Khách hàng & Thu ngân */}
+              <div className="py-2.5 border-b border-dashed border-black space-y-0.5 text-[11px]">
+                <div><b>Khách hàng:</b> {order.partner_name || 'Khách lẻ'} ({order.partner_phone || '---'})</div>
+                {order.partner_address && (
+                  <div className="text-[10px] text-black"><b>Địa chỉ:</b> {order.partner_address}</div>
+                )}
                 <div><b>{docType === 'warranty' ? 'Kỹ thuật:' : 'Thu ngân:'}</b> {order.creator_name || 'Admin'}</div>
               </div>
 
-              {/* Items Table / List */}
-              <div className="py-2 border-b border-dashed border-black space-y-2">
-                <div className="flex justify-between font-bold text-[11px] pb-1 border-b border-black">
-                  <span>TÊN SẢN PHẨM / ĐƠN GIÁ</span>
-                  <span>T.TIỀN</span>
+              {/* 3. Bảng Danh sách Sản phẩm / IMEI */}
+              <div className="py-2.5 border-b border-dashed border-black space-y-2">
+                <div className="flex justify-between font-bold text-[11px] pb-1 border-b border-solid border-black uppercase">
+                  <span>Mặt Hàng</span>
+                  <span>Thành Tiền</span>
                 </div>
                 {order.items?.map((item, idx) => (
                   <div key={idx} className="space-y-0.5">
-                    <div className="font-black text-black flex justify-between">
-                      <span>{idx + 1}. {item.product_name || item.name}</span>
-                      <span className="font-bold">{formatVND(item.price)}</span>
+                    <div className="font-bold text-black flex justify-between items-start gap-2">
+                      <span className="leading-snug">{idx + 1}. {item.product_name || item.name}</span>
+                      <span className="font-bold whitespace-nowrap">{formatVND(item.price)}</span>
                     </div>
-                    <div className="text-[10px] text-black pl-3 font-semibold">
+                    <div className="text-[10px] text-black pl-3 leading-snug">
                       {[item.storage, item.color, item.condition].filter(Boolean).join(' | ')}
                       {settings.showImei && item.imei ? ` • IMEI: ${item.imei}` : ''}
                       {settings.showBatteryHealth && item.battery_health ? ` • Pin ${item.battery_health}%` : ''}
@@ -605,19 +607,19 @@ export default function InvoiceModal({
 
                 {order.trade_in_item && (
                   <div className="pt-1.5 border-t border-dashed border-black">
-                    <div className="font-bold text-black flex justify-between">
+                    <div className="font-bold text-black flex justify-between items-start gap-2">
                       <span>★ Thu cũ: {order.trade_in_item.name}</span>
-                      <span>-{formatVND(order.trade_in_item.value)}</span>
+                      <span className="whitespace-nowrap">-{formatVND(order.trade_in_item.value)}</span>
                     </div>
-                    <div className="text-[10px] text-black pl-3 font-semibold">
+                    <div className="text-[10px] text-black pl-3">
                       IMEI: {order.trade_in_item.imei || '---'}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Financial Calculation */}
-              <div className="py-2 border-b border-dashed border-black space-y-1 text-xs">
+              {/* 4. Phần Thanh toán (Tổng tiền, Giảm giá, Khách đưa) */}
+              <div className="py-2.5 border-b border-dashed border-black space-y-1 text-xs">
                 <div className="flex justify-between text-black">
                   <span>Tổng tiền hàng:</span>
                   <span className="font-bold">{formatVND(order.total_amount)}</span>
@@ -634,12 +636,12 @@ export default function InvoiceModal({
                     <span className="font-bold">-{formatVND(order.trade_in_value)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-black text-sm pt-1 border-t border-solid border-black">
+                <div className="flex justify-between font-black text-sm pt-1.5 border-t border-solid border-black">
                   <span>THANH TOÁN:</span>
                   <span className="text-base font-black">{formatVND(order.final_payment)}</span>
                 </div>
-                <div className="flex justify-between text-[11px] text-black">
-                  <span>Khách đưa:</span>
+                <div className="flex justify-between text-[11px] text-black pt-0.5">
+                  <span>Khách đưa ({order.payment_method || 'Tiền mặt'}):</span>
                   <span className="font-bold">{formatVND(order.paid_amount)}</span>
                 </div>
                 {changeReturned > 0 && (
@@ -656,34 +658,36 @@ export default function InvoiceModal({
                 )}
               </div>
 
-              {/* VietQR in K80 */}
-              <div className="py-2.5 text-center border-b border-dashed border-black space-y-1.5">
+              {/* 5. Mã QR Chuyển Khoản VietQR (Có đường kẻ trên và dưới) */}
+              <div className="py-2.5 border-b border-dashed border-black text-center space-y-1.5">
                 <div className="text-[10px] font-bold text-black uppercase">Quét mã QR Chuyển Khoản:</div>
                 <div className="w-28 h-28 mx-auto bg-white p-1 border border-solid border-black rounded-lg flex items-center justify-center">
                   <img
                     src={vietQrImgUrl}
                     alt="VietQR"
                     className="w-full h-full object-contain"
-                    style={{ imageRendering: 'pixelated' }}
                   />
                 </div>
-                <div className="text-[10px] text-black font-semibold">
-                  {settings.bankName} - STK: <b className="font-mono">{settings.bankAccount}</b>
+                <div className="text-[10px] text-black font-medium">
+                  {settings.bankName} - STK: <b className="font-bold">{settings.bankAccount}</b>
+                </div>
+                <div className="text-[10px] text-black font-bold uppercase">
+                  {settings.bankAccountHolder}
                 </div>
               </div>
 
-              {/* Warranty Policies & Footer */}
-              <div className="text-center pt-2 space-y-1 text-[10px] text-black">
+              {/* 6. Chính sách bảo hành & Lời cảm ơn (Có đường kẻ trên) */}
+              <div className="text-center pt-2.5 space-y-1.5 text-[10px] text-black">
                 {settings.showWarrantyTerms && (
-                  <div className="text-[9px] text-left border-b border-dashed border-black pb-1.5 space-y-0.5">
-                    <div className="font-bold text-black">Chính sách bảo hành:</div>
+                  <div className="text-[9px] text-left border-b border-dashed border-black pb-2 space-y-0.5">
+                    <div className="font-bold text-black uppercase">Chính sách bảo hành:</div>
                     {settings.warrantyPolicies?.map((p, pi) => (
-                      <div key={pi}>• {p}</div>
+                      <div key={pi} className="leading-snug">• {p}</div>
                     ))}
                   </div>
                 )}
                 <p className="font-bold text-black pt-1">{settings.footerNote}</p>
-                <p className="text-[9px] text-black">Quý khách vui lòng giữ hóa đơn để được phục vụ tốt nhất!</p>
+                <p className="text-[9px] text-black italic">Quý khách vui lòng giữ hóa đơn để được hỗ trợ tốt nhất!</p>
               </div>
             </div>
           )}
