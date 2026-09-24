@@ -107,7 +107,17 @@ export default function InvoiceModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, initialDocType, isEditSettingsOpen, onClose]);
 
-  if (!isOpen || !order) return null;
+  // Device detection
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const ua = navigator.userAgent || '';
+      const isTouchMac = navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
+      const isPhoneOrTablet = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || isTouchMac;
+      setIsMobile(isPhoneOrTablet);
+    }
+  }, []);
 
   const showToast = (text: string, isError = false) => {
     setPrintNotice({ text, isError });
@@ -115,8 +125,22 @@ export default function InvoiceModal({
   };
 
   /**
-   * Pure Silent Direct Print via Print Queue: Sends print job to MacBook Print Server
-   * Completely bypasses window.print() and blocks iOS AirPrint popup.
+   * 1. KiotViet Native Browser Print Dialog (For MacBook / Desktop)
+   * Opens standard browser print modal styled with 80mm @page @media print
+   */
+  const handleBrowserPrint = () => {
+    if (!order) return;
+    try {
+      window.print();
+    } catch (e) {
+      console.error('window.print error:', e);
+    }
+  };
+
+  /**
+   * 2. Pure Silent Direct Print via Print Queue (For Mobile iPhone/iPad/Android)
+   * Sends print job to MacBook Print Server table with status 'PENDING'
+   * Displays immediate toast notification.
    */
   const handleDirectLanPrint = async () => {
     if (!order) return;
@@ -137,6 +161,19 @@ export default function InvoiceModal({
       showToast('🔴 Lỗi gửi lệnh in tới máy chủ MacBook', true);
     } finally {
       setIsPrintingLan(false);
+    }
+  };
+
+  /**
+   * Primary Smart Print:
+   * - If on Mobile: Sends to MacBook Print Queue (status PENDING) & shows Toast
+   * - If on MacBook/Desktop: Opens Native Browser Print Dialog (KiotViet style)
+   */
+  const handleSmartPrint = () => {
+    if (isMobile) {
+      handleDirectLanPrint();
+    } else {
+      handleBrowserPrint();
     }
   };
 
@@ -197,6 +234,8 @@ export default function InvoiceModal({
     };
     reader.readAsDataURL(file);
   };
+
+  if (!isOpen || !order) return null;
 
   const orderDate = order.created_at
     ? new Date(order.created_at).toLocaleString('vi-VN')
@@ -316,11 +355,11 @@ export default function InvoiceModal({
               </button>
             </div>
 
-            {/* DIRECT SILENT LAN PRINT */}
+            {/* SMART PRINT BUTTON: Native Browser Print on Mac, Auto Print Queue on Mobile */}
             <button
-              onClick={handleDirectLanPrint}
+              onClick={handleSmartPrint}
               disabled={isPrintingLan}
-              title={`In trực tiếp qua máy in LAN (${settings.printerIp}:9100) - Không mở popup AirPrint`}
+              title={isMobile ? 'Gửi lệnh in tới máy chủ MacBook' : 'Mở hộp thoại in mặc định của trình duyệt (KiotViet style)'}
               className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-black transition badge-nowrap active:scale-95 disabled:opacity-50 ${
                 docType === 'warranty'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-glow-emerald'
@@ -334,6 +373,24 @@ export default function InvoiceModal({
               )}
               <span>{docType === 'warranty' ? 'In Phiếu Bảo Hành' : 'In Hóa Đơn'}</span>
             </button>
+
+            {/* Desktop Option: Direct Silent Queue Trigger */}
+            {!isMobile && (
+              <button
+                type="button"
+                onClick={handleDirectLanPrint}
+                disabled={isPrintingLan}
+                title="Gửi lệnh in ngầm tới QZ Tray Xprinter USB"
+                className="hidden sm:flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition badge-nowrap"
+              >
+                {isPrintingLan ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                )}
+                <span>In Ẩn QZ Tray</span>
+              </button>
+            )}
 
             <button
               onClick={onClose}

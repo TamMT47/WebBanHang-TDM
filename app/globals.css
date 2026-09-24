@@ -199,15 +199,22 @@ body {
   background: #475569;
 }
 
-/* Print styles for Receipts (A4 & K80) - Always Clean White */
+/* Print styles for Receipts (KiotViet K80 Standard & Browser Print Dialog) */
 @media print {
   @page {
-    size: auto;
-    margin: 6mm;
+    size: 80mm auto;
+    margin: 0;
   }
-  body {
-    background: white !important;
-    color: black !important;
+  html, body {
+    width: 80mm !important;
+    min-width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   body * {
     visibility: hidden;
@@ -219,14 +226,19 @@ body {
     position: absolute;
     left: 0;
     top: 0;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    min-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 4mm 3mm !important;
+    box-sizing: border-box !important;
     box-shadow: none !important;
     border: none !important;
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
   }
   .no-print {
     display: none !important;
