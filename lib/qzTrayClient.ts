@@ -2,7 +2,7 @@
 
 /**
  * QZ Tray Client Bridge for TD Mobile Store
- * Enables direct silent printing to Xprinter XP-A160H connected via USB to MacBook M2
+ * Enables direct silent printing to Xprinter USB Printer P connected via USB to MacBook Host
  */
 
 export interface QzClientResult {
@@ -119,6 +119,23 @@ export async function listQzPrinters(host = 'localhost'): Promise<string[]> {
       await connectQzTray(host);
     }
 
+    // Call find with Xprinter/USB filter first, or list all
+    try {
+      const specific = await qz.printers.find('Xprinter');
+      if (specific) {
+        const arr = Array.isArray(specific) ? specific : [specific];
+        if (arr.length > 0) return arr;
+      }
+    } catch (e) {}
+
+    try {
+      const usbFound = await qz.printers.find('USB');
+      if (usbFound) {
+        const arr = Array.isArray(usbFound) ? usbFound : [usbFound];
+        if (arr.length > 0) return arr;
+      }
+    } catch (e) {}
+
     const printers = await qz.printers.find();
     return Array.isArray(printers) ? printers : [printers];
   } catch (err: any) {
@@ -128,9 +145,9 @@ export async function listQzPrinters(host = 'localhost'): Promise<string[]> {
 }
 
 /**
- * Find matched Xprinter or specified printer
+ * Find matched Xprinter or specified printer (e.g. "Xprinter USB Printer P")
  */
-export async function findQzPrinter(targetName = 'XP-A160H', host = 'localhost'): Promise<string> {
+export async function findQzPrinter(targetName = 'Xprinter USB Printer P', host = 'localhost'): Promise<string> {
   const qz = await getQz();
   if (!qz) throw new Error('Thư viện QZ Tray không sẵn sàng');
 
@@ -139,12 +156,22 @@ export async function findQzPrinter(targetName = 'XP-A160H', host = 'localhost')
   }
 
   try {
-    // 1. Try finding exact/partial target name
+    // 1. Try finding exact target name (e.g. "Xprinter USB Printer P")
     const found = await qz.printers.find(targetName);
     if (found) return typeof found === 'string' ? found : found[0];
   } catch (e) {
-    // If exact name find fails, search list
+    // If exact name find fails, try finding "Xprinter" or "USB"
   }
+
+  try {
+    const foundXp = await qz.printers.find('Xprinter');
+    if (foundXp) return typeof foundXp === 'string' ? foundXp : foundXp[0];
+  } catch (e) {}
+
+  try {
+    const foundUsb = await qz.printers.find('USB');
+    if (foundUsb) return typeof foundUsb === 'string' ? foundUsb : foundUsb[0];
+  } catch (e) {}
 
   // 2. Search list for Xprinter or fallback
   const allPrinters = await qz.printers.find();
@@ -157,11 +184,12 @@ export async function findQzPrinter(targetName = 'XP-A160H', host = 'localhost')
   const clean = targetName.toLowerCase().trim();
   const match =
     list.find((p: string) => p.toLowerCase().includes(clean)) ||
+    list.find((p: string) => p.toLowerCase().includes('xprinter usb printer p')) ||
     list.find(
       (p: string) =>
-        p.toLowerCase().includes('xp-a160h') ||
         p.toLowerCase().includes('xprinter') ||
-        p.toLowerCase().includes('xp-q80bs') ||
+        p.toLowerCase().includes('xp-') ||
+        p.toLowerCase().includes('usb') ||
         p.toLowerCase().includes('pos') ||
         p.toLowerCase().includes('receipt')
     ) ||
@@ -175,7 +203,7 @@ export async function findQzPrinter(targetName = 'XP-A160H', host = 'localhost')
  */
 export async function printQzRaw(
   base64Data: string,
-  printerName = 'XP-A160H',
+  printerName = 'Xprinter USB Printer P',
   host = 'localhost'
 ): Promise<QzClientResult> {
   try {
@@ -185,7 +213,7 @@ export async function printQzRaw(
     if (!qz.websocket.isActive()) {
       const ok = await connectQzTray(host);
       if (!ok) {
-        throw new Error('Không thể kết nối QZ Tray Print Server trên MacBook M2 (Cổng 8182/8181).');
+        throw new Error(`Không thể kết nối QZ Tray Print Server trên MacBook Host (${host}:8182/8181).`);
       }
     }
 
@@ -234,14 +262,17 @@ export async function pingQzClient(host = 'localhost'): Promise<{ online: boolea
     if (!connected) {
       return {
         online: false,
-        message: '🔴 Không kết nối được QZ Tray. Hãy khởi chạy ứng dụng QZ Tray trên MacBook M2.',
+        message: `🔴 Không kết nối được QZ Tray tại ${host}. Hãy khởi chạy ứng dụng QZ Tray trên MacBook Host.`,
         printers: [],
       };
     }
 
     const printers = await listQzPrinters(host);
     const xprinter = printers.find(
-      (p) => p.toLowerCase().includes('xp-a160h') || p.toLowerCase().includes('xprinter')
+      (p) =>
+        p.toLowerCase().includes('xprinter usb printer p') ||
+        p.toLowerCase().includes('xprinter') ||
+        p.toLowerCase().includes('usb')
     );
 
     return {

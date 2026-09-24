@@ -16,7 +16,9 @@ import {
   MapPin,
   ShieldCheck,
   Sparkles,
-  Info
+  Info,
+  ChevronRight,
+  Laptop
 } from 'lucide-react';
 import {
   THEME_OPTIONS,
@@ -30,13 +32,13 @@ import {
   getInvoiceSettings,
   saveInvoiceSettings
 } from '@/lib/invoiceSettings';
-import PrinterConfigCard from '@/components/PrinterConfigCard';
 
 interface SettingsViewProps {
   user: any;
+  onNavigateTab?: (tab: string) => void;
 }
 
-export default function SettingsView({ user }: SettingsViewProps) {
+export default function SettingsView({ user, onNavigateTab }: SettingsViewProps) {
   const [currentTheme, setCurrentTheme] = useState<ThemeId>('navy');
   const [invoiceForm, setInvoiceForm] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
@@ -120,10 +122,22 @@ export default function SettingsView({ user }: SettingsViewProps) {
               Cài Đặt Hệ Thống & Giao Diện
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Tùy biến bộ màu sắc chủ đạo hệ thống và cấu hình mẫu in hóa đơn chuẩn chuyên nghiệp.
+              Tùy biến bộ màu sắc chủ đạo hệ thống và cấu hình thông tin cửa hàng trên mẫu in hóa đơn.
             </p>
           </div>
         </div>
+
+        {onNavigateTab && (
+          <button
+            type="button"
+            onClick={() => onNavigateTab('printer-settings')}
+            className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 text-cyan-300 border border-slate-800 hover:border-cyan-500/50 rounded-2xl text-xs font-bold transition flex items-center space-x-2 self-start sm:self-center shadow-sm"
+          >
+            <Printer className="w-4 h-4 text-cyan-400" />
+            <span>Mở Cài Đặt Máy In QZ Tray</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+          </button>
+        )}
       </div>
 
       {/* ======================================================= */}
@@ -448,13 +462,6 @@ export default function SettingsView({ user }: SettingsViewProps) {
           </div>
 
         </form>
-      </div>
-
-      {/* ======================================================= */}
-      {/* SECTION 3: LAN IP PRINTER MANAGER (XPRINTER XP-Q80BS) */}
-      {/* ======================================================= */}
-      <div className="space-y-4">
-        <PrinterConfigCard user={user} />
       </div>
 
     </div>

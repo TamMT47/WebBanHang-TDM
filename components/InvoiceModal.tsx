@@ -121,8 +121,7 @@ export default function InvoiceModal({
   const handleDirectLanPrint = async () => {
     if (!order) return;
     setIsPrintingLan(true);
-    const modeLabel = settings.printerConnectionMode === 'qz-tray' ? 'QZ Tray (MacBook M2)' : 'Print Server';
-    setPrintNotice({ text: `Đang gửi lệnh in tới Xprinter XP-A160H qua ${modeLabel}...` });
+    setPrintNotice({ text: `Đang gửi lệnh in tới Xprinter USB Printer P qua QZ Tray...` });
 
     try {
       const res = await printToLanPrinter(order, docType, {
@@ -130,9 +129,9 @@ export default function InvoiceModal({
       });
 
       if (res.success) {
-        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter XP-A160H thành công');
+        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter USB Printer P thành công');
       } else {
-        showToast(res.error || '🔴 Không kết nối được máy in qua Print Server / QZ Tray', true);
+        showToast(res.error || '🔴 Không kết nối được máy in qua QZ Tray Print Server', true);
       }
     } catch (err: any) {
       showToast('🔴 Lỗi gửi lệnh in tới máy in Xprinter', true);
@@ -147,11 +146,11 @@ export default function InvoiceModal({
   const handleTestLanConnection = async () => {
     setIsTestingLan(true);
     try {
-      const res = await testLanPrinter(editForm.printerIp, editForm.printerPort, editForm);
+      const res = await testLanPrinter(undefined, undefined, editForm);
       if (res.success) {
-        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter XP-A160H thành công');
+        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter USB Printer P thành công');
       } else {
-        showToast(res.error || '🔴 Lỗi gửi lệnh in tới Xprinter qua Print Server', true);
+        showToast(res.error || '🔴 Lỗi gửi lệnh in qua QZ Tray Print Server', true);
       }
     } catch (err: any) {
       showToast(err.message || '🔴 Lỗi kiểm tra kết nối Print Server', true);
@@ -246,11 +245,9 @@ export default function InvoiceModal({
               </h3>
               <div className="flex items-center space-x-1.5 text-[10px] text-slate-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>{settings.printerConnectionMode === 'tunnel' ? 'Cloudflare Tunnel:' : 'Máy in LAN:'}</span>
+                <span>QZ Tray:</span>
                 <span className="font-mono text-cyan-300 font-bold">
-                  {settings.printerConnectionMode === 'tunnel'
-                    ? (settings.printerTunnelUrl ? settings.printerTunnelUrl.replace('https://', '').split('.')[0] + '...' : 'Tunnel Active')
-                    : `${settings.printerIp || '192.168.1.133'}:9100`}
+                  {settings.qzPrinterName || 'Xprinter USB Printer P'} ({settings.qzHost || 'localhost'})
                 </span>
               </div>
             </div>
@@ -756,7 +753,7 @@ export default function InvoiceModal({
               <div className="px-5 py-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
                 <div className="flex items-center space-x-2">
                   <Settings className="w-4 h-4 text-cyan-400" />
-                  <h3 className="text-sm font-black uppercase">Cấu Hình Mẫu In & Máy In LAN</h3>
+                  <h3 className="text-sm font-black uppercase">Cấu Hình Mẫu In & Máy In QZ Tray</h3>
                 </div>
                 <button
                   type="button"
@@ -769,18 +766,18 @@ export default function InvoiceModal({
 
               <form onSubmit={handleSaveSettings} className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
                 
-                {/* LAN & CLOUDFLARE TUNNEL PRINTER SETTINGS BLOCK */}
+                {/* QZ TRAY PRINTER SETTINGS BLOCK */}
                 <div className="p-3.5 bg-slate-950 rounded-2xl border border-cyan-500/40 space-y-3 shadow-inner">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                     <span className="font-black text-cyan-300 flex items-center space-x-1.5">
-                      <Wifi className="w-4 h-4" />
-                      <span>Cấu Hình Máy In (Xprinter XP-Q80BS)</span>
+                      <Printer className="w-4 h-4" />
+                      <span>Máy Chủ MacBook (USB via QZ Tray)</span>
                     </span>
                     <button
                       type="button"
                       disabled={isTestingLan}
                       onClick={handleTestLanConnection}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] flex items-center space-x-1"
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] flex items-center space-x-1 shadow-glow-emerald"
                     >
                       {isTestingLan ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -791,66 +788,25 @@ export default function InvoiceModal({
                     </button>
                   </div>
 
-                  {/* Mode selector */}
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-bold">Phương thức kết nối:</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, printerConnectionMode: 'tunnel' })}
-                        className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition text-left ${
-                          editForm.printerConnectionMode === 'tunnel'
-                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
-                            : 'bg-slate-900 text-slate-400 border-slate-800'
-                        }`}
-                      >
-                        ⚡ Cloudflare Tunnel (Khuyên dùng)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, printerConnectionMode: 'lan' })}
-                        className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition text-left ${
-                          editForm.printerConnectionMode === 'lan'
-                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
-                            : 'bg-slate-900 text-slate-400 border-slate-800'
-                        }`}
-                      >
-                        📶 Trực tiếp IP LAN
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Cloudflare Tunnel URL */}
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-bold">Cloudflare Tunnel URL:</label>
-                    <input
-                      type="text"
-                      value={editForm.printerTunnelUrl}
-                      onChange={(e) => setEditForm({ ...editForm, printerTunnelUrl: e.target.value.trim() })}
-                      placeholder="https://cet-step-perfectly-joseph.trycloudflare.com"
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-cyan-300 font-mono text-[11px]"
-                    />
-                  </div>
-
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-400 mb-1 font-bold">IP Máy in LAN:</label>
+                      <label className="block text-slate-400 mb-1 font-bold">Tên Máy In Target:</label>
                       <input
                         type="text"
-                        value={editForm.printerIp}
-                        onChange={(e) => setEditForm({ ...editForm, printerIp: e.target.value.trim() })}
-                        placeholder="192.168.1.133"
+                        value={editForm.qzPrinterName || 'Xprinter USB Printer P'}
+                        onChange={(e) => setEditForm({ ...editForm, qzPrinterName: e.target.value })}
+                        placeholder="Xprinter USB Printer P"
                         className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-cyan-300 font-mono font-bold"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1 font-bold">Port:</label>
+                      <label className="block text-slate-400 mb-1 font-bold">Host IP MacBook:</label>
                       <input
-                        type="number"
-                        value={editForm.printerPort}
-                        onChange={(e) => setEditForm({ ...editForm, printerPort: parseInt(e.target.value, 10) || 9100 })}
-                        placeholder="9100"
+                        type="text"
+                        value={editForm.qzHost || 'localhost'}
+                        onChange={(e) => setEditForm({ ...editForm, qzHost: e.target.value.trim() })}
+                        placeholder="192.168.1.133 hoặc localhost"
                         className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono font-bold"
                         required
                       />

@@ -15,23 +15,25 @@ export interface InvoiceSettings {
   bankAccountHolder: string;
   warrantyPolicies: string[];
 
-  // Print Mode & Server Settings (QZ Tray / Tunnel / Direct LAN)
-  printerConnectionMode: 'qz-tray' | 'tunnel' | 'lan';
+  // Print Mode & Server Settings (Single unified QZ Tray USB Host on MacBook)
+  printerConnectionMode: 'qz-tray';
 
-  // QZ Tray Settings (Print Server on MacBook M2 via USB)
+  // QZ Tray Settings (Print Server on MacBook via USB Xprinter USB Printer P)
   qzHost: string;
   qzPort: number;
   qzSecure: boolean;
   qzPrinterName: string;
 
-  // Cloudflare Tunnel / LAN Socket Settings (Xprinter XP-A160H / XP-Q80BS)
-  printerTunnelUrl: string;
-  printerIp: string;
-  printerPort: number;
+  // ESC/POS Print Preferences
   printerPaperSize: 'k80' | 'k57' | 'a4';
   printerAutoCut: boolean;
   printerOpenDrawer: boolean;
   directPrintEnabled: boolean;
+
+  // Legacy fallback optional fields
+  printerTunnelUrl?: string;
+  printerIp?: string;
+  printerPort?: number;
 }
 
 export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
@@ -56,17 +58,13 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
     '4. Quý khách vui lòng xuất trình hóa đơn này hoặc cung cấp SĐT đã mua hàng khi cần hỗ trợ kỹ thuật / bảo hành.',
   ],
 
-  // QZ Tray Defaults (MacBook M2 USB Xprinter XP-A160H)
+  // QZ Tray Defaults (MacBook USB Xprinter USB Printer P)
   printerConnectionMode: 'qz-tray',
   qzHost: 'localhost',
   qzPort: 8182,
   qzSecure: true,
-  qzPrinterName: 'XP-A160H',
+  qzPrinterName: 'Xprinter USB Printer P',
 
-  // Fallback Tunnel & LAN Printer defaults
-  printerTunnelUrl: 'https://cet-step-perfectly-joseph.trycloudflare.com',
-  printerIp: '192.168.1.133',
-  printerPort: 9100,
   printerPaperSize: 'k80',
   printerAutoCut: true,
   printerOpenDrawer: true,
@@ -79,19 +77,27 @@ export function getInvoiceSettings(): InvoiceSettings {
   if (typeof window === 'undefined') return DEFAULT_INVOICE_SETTINGS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_INVOICE_SETTINGS;
+    if (!raw) {
+      // If no saved settings, detect if on mobile device / remote host
+      const hostname = window.location.hostname;
+      const initialHost = hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' ? hostname : 'localhost';
+      return {
+        ...DEFAULT_INVOICE_SETTINGS,
+        qzHost: initialHost,
+      };
+    }
     const parsed = JSON.parse(raw);
+    const hostname = window.location.hostname;
+    const detectedHost = parsed.qzHost || (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' ? hostname : 'localhost');
+    
     return {
       ...DEFAULT_INVOICE_SETTINGS,
       ...parsed,
-      printerConnectionMode: parsed.printerConnectionMode || 'qz-tray',
-      qzHost: parsed.qzHost || 'localhost',
+      printerConnectionMode: 'qz-tray',
+      qzHost: detectedHost,
       qzPort: parsed.qzPort || 8182,
       qzSecure: parsed.qzSecure !== undefined ? parsed.qzSecure : true,
-      qzPrinterName: parsed.qzPrinterName || 'XP-A160H',
-      printerTunnelUrl: parsed.printerTunnelUrl || DEFAULT_INVOICE_SETTINGS.printerTunnelUrl,
-      printerIp: parsed.printerIp || '192.168.1.133',
-      printerPort: parsed.printerPort || 9100,
+      qzPrinterName: parsed.qzPrinterName && parsed.qzPrinterName !== 'XP-A160H' ? parsed.qzPrinterName : 'Xprinter USB Printer P',
     };
   } catch (err) {
     console.error('Error reading invoice settings:', err);
@@ -103,7 +109,12 @@ export function saveInvoiceSettings(settings: Partial<InvoiceSettings>): Invoice
   if (typeof window === 'undefined') return DEFAULT_INVOICE_SETTINGS;
   try {
     const current = getInvoiceSettings();
-    const updated = { ...current, ...settings };
+    const updated: InvoiceSettings = {
+      ...current,
+      ...settings,
+      printerConnectionMode: 'qz-tray',
+      qzPrinterName: settings.qzPrinterName || current.qzPrinterName || 'Xprinter USB Printer P',
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     return updated;
   } catch (err) {

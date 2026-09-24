@@ -18,6 +18,7 @@ import AttendanceView from '@/components/views/AttendanceView';
 import PayrollView from '@/components/views/PayrollView';
 import TrainingView from '@/components/views/TrainingView';
 import SettingsView from '@/components/views/SettingsView';
+import PrinterSettingsView from '@/components/views/PrinterSettingsView';
 import WarrantyLookupModal from '@/components/WarrantyLookupModal';
 import { getSavedTheme, applyTheme } from '@/lib/themeHelper';
 
@@ -100,6 +101,7 @@ export default function HomePage() {
         {activeTab === 'payroll' && <PayrollView user={user} />}
         {activeTab === 'training' && <TrainingView user={user} />}
         {activeTab === 'import' && <ImportView user={user} />}
+        {activeTab === 'printer-settings' && <PrinterSettingsView user={user} />}
         {activeTab === 'utilities' && <UtilitiesView user={user} onNavigateTab={setActiveTab} />}
         {activeTab === 'orders' && <OrdersView user={user} initialSearch={ordersInitialSearch} />}
         {activeTab === 'partners' && (
@@ -108,7 +110,7 @@ export default function HomePage() {
         {activeTab === 'cash-flow' && <CashFlowView user={user} />}
         {activeTab === 'reports' && <ReportsView user={user} />}
         {activeTab === 'users' && <UsersView currentUser={user} />}
-        {activeTab === 'settings' && <SettingsView user={user} />}
+        {activeTab === 'settings' && <SettingsView user={user} onNavigateTab={setActiveTab} />}
       </main>
 
       {/* Mobile Bottom Navigation Bar (5 Fixed Main Tabs) */}

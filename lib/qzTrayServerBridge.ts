@@ -17,8 +17,8 @@ export interface QzBridgeResult {
 }
 
 /**
- * Server-Side WebSocket Bridge to QZ Tray running on MacBook M2
- * Directly communicates with QZ Tray daemon (ws://127.0.0.1:8181 / wss://127.0.0.1:8182)
+ * Server-Side WebSocket Bridge to QZ Tray running on MacBook Host
+ * Directly communicates with QZ Tray daemon (ws://host:8181 / wss://host:8182)
  */
 export class QzTrayServerBridge {
   private host: string;
@@ -60,7 +60,7 @@ export class QzTrayServerBridge {
         if (attemptIdx >= endpoints.length) {
           return reject(
             new Error(
-              `Không thể kết nối QZ Tray tại ${this.host}:${this.port}. Hãy đảm bảo ứng dụng QZ Tray đang chạy trên MacBook M2.`
+              `Không thể kết nối QZ Tray tại ${this.host}:${this.port}. Hãy đảm bảo ứng dụng QZ Tray đang chạy trên MacBook Host.`
             )
           );
         }
@@ -155,12 +155,26 @@ export class QzTrayServerBridge {
   }
 
   /**
-   * List all available printers recognized by QZ Tray on MacBook
+   * List all available printers recognized by QZ Tray on MacBook Host
    */
   public async listPrinters(): Promise<string[]> {
     let ws: WebSocket | null = null;
     try {
       ws = await this.connectSocket();
+      
+      // Try finding specific Xprinter/USB first
+      try {
+        const foundXp = await this.callRpc(ws, 'printers.find', ['Xprinter']);
+        if (Array.isArray(foundXp) && foundXp.length > 0) return foundXp;
+        if (typeof foundXp === 'string') return [foundXp];
+      } catch (e) {}
+
+      try {
+        const foundUsb = await this.callRpc(ws, 'printers.find', ['USB']);
+        if (Array.isArray(foundUsb) && foundUsb.length > 0) return foundUsb;
+        if (typeof foundUsb === 'string') return [foundUsb];
+      } catch (e) {}
+
       const result = await this.callRpc(ws, 'printers.find', []);
       if (Array.isArray(result)) return result;
       if (typeof result === 'string') return [result];
@@ -178,9 +192,9 @@ export class QzTrayServerBridge {
   }
 
   /**
-   * Find specific printer (e.g. XP-A160H, Xprinter, or default)
+   * Find specific printer (e.g. "Xprinter USB Printer P", Xprinter, or default)
    */
-  public async findPrinter(targetQuery = 'XP-A160H'): Promise<string> {
+  public async findPrinter(targetQuery = 'Xprinter USB Printer P'): Promise<string> {
     const list = await this.listPrinters();
     if (list.length === 0) {
       throw new Error('QZ Tray không tìm thấy máy in nào được cài đặt trên MacBook.');
@@ -192,11 +206,16 @@ export class QzTrayServerBridge {
     const match = list.find((p) => p.toLowerCase().includes(cleanQuery));
     if (match) return match;
 
-    // 2. Generic Xprinter match
+    // 2. Exact "Xprinter USB Printer P"
+    const exactXp = list.find((p) => p.toLowerCase().includes('xprinter usb printer p'));
+    if (exactXp) return exactXp;
+
+    // 3. Generic Xprinter match
     const xprinterMatch = list.find(
       (p) =>
         p.toLowerCase().includes('xprinter') ||
         p.toLowerCase().includes('xp-') ||
+        p.toLowerCase().includes('usb') ||
         p.toLowerCase().includes('pos') ||
         p.toLowerCase().includes('receipt') ||
         p.toLowerCase().includes('thermal') ||
@@ -204,7 +223,7 @@ export class QzTrayServerBridge {
     );
     if (xprinterMatch) return xprinterMatch;
 
-    // 3. Fallback to first available printer
+    // 4. Fallback to first available printer
     return list[0];
   }
 
@@ -213,7 +232,7 @@ export class QzTrayServerBridge {
    */
   public async printRaw(
     base64Data: string,
-    targetPrinter = 'XP-A160H'
+    targetPrinter = 'Xprinter USB Printer P'
   ): Promise<QzBridgeResult> {
     let ws: WebSocket | null = null;
     try {
@@ -231,12 +250,14 @@ export class QzTrayServerBridge {
 
         if (list.length > 0) {
           const match =
+            list.find((p) => p.toLowerCase() === targetPrinter.toLowerCase()) ||
             list.find((p) => p.toLowerCase().includes(targetPrinter.toLowerCase())) ||
+            list.find((p) => p.toLowerCase().includes('xprinter usb printer p')) ||
             list.find(
               (p) =>
                 p.toLowerCase().includes('xprinter') ||
-                p.toLowerCase().includes('xp-a160h') ||
-                p.toLowerCase().includes('xp-q80bs') ||
+                p.toLowerCase().includes('xp-') ||
+                p.toLowerCase().includes('usb') ||
                 p.toLowerCase().includes('pos')
             ) ||
             list[0];
@@ -295,14 +316,17 @@ export class QzTrayServerBridge {
       const printers = await this.listPrinters();
       const latencyMs = Date.now() - start;
       const xprinter = printers.find(
-        (p) => p.toLowerCase().includes('xp-a160h') || p.toLowerCase().includes('xprinter')
+        (p) =>
+          p.toLowerCase().includes('xprinter usb printer p') ||
+          p.toLowerCase().includes('xprinter') ||
+          p.toLowerCase().includes('usb')
       );
 
       return {
         online: true,
         message: xprinter
-          ? `🟢 QZ Tray sẵn sàng trên MacBook M2 (Đã nhận diện: ${xprinter})`
-          : `🟢 QZ Tray sẵn sàng trên MacBook M2 (${printers.length} máy in)`,
+          ? `🟢 QZ Tray sẵn sàng trên MacBook Host (Đã nhận diện: ${xprinter})`
+          : `🟢 QZ Tray sẵn sàng trên MacBook Host (${printers.length} máy in)`,
         printers,
         latencyMs,
       };

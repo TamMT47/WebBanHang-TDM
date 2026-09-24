@@ -137,21 +137,16 @@ export function generateTestReceiptEscpos(settings: InvoiceSettings): Buffer {
   // Title
   parts.push(CMD.BOLD_ON);
   parts.push('*** IN KIEM TRA KET NOI MAY IN ***\n');
-  parts.push('MAY IN NHIET XPRINTER XP-A160H (K80)\n');
-  parts.push('PRINT SERVER: QZ TRAY (MACBOOK M2 USB)\n');
+  parts.push('MAY IN NHIET XPRINTER USB (K80)\n');
+  parts.push('PRINT SERVER: QZ TRAY (MACBOOK HOST USB)\n');
   parts.push(CMD.BOLD_OFF);
   parts.push(divider + '\n');
 
   // Info
   parts.push(CMD.ALIGN_LEFT);
-  const modeLabel =
-    settings.printerConnectionMode === 'qz-tray'
-      ? `QZ Tray (${settings.qzHost}:${settings.qzPort})`
-      : settings.printerConnectionMode === 'tunnel'
-      ? 'Cloudflare Tunnel'
-      : `${settings.printerIp}:${settings.printerPort}`;
+  const modeLabel = `QZ Tray (${settings.qzHost || 'localhost'}:${settings.qzPort || 8182})`;
   parts.push(formatTwoColumns('Che do in:', modeLabel, maxCols) + '\n');
-  parts.push(formatTwoColumns('May in muc tieu:', settings.qzPrinterName || 'XP-A160H', maxCols) + '\n');
+  parts.push(formatTwoColumns('May in muc tieu:', settings.qzPrinterName || 'Xprinter USB Printer P', maxCols) + '\n');
   parts.push(formatTwoColumns('Kho giay in:', `${(settings.printerPaperSize || 'K80').toUpperCase()} (${maxCols} cot)`, maxCols) + '\n');
   parts.push(formatTwoColumns('Ngay gio test:', new Date().toLocaleString('vi-VN'), maxCols) + '\n');
   parts.push(formatTwoColumns('Trang thai ket noi:', 'HOAN HAO (OK)', maxCols) + '\n');

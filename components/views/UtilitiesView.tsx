@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import { UserRole } from '@/types/database';
 import { exportCustomersToCSV } from '@/lib/exportHelper';
-import PrinterConfigCard from '@/components/PrinterConfigCard';
 
 interface UtilitiesViewProps {
   user: any;
@@ -42,7 +41,6 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
 
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
-  const [showPrinterCard, setShowPrinterCard] = useState(true);
 
   const handleDirectExportCustomers = async () => {
     try {
@@ -66,6 +64,28 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
   };
 
   const utilitySections = [
+    {
+      title: 'Quản Lý Máy In & Mẫu Hóa Đơn',
+      description: 'Cấu hình máy in QZ Tray trên máy chủ MacBook và mẫu in hóa đơn',
+      items: [
+        {
+          id: 'printer-settings',
+          label: 'Cài Đặt Máy In (QZ Tray Print Server)',
+          desc: 'Kết nối máy chủ MacBook USB, nhận diện máy in Xprinter USB Printer P & in ẩn 100%',
+          icon: Printer,
+          color: 'bg-gradient-to-tr from-cyan-600 to-blue-600 text-white shadow-glow-cyan',
+          tag: 'MacBook USB',
+        },
+        {
+          id: 'settings',
+          label: 'Tùy Biến Giao Diện & Mẫu In',
+          desc: 'Đổi 6 tông màu hệ thống & cấu hình thông tin cửa hàng trên hóa đơn K80/A4',
+          icon: Sparkles,
+          color: 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-glow-cyan',
+          tag: 'Theme & Mẫu In',
+        },
+      ],
+    },
     {
       title: 'Đào Tạo Nhân Viên & Học Việc (Onboarding)',
       description: 'Quy định tác phong, nghiệp vụ kỹ thuật POS & chương trình khuyến mãi tháng',
@@ -165,20 +185,6 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
         },
       ],
     },
-    {
-      title: 'Tùy Biến Giao Diện & Mẫu In',
-      description: 'Chuyển đổi 6 tông màu hệ thống và cấu hình mẫu in hóa đơn',
-      items: [
-        {
-          id: 'settings',
-          label: 'Cài Đặt Giao Diện & Mẫu In',
-          desc: 'Đổi 6 tông màu hệ thống (Navy, Teal, Gray, Crimson, Amber, Emerald) & mẫu in K80/A4',
-          icon: Sparkles,
-          color: 'bg-gradient-to-tr from-cyan-600 to-blue-600 text-white shadow-glow-cyan',
-          tag: 'Theme & In',
-        },
-      ],
-    },
     ...(isAdminOrOwner
       ? [
           {
@@ -223,7 +229,7 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
             </h2>
             {!isStaff && (
               <p className="text-xs text-slate-400 mt-0.5">
-                Tổng hợp các chức năng quản lý nâng cao, cấu hình máy in LAN IP & xuất dữ liệu TD MOBILE STORE.
+                Tổng hợp các chức năng quản lý nâng cao, cài đặt máy in QZ Tray & xuất dữ liệu TD MOBILE STORE.
               </p>
             )}
           </div>
@@ -233,27 +239,6 @@ export default function UtilitiesView({ user, onNavigateTab }: UtilitiesViewProp
           <span className="font-bold text-white badge-nowrap">{user?.full_name}</span>
         </div>
       </div>
-
-      {/* ======================================================= */}
-      {/* SPECIAL SECTION: LAN IP PRINTER MANAGER (XPRINTER XP-Q80BS) */}
-      {/* ======================================================= */}
-      {isManagerOrAbove && (
-        <div className="space-y-3">
-          <div className="px-1 flex items-center justify-between">
-            <div>
-              <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center space-x-2">
-                <Printer className="w-4 h-4 text-cyan-400" />
-                <span>Cấu Hình Máy In Hóa Đơn LAN / Wifi (Xprinter XP-Q80BS)</span>
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                In hóa đơn trực tiếp qua IP mạng nội bộ 192.168.1.133:9100 từ Máy tính / iPhone / iPad / Android
-              </p>
-            </div>
-          </div>
-
-          <PrinterConfigCard user={user} />
-        </div>
-      )}
 
       {/* Sections */}
       {utilitySections.map((sec, idx) => (

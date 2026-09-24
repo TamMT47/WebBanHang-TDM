@@ -18,7 +18,8 @@ import {
   Sparkles,
   Sun,
   Moon,
-  GraduationCap
+  GraduationCap,
+  Printer
 } from 'lucide-react';
 import { UserRole } from '@/types/database';
 import { getSavedColorMode, applyColorMode, ColorMode } from '@/lib/themeHelper';
@@ -83,6 +84,7 @@ export default function Navbar({
     { id: 'cash-flow', label: 'Sổ Quỹ', icon: DollarSign, roles: ['admin', 'owner', 'manager'] },
     { id: 'reports', label: 'Báo Cáo', icon: BarChart3, roles: ['admin', 'owner', 'manager'] },
     { id: 'users', label: 'Tài Khoản', icon: UserCheck, roles: ['admin', 'owner'] },
+    { id: 'printer-settings', label: 'Máy In', icon: Printer, roles: ['admin', 'owner', 'manager', 'staff'] },
     { id: 'settings', label: 'Cài Đặt', icon: Sparkles, roles: ['admin', 'owner', 'manager', 'staff'] },
   ];
 

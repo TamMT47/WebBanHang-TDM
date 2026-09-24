@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Printer,
-  Wifi,
-  Cloud,
   CheckCircle2,
   AlertCircle,
   Save,
@@ -16,14 +14,14 @@ import {
   DollarSign,
   Zap,
   Activity,
-  Globe,
-  Radio,
   Sparkles,
-  HelpCircle,
-  Check,
   Laptop,
   Search,
-  Usb
+  Usb,
+  Wifi,
+  Radio,
+  Check,
+  Info
 } from 'lucide-react';
 import {
   InvoiceSettings,
@@ -32,6 +30,7 @@ import {
   saveInvoiceSettings
 } from '@/lib/invoiceSettings';
 import { testLanPrinter, pingPrinterStatus, PrinterPingResult } from '@/lib/printerHelper';
+import { listQzPrinters, findQzPrinter } from '@/lib/qzTrayClient';
 
 interface PrinterConfigCardProps {
   user?: any;
@@ -54,9 +53,27 @@ export default function PrinterConfigCard({
   const [pingResult, setPingResult] = useState<PrinterPingResult | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; printer?: string } | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [detectedHost, setDetectedHost] = useState<string>('localhost');
 
   useEffect(() => {
     const current = getInvoiceSettings();
+    
+    // Auto-detect LAN IP of host when running in browser
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        setDetectedHost(hostname);
+        if (!current.qzHost || current.qzHost === 'localhost' || current.qzHost === '127.0.0.1') {
+          current.qzHost = hostname;
+        }
+      }
+    }
+
+    // Default printer name to "Xprinter USB Printer P"
+    if (!current.qzPrinterName || current.qzPrinterName === 'XP-A160H') {
+      current.qzPrinterName = 'Xprinter USB Printer P';
+    }
+
     setForm(current);
   }, []);
 
@@ -82,29 +99,55 @@ export default function PrinterConfigCard({
   const handleScanPrinters = async () => {
     setScanningPrinters(true);
     try {
-      const res = await fetch(
-        `/api/print?mode=qz-tray&qzHost=${encodeURIComponent(form.qzHost || '127.0.0.1')}&qzPort=${form.qzPort || 8182}&qzSecure=${form.qzSecure ?? true}`,
-        { cache: 'no-store' }
-      );
-      const data = await res.json();
-      if (data.printers && data.printers.length > 0) {
-        setAvailablePrinters(data.printers);
-        // Auto-select XP-A160H if found
-        const matched = data.printers.find(
-          (p: string) => p.toLowerCase().includes('xp-a160h') || p.toLowerCase().includes('xprinter')
+      let foundList: string[] = [];
+
+      // 1. First try client-side QZ Tray connection
+      try {
+        const clientList = await listQzPrinters(form.qzHost || 'localhost');
+        if (clientList && clientList.length > 0) {
+          foundList = clientList;
+        }
+      } catch (clientErr) {
+        console.warn('Client QZ Tray scan notice:', clientErr);
+      }
+
+      // 2. Fallback to server API scan if client list empty
+      if (foundList.length === 0) {
+        const res = await fetch(
+          `/api/print?mode=qz-tray&qzHost=${encodeURIComponent(form.qzHost || '127.0.0.1')}&qzPort=${form.qzPort || 8182}&qzSecure=${form.qzSecure ?? true}`,
+          { cache: 'no-store' }
         );
+        const data = await res.json();
+        if (data.printers && data.printers.length > 0) {
+          foundList = data.printers;
+        }
+      }
+
+      if (foundList.length > 0) {
+        setAvailablePrinters(foundList);
+
+        // Auto-match exact "Xprinter USB Printer P" or any Xprinter / USB printer
+        const matched =
+          foundList.find((p: string) => p.toLowerCase() === 'xprinter usb printer p') ||
+          foundList.find((p: string) => p.toLowerCase().includes('xprinter usb printer p')) ||
+          foundList.find((p: string) => p.toLowerCase().includes('xprinter')) ||
+          foundList.find((p: string) => p.toLowerCase().includes('usb')) ||
+          foundList[0];
+
         if (matched) {
           setForm((prev) => ({ ...prev, qzPrinterName: matched }));
+          setSaveNotice(`🟢 Đã tự động nhận diện máy in thực tế: "${matched}"`);
+        } else {
+          setSaveNotice(`Tìm thấy ${foundList.length} máy in từ QZ Tray MacBook!`);
         }
-        setSaveNotice(`Tìm thấy ${data.printers.length} máy in từ QZ Tray MacBook!`);
-        setTimeout(() => setSaveNotice(null), 3500);
+        setTimeout(() => setSaveNotice(null), 4500);
       } else {
-        setSaveNotice('QZ Tray đã kết nối nhưng chưa thấy máy in nào.');
-        setTimeout(() => setSaveNotice(null), 3500);
+        setSaveNotice('⚠️ QZ Tray đã kết nối nhưng chưa thấy máy in nào. Vui lòng cắm cáp USB và bật nguồn máy in.');
+        setTimeout(() => setSaveNotice(null), 4500);
       }
     } catch (err: any) {
-      setSaveNotice(`Lỗi quét máy in: ${err.message}`);
-      setTimeout(() => setSaveNotice(null), 3500);
+      setSaveNotice(`🔴 Lỗi quét máy in: ${err.message}`);
+      setTimeout(() => setSaveNotice(null), 4000);
     } finally {
       setScanningPrinters(false);
     }
@@ -114,9 +157,9 @@ export default function PrinterConfigCard({
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await testLanPrinter(form.printerIp, form.printerPort, form);
+      const res = await testLanPrinter(undefined, undefined, form);
       if (res.success) {
-        const msg = res.message || '🟢 Đã gửi lệnh in thành công qua QZ Tray (XP-A160H)';
+        const msg = res.message || `🟢 Đã gửi lệnh in thành công qua QZ Tray (${form.qzPrinterName || 'Xprinter USB Printer P'})`;
         setTestResult({
           success: true,
           message: msg,
@@ -127,7 +170,7 @@ export default function PrinterConfigCard({
       } else {
         setTestResult({
           success: false,
-          message: res.error || '🔴 Lỗi gửi lệnh in tới máy in Xprinter',
+          message: res.error || '🔴 Lỗi gửi lệnh in tới máy in Xprinter USB',
         });
       }
     } catch (err: any) {
@@ -145,7 +188,7 @@ export default function PrinterConfigCard({
     const updated = saveInvoiceSettings(form);
     setForm(updated);
 
-    // If Admin/Owner, sync settings to Database
+    // Sync settings to DB for store persistence if Admin/Owner
     if (user && ['admin', 'owner'].includes(user.role)) {
       try {
         await Promise.all([
@@ -154,8 +197,8 @@ export default function PrinterConfigCard({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               key: 'printer_connection_mode',
-              value: form.printerConnectionMode,
-              description: 'Phương thức in (qz-tray / tunnel / lan)',
+              value: 'qz-tray',
+              description: 'Phương thức in (Máy Chủ MacBook USB Print Server via QZ Tray)',
             }),
           }),
           fetch('/api/settings', {
@@ -163,8 +206,8 @@ export default function PrinterConfigCard({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               key: 'qz_printer_name',
-              value: form.qzPrinterName,
-              description: 'Tên máy in QZ Tray USB Xprinter XP-A160H',
+              value: form.qzPrinterName || 'Xprinter USB Printer P',
+              description: 'Tên máy in QZ Tray USB Xprinter USB Printer P',
             }),
           }),
           fetch('/api/settings', {
@@ -173,7 +216,7 @@ export default function PrinterConfigCard({
             body: JSON.stringify({
               key: 'qz_host',
               value: form.qzHost,
-              description: 'Host máy chủ QZ Tray (MacBook M2)',
+              description: 'Host máy chủ QZ Tray (MacBook Host IP)',
             }),
           }),
         ]);
@@ -182,7 +225,7 @@ export default function PrinterConfigCard({
       }
     }
 
-    setSaveNotice('Đã lưu cấu hình máy in QZ Tray & ESC/POS thành công!');
+    setSaveNotice('Đã lưu cấu hình máy in QZ Tray thành công!');
     setTimeout(() => setSaveNotice(null), 3500);
 
     if (onSaved) {
@@ -193,10 +236,14 @@ export default function PrinterConfigCard({
   const handleReset = () => {
     if (
       confirm(
-        'Khôi phục cấu hình máy in về thiết lập mặc định (QZ Tray Print Server trên MacBook M2 USB XP-A160H)?'
+        'Khôi phục cấu hình máy in về thiết lập mặc định (Máy Chủ MacBook USB via QZ Tray - Xprinter USB Printer P)?'
       )
     ) {
-      const reset = saveInvoiceSettings(DEFAULT_INVOICE_SETTINGS);
+      const reset = saveInvoiceSettings({
+        ...DEFAULT_INVOICE_SETTINGS,
+        qzPrinterName: 'Xprinter USB Printer P',
+        qzHost: detectedHost || 'localhost',
+      });
       setForm(reset);
       setTestResult(null);
       setPingResult(null);
@@ -211,7 +258,7 @@ export default function PrinterConfigCard({
     >
       {/* Toast Alert */}
       {saveNotice && (
-        <div className="bg-emerald-500 text-slate-950 px-4 py-2.5 font-black text-xs flex items-center justify-between animate-in slide-in-from-top border-b border-emerald-400">
+        <div className="bg-emerald-500 text-slate-950 px-4 py-2.5 font-black text-xs flex items-center justify-between animate-in slide-in-from-top border-b border-emerald-400 shadow-glow-emerald">
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 text-slate-950" />
             <span>{saveNotice}</span>
@@ -228,14 +275,14 @@ export default function PrinterConfigCard({
           <div>
             <div className="flex items-center space-x-2">
               <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
-                Máy In Hóa Đơn Web POS (QZ Tray & Xprinter XP-A160H)
+                Cấu Hình Máy In Hóa Đơn (QZ Tray USB Print Server)
               </h3>
               <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px] font-black rounded-lg badge-nowrap">
                 ESC/POS K80
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Print Server QZ Tray trên MacBook M2 kết nối USB với máy in Xprinter XP-A160H, hỗ trợ in ẩn 100% không qua AirPrint.
+              Print Server QZ Tray trên MacBook kết nối USB với máy in Xprinter, in hóa đơn ẩn 100% không qua AirPrint.
             </p>
           </div>
         </div>
@@ -260,7 +307,7 @@ export default function PrinterConfigCard({
           ) : (
             <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
               <Usb className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="font-mono text-cyan-300">{form.qzPrinterName || 'XP-A160H'}</span>
+              <span className="font-mono text-cyan-300 font-bold">{form.qzPrinterName || 'Xprinter USB Printer P'}</span>
             </div>
           )}
 
@@ -285,272 +332,186 @@ export default function PrinterConfigCard({
       <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-5">
         
         {/* ========================================================= */}
-        {/* 1. CONNECTION MODE SELECTION */}
+        {/* 1. SINGLE UNIFIED PRINT METHOD (STREAMLINED) */}
         {/* ========================================================= */}
         <div className="space-y-2">
           <label className="block text-xs font-bold text-slate-200 uppercase tracking-wide">
-            1. Phương Thức Kết Nối Máy In:
+            1. Phương Thức In Duy Nhất Của Hệ Thống:
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            
-            {/* Mode: QZ Tray Print Server (Recommended for MacBook M2) */}
-            <div
-              onClick={() => setForm({ ...form, printerConnectionMode: 'qz-tray' })}
-              className={`p-3.5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden ${
-                form.printerConnectionMode === 'qz-tray'
-                  ? 'bg-cyan-950/40 border-cyan-500/70 shadow-glow-cyan ring-1 ring-cyan-500/30'
-                  : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className={`p-2 rounded-xl ${form.printerConnectionMode === 'qz-tray' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
-                    <Laptop className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-black text-white flex items-center space-x-1.5">
-                      <span>QZ Tray (MacBook M2)</span>
-                      <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-extrabold rounded-md">
-                        Khuyên Dùng
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Kết nối WebSocket bảo mật với QZ Tray trên MacBook M2, in trực tiếp qua cổng USB máy in XP-A160H.
-                    </p>
-                  </div>
+          
+          <div className="p-4 rounded-2xl border bg-cyan-950/40 border-cyan-500/70 shadow-glow-cyan ring-1 ring-cyan-500/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start space-x-3">
+                <div className="p-2.5 rounded-xl bg-cyan-500 text-slate-950 shadow-md">
+                  <Laptop className="w-5 h-5" />
                 </div>
+                <div>
+                  <div className="text-xs font-black text-white flex items-center space-x-2">
+                    <span>Máy Chủ MacBook (USB Print Server via QZ Tray)</span>
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-extrabold rounded-md uppercase">
+                      Phương Thức Chuẩn
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                    Kết nối WebSocket bảo mật với QZ Tray daemon chạy trên máy chủ MacBook, đẩy trực tiếp lệnh ESC/POS qua cổng USB máy in Xprinter tốc độ siêu tốc và bỏ qua hoàn toàn hộp thoại AirPrint trên iPhone/iPad.
+                  </p>
+                </div>
+              </div>
 
-                {form.printerConnectionMode === 'qz-tray' && (
-                  <Check className="w-4 h-4 text-cyan-400 stroke-[3] mt-1" />
-                )}
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-cyan-400 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-cyan-500/30 self-start sm:self-center">
+                <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                <span>Đang Áp Dụng</span>
               </div>
             </div>
-
-            {/* Mode: Cloudflare Tunnel */}
-            <div
-              onClick={() => setForm({ ...form, printerConnectionMode: 'tunnel' })}
-              className={`p-3.5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden ${
-                form.printerConnectionMode === 'tunnel'
-                  ? 'bg-cyan-950/40 border-cyan-500/70 shadow-glow-cyan ring-1 ring-cyan-500/30'
-                  : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className={`p-2 rounded-xl ${form.printerConnectionMode === 'tunnel' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
-                    <Cloud className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-black text-white">
-                      Cloudflare Tunnel
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Đẩy lệnh qua Tunnel HTTPS an toàn khi in từ xa ngoài shop
-                    </p>
-                  </div>
-                </div>
-
-                {form.printerConnectionMode === 'tunnel' && (
-                  <Check className="w-4 h-4 text-cyan-400 stroke-[3] mt-1" />
-                )}
-              </div>
-            </div>
-
-            {/* Mode: Direct LAN IP */}
-            <div
-              onClick={() => setForm({ ...form, printerConnectionMode: 'lan' })}
-              className={`p-3.5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden ${
-                form.printerConnectionMode === 'lan'
-                  ? 'bg-cyan-950/40 border-cyan-500/70 shadow-glow-cyan ring-1 ring-cyan-500/30'
-                  : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className={`p-2 rounded-xl ${form.printerConnectionMode === 'lan' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
-                    <Wifi className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-black text-white">
-                      IP LAN / Wi-Fi (9100)
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Kết nối RAW Socket 9100 qua dải IP mạng LAN nội bộ
-                    </p>
-                  </div>
-                </div>
-
-                {form.printerConnectionMode === 'lan' && (
-                  <Check className="w-4 h-4 text-cyan-400 stroke-[3] mt-1" />
-                )}
-              </div>
-            </div>
-
           </div>
         </div>
 
         {/* ========================================================= */}
-        {/* 2. CONFIGURATION FIELDS BASED ON MODE */}
+        {/* 2. CONFIGURATION FIELDS (QZ TRAY HOST & PRINTER DETECTION) */}
         {/* ========================================================= */}
-        {form.printerConnectionMode === 'qz-tray' ? (
-          <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <div className="flex items-center space-x-2 text-xs font-bold text-white uppercase tracking-wide">
-                <Usb className="w-4 h-4 text-cyan-400" />
-                <span>Cấu Hình QZ Tray Print Server (MacBook M2):</span>
-              </div>
-              <button
-                type="button"
-                disabled={scanningPrinters}
-                onClick={handleScanPrinters}
-                className="px-3 py-1 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 disabled:opacity-50"
-              >
-                {scanningPrinters ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Search className="w-3.5 h-3.5" />
-                )}
-                <span>Quét Tìm Máy In USB</span>
-              </button>
+        <div className="p-4 sm:p-5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div className="flex items-center space-x-2 text-xs font-bold text-white uppercase tracking-wide">
+              <Usb className="w-4 h-4 text-cyan-400" />
+              <span>Thiết Lập Máy In & Máy Chủ MacBook:</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              {/* Target Printer Name */}
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Tên Máy In USB (Xprinter) *
-                </label>
-                {availablePrinters.length > 0 ? (
-                  <div className="flex space-x-2">
-                    <select
-                      value={form.qzPrinterName || 'XP-A160H'}
-                      onChange={(e) => setForm({ ...form, qzPrinterName: e.target.value })}
-                      className="flex-1 px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 cursor-pointer shadow-inner"
-                    >
-                      {availablePrinters.map((p) => (
-                        <option key={p} value={p}>
-                          🖨️ {p}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={form.qzPrinterName}
-                      onChange={(e) => setForm({ ...form, qzPrinterName: e.target.value })}
-                      placeholder="Hoặc nhập tên..."
-                      className="w-32 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                ) : (
+            <button
+              type="button"
+              disabled={scanningPrinters}
+              onClick={handleScanPrinters}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 disabled:opacity-50 shadow-glow-cyan"
+            >
+              {scanningPrinters ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Search className="w-3.5 h-3.5 text-cyan-400" />
+              )}
+              <span>[Quét Tìm Máy In USB Tự Động]</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+            
+            {/* Target Printer Name */}
+            <div className="sm:col-span-7 space-y-1.5">
+              <label className="block text-xs font-bold text-slate-300">
+                Tên Máy In Nhận Trên macOS (Target Printer Name) *
+              </label>
+              
+              {availablePrinters.length > 0 ? (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={form.qzPrinterName || 'Xprinter USB Printer P'}
+                    onChange={(e) => setForm({ ...form, qzPrinterName: e.target.value })}
+                    className="flex-1 px-3.5 py-2.5 bg-slate-900 border border-cyan-500/50 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-400 cursor-pointer shadow-inner"
+                  >
+                    {availablePrinters.map((p) => (
+                      <option key={p} value={p}>
+                        🖨️ {p}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="text"
-                    value={form.qzPrinterName || 'XP-A160H'}
+                    value={form.qzPrinterName}
                     onChange={(e) => setForm({ ...form, qzPrinterName: e.target.value })}
-                    placeholder="VD: XP-A160H hoặc Xprinter"
+                    placeholder="Nhập tên khác..."
+                    className="w-full sm:w-44 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={form.qzPrinterName || 'Xprinter USB Printer P'}
+                    onChange={(e) => setForm({ ...form, qzPrinterName: e.target.value })}
+                    placeholder="VD: Xprinter USB Printer P"
                     className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shadow-inner"
                     required
                   />
-                )}
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Mặc định: <strong className="text-cyan-300">XP-A160H</strong> (Hệ thống tự động khớp máy in USB Xprinter)
-                </p>
-              </div>
-
-              {/* QZ Host */}
-              <div className="sm:col-span-1">
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  QZ Tray Host *
-                </label>
-                <input
-                  type="text"
-                  value={form.qzHost || 'localhost'}
-                  onChange={(e) => setForm({ ...form, qzHost: e.target.value.trim() })}
-                  placeholder="localhost hoặc IP MacBook"
-                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
-                  required
-                />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Mặc định: <span className="font-mono text-slate-400">localhost</span>
-                </p>
-              </div>
-
-              {/* QZ Port */}
-              <div className="sm:col-span-1">
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Cổng WebSocket *
-                </label>
-                <input
-                  type="number"
-                  value={form.qzPort || 8182}
-                  onChange={(e) => setForm({ ...form, qzPort: parseInt(e.target.value, 10) || 8182 })}
-                  placeholder="8182"
-                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
-                  required
-                />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Mặc định: <span className="font-mono text-slate-400">8182 (WSS) / 8181 (WS)</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Cloudflare Tunnel URL */}
-            {form.printerConnectionMode === 'tunnel' && (
-              <div className="sm:col-span-3">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-                    <Globe className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Đường dẫn Cloudflare Tunnel / Server URL:</span>
-                  </label>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    HTTPS Secure Endpoint
-                  </span>
                 </div>
-                <input
-                  type="text"
-                  value={form.printerTunnelUrl}
-                  onChange={(e) => setForm({ ...form, printerTunnelUrl: e.target.value.trim() })}
-                  placeholder="https://cet-step-perfectly-joseph.trycloudflare.com"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shadow-inner"
-                />
-              </div>
-            )}
+              )}
 
-            {/* IP Address */}
-            <div className="sm:col-span-1">
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                IP Máy In LAN *
-              </label>
+              <p className="text-[11px] text-slate-400 flex items-center space-x-1.5">
+                <Info className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                <span>
+                  Tên chuẩn xác trên macOS: <strong className="text-cyan-300 font-mono">Xprinter USB Printer P</strong> (Bấm nút [Quét Tìm Máy In USB] để nhận diện tự động).
+                </span>
+              </p>
+            </div>
+
+            {/* QZ Host IP / LAN */}
+            <div className="sm:col-span-5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-300">
+                  Địa Chỉ IP Host MacBook *
+                </label>
+                <span className="text-[10px] text-slate-500">Wi-Fi LAN / Local</span>
+              </div>
+
               <input
                 type="text"
-                value={form.printerIp}
-                onChange={(e) => setForm({ ...form, printerIp: e.target.value.trim() })}
-                placeholder="192.168.1.133"
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shadow-inner"
+                value={form.qzHost || 'localhost'}
+                onChange={(e) => setForm({ ...form, qzHost: e.target.value.trim() })}
+                placeholder="VD: 192.168.1.133 hoặc localhost"
+                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
                 required
               />
+
+              {/* Quick Host Suggestion Badges */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-slate-500">Gợi ý nhanh:</span>
+                {detectedHost && detectedHost !== 'localhost' && (
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, qzHost: detectedHost })}
+                    className="px-2 py-0.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-mono font-bold rounded-lg transition"
+                  >
+                    IP máy: {detectedHost}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, qzHost: 'localhost' })}
+                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono rounded-lg transition"
+                >
+                  localhost
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, qzHost: '192.168.1.133' })}
+                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono rounded-lg transition"
+                >
+                  192.168.1.133
+                </button>
+              </div>
             </div>
 
-            {/* Port */}
-            <div className="sm:col-span-1">
+          </div>
+
+          {/* Port & Secure Settings */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+            <div>
               <label className="block text-xs font-bold text-slate-300 mb-1">
-                Port Socket *
+                Cổng WebSocket QZ Tray
               </label>
               <input
                 type="number"
-                value={form.printerPort}
-                onChange={(e) => setForm({ ...form, printerPort: parseInt(e.target.value, 10) || 9100 })}
-                placeholder="9100"
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
+                value={form.qzPort || 8182}
+                onChange={(e) => setForm({ ...form, qzPort: parseInt(e.target.value, 10) || 8182 })}
+                placeholder="8182"
+                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
                 required
               />
+              <p className="text-[10px] text-slate-500 mt-1">
+                Mặc định: <span className="font-mono text-slate-400">8182 (WSS Bảo mật) / 8181 (WS Trực tiếp)</span>
+              </p>
             </div>
 
-            {/* Paper Size */}
-            <div className="sm:col-span-1">
+            <div>
               <label className="block text-xs font-bold text-slate-300 mb-1">
-                Khổ Giấy In *
+                Khổ Giấy Máy In Nhiệt
               </label>
               <select
                 value={form.printerPaperSize || 'k80'}
@@ -561,15 +522,18 @@ export default function PrinterConfigCard({
                     paperSize: e.target.value === 'a4' ? 'a4' : 'k80',
                   })
                 }
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500 cursor-pointer shadow-inner"
+                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-cyan-500 cursor-pointer shadow-inner"
               >
-                <option value="k80">🧾 K80 (80mm) - Xprinter XP-A160H</option>
-                <option value="k57">🧾 K57 (57mm) - Máy in nhiệt nhỏ</option>
-                <option value="a4">📄 Khổ A4 / A5 - Máy in laser văn phòng</option>
+                <option value="k80">🧾 Khổ K80 (80mm - 48 Cột Chuẩn Hóa Đơn)</option>
+                <option value="k57">🧾 Khổ K57 (57mm - 32 Cột Mini)</option>
+                <option value="a4">📄 Khổ A4 / A5 (Văn Phòng)</option>
               </select>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Định dạng chuẩn quầy thu ngân TD Mobile Store: <strong className="text-cyan-400">K80</strong>
+              </p>
             </div>
           </div>
-        )}
+        </div>
 
         {/* ========================================================= */}
         {/* 3. ESC/POS SWITCHES */}
@@ -581,7 +545,7 @@ export default function PrinterConfigCard({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-            <label className="flex items-center space-x-2.5 p-2.5 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+            <label className="flex items-center space-x-2.5 p-3 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
               <input
                 type="checkbox"
                 checked={form.printerAutoCut}
@@ -597,7 +561,7 @@ export default function PrinterConfigCard({
               </div>
             </label>
 
-            <label className="flex items-center space-x-2.5 p-2.5 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+            <label className="flex items-center space-x-2.5 p-3 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
               <input
                 type="checkbox"
                 checked={form.printerOpenDrawer}
@@ -613,7 +577,7 @@ export default function PrinterConfigCard({
               </div>
             </label>
 
-            <label className="flex items-center space-x-2.5 p-2.5 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
+            <label className="flex items-center space-x-2.5 p-3 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
               <input
                 type="checkbox"
                 checked={form.directPrintEnabled}
@@ -654,7 +618,7 @@ export default function PrinterConfigCard({
               )}
               {!testResult.success && (
                 <p className="text-[11px] text-rose-400/80 mt-1">
-                  Gợi ý: Hãy kiểm tra ứng dụng QZ Tray đang chạy trên MacBook M2 và máy in Xprinter XP-A160H đã bật nguồn & cắm cáp USB.
+                  Gợi ý: Hãy kiểm tra ứng dụng QZ Tray đang chạy trên MacBook Host và máy in Xprinter đã bật nguồn & cắm cáp USB.
                 </p>
               )}
             </div>
@@ -665,7 +629,7 @@ export default function PrinterConfigCard({
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800">
           <div className="flex items-center space-x-2 text-xs text-slate-400">
             <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-            <span>QZ Tray Print Server trên MacBook M2 giúp in hóa đơn tức thì & bỏ qua hoàn toàn AirPrint trên iPhone.</span>
+            <span>QZ Tray Print Server trên MacBook giúp in hóa đơn tức thì & bỏ qua hoàn toàn AirPrint trên iPhone.</span>
           </div>
 
           <div className="flex items-center space-x-2 w-full sm:w-auto">
