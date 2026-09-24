@@ -551,13 +551,20 @@ export default function InvoiceModal({
                 color: '#000000'
               }}
             >
-              {/* Optional Shop Logo */}
+              {/* Optional Shop Logo - Enforced 200px Centered */}
               {settings.shopLogoUrl && (
                 <div className="flex justify-center pb-2">
                   <img
                     src={settings.shopLogoUrl}
                     alt="Logo"
-                    className="max-h-12 object-contain"
+                    style={{
+                      width: '200px',
+                      height: 'auto',
+                      maxWidth: '100%',
+                      margin: '0 auto 8px auto',
+                      display: 'block'
+                    }}
+                    className="object-contain"
                   />
                 </div>
               )}
@@ -658,23 +665,25 @@ export default function InvoiceModal({
                 )}
               </div>
 
-              {/* 5. Mã QR Chuyển Khoản VietQR (Có đường kẻ trên và dưới) */}
-              <div className="py-2.5 border-b border-dashed border-black text-center space-y-1.5">
-                <div className="text-[10px] font-bold text-black uppercase">Quét mã QR Chuyển Khoản:</div>
-                <div className="w-28 h-28 mx-auto bg-white p-1 border border-solid border-black rounded-lg flex items-center justify-center">
-                  <img
-                    src={vietQrImgUrl}
-                    alt="VietQR"
-                    className="w-full h-full object-contain"
-                  />
+              {/* 5. Mã QR Chuyển Khoản VietQR (Tùy chọn Bật/Tắt) */}
+              {settings.showBankQR !== false && (
+                <div className="py-2.5 border-b border-dashed border-black text-center space-y-1.5">
+                  <div className="text-[10px] font-bold text-black uppercase">Quét mã QR Chuyển Khoản:</div>
+                  <div className="w-28 h-28 mx-auto bg-white p-1 border border-solid border-black rounded-lg flex items-center justify-center">
+                    <img
+                      src={vietQrImgUrl}
+                      alt="VietQR"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="text-[10px] text-black font-medium">
+                    {settings.bankName} - STK: <b className="font-bold">{settings.bankAccount}</b>
+                  </div>
+                  <div className="text-[10px] text-black font-bold uppercase">
+                    {settings.bankAccountHolder}
+                  </div>
                 </div>
-                <div className="text-[10px] text-black font-medium">
-                  {settings.bankName} - STK: <b className="font-bold">{settings.bankAccount}</b>
-                </div>
-                <div className="text-[10px] text-black font-bold uppercase">
-                  {settings.bankAccountHolder}
-                </div>
-              </div>
+              )}
 
               {/* 6. Chính sách bảo hành & Lời cảm ơn (Có đường kẻ trên) */}
               <div className="text-center pt-2.5 space-y-1.5 text-[10px] text-black">
@@ -830,6 +839,15 @@ export default function InvoiceModal({
                   </div>
 
                   <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                    <label className="flex items-center space-x-2 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={editForm.showBankQR !== false}
+                        onChange={(e) => setEditForm({ ...editForm, showBankQR: e.target.checked })}
+                        className="w-3.5 h-3.5 rounded text-cyan-500"
+                      />
+                      <span className="text-slate-300 font-bold">Hiển thị Mã QR Ngân hàng trên Bill</span>
+                    </label>
                     <label className="flex items-center space-x-2 cursor-pointer text-xs">
                       <input
                         type="checkbox"

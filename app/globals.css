@@ -199,11 +199,11 @@ body {
   background: #475569;
 }
 
-/* Print styles for Receipts (KiotViet K80 Native Browser Print) */
+/* Print styles for Receipts (KiotViet K80 Native Browser Print - Single Page Fixed) */
 @media print {
   @page {
     size: 80mm auto;
-    margin: 0mm;
+    margin: 0;
   }
   * {
     -webkit-print-color-adjust: exact !important;
@@ -217,6 +217,7 @@ body {
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: hidden !important;
     background: #ffffff !important;
     color: #000000 !important;
     page-break-after: avoid !important;
@@ -239,6 +240,8 @@ body {
     width: 80mm !important;
     max-width: 80mm !important;
     min-width: 80mm !important;
+    height: auto !important;
+    max-height: max-content !important;
     margin: 0 !important;
     padding: 2mm 3mm !important;
     box-sizing: border-box !important;
@@ -249,6 +252,9 @@ body {
     font-size: 12px !important;
     line-height: 1.3 !important;
     font-weight: 500 !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
     border: none !important;
   }
   .no-print {

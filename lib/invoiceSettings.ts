@@ -10,6 +10,7 @@ export interface InvoiceSettings {
   showImei: boolean;
   showBatteryHealth: boolean;
   showWarrantyTerms: boolean;
+  showBankQR?: boolean;
   bankName: string;
   bankAccount: string;
   bankAccountHolder: string;
@@ -48,6 +49,7 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
   showImei: true,
   showBatteryHealth: true,
   showWarrantyTerms: true,
+  showBankQR: true,
   bankName: 'MB Bank (Ngân hàng Quân Đội)',
   bankAccount: '0364848960',
   bankAccountHolder: 'TRUONG MINH TAM',

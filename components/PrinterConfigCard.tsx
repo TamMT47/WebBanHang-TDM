@@ -405,6 +405,15 @@ export default function PrinterConfigCard({
                 <label className="flex items-center space-x-2 text-xs cursor-pointer">
                   <input
                     type="checkbox"
+                    checked={form.showBankQR !== false}
+                    onChange={(e) => setForm({ ...form, showBankQR: e.target.checked })}
+                    className="w-4 h-4 rounded text-cyan-500 bg-slate-900 border-slate-700"
+                  />
+                  <span className="text-slate-300 font-bold">Hiển thị Mã QR Ngân hàng trên Bill</span>
+                </label>
+                <label className="flex items-center space-x-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
                     checked={form.showImei}
                     onChange={(e) => setForm({ ...form, showImei: e.target.checked })}
                     className="w-4 h-4 rounded text-cyan-500 bg-slate-900 border-slate-700"
