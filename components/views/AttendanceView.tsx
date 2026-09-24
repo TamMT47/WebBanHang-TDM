@@ -13,6 +13,7 @@ import {
   Sun,
   Sunset,
   ShieldCheck,
+  Shield,
   RotateCw,
   Sparkles,
   User,
@@ -22,7 +23,10 @@ import {
   AlertCircle,
   Users,
   Plus,
-  Edit2
+  Edit2,
+  Smartphone,
+  Key,
+  Trash2
 } from 'lucide-react';
 import { ShiftType } from '@/types/database';
 import ManualAttendanceModal from '@/components/ManualAttendanceModal';
@@ -45,10 +49,19 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
   // Network & IP Info
   const [clientIp, setClientIp] = useState('');
   const [storeWifiIp, setStoreWifiIp] = useState('');
+  const [storeWifiIps, setStoreWifiIps] = useState<string[]>([]);
   const [isWifiMatch, setIsWifiMatch] = useState(false);
 
+  // Device Token State
+  const [deviceToken, setDeviceToken] = useState<string>('');
+  const [isDeviceTrusted, setIsDeviceTrusted] = useState(false);
+  const [isAccessAllowed, setIsAccessAllowed] = useState(false);
+  const [deviceTokenExpiresAt, setDeviceTokenExpiresAt] = useState<string | null>(null);
+  const [grantingToken, setGrantingToken] = useState(false);
+  const [selectedStaffForToken, setSelectedStaffForToken] = useState<string>('');
+
   // Admin Config State
-  const [editingWifiIp, setEditingWifiIp] = useState('');
+  const [newWifiIpInput, setNewWifiIpInput] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Manual Attendance Modal State (Bù công & Sửa giờ làm cho Quản lý)
@@ -88,6 +101,17 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
 
+  // 1. Initialize Device Token from LocalStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedToken = localStorage.getItem('td_attendance_device_token');
+      const savedTokenUserId = localStorage.getItem('td_attendance_device_token_user_id');
+      if (savedToken && (!savedTokenUserId || savedTokenUserId === user?.id)) {
+        setDeviceToken(savedToken);
+      }
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -123,28 +147,39 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     return clientIp || '';
   };
 
-  const fetchAttendanceData = async () => {
+  const fetchAttendanceData = async (tokenOverride?: string) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/attendance');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi tải dữ liệu chấm công');
+      const activeToken = tokenOverride !== undefined ? tokenOverride : (deviceToken || (typeof window !== 'undefined' ? localStorage.getItem('td_attendance_device_token') || '' : ''));
 
-      let detectedIp = data.clientIp || '';
+      let detectedIp = '';
       try {
         const ipifyRes = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
         const ipifyData = await ipifyRes.json();
         if (ipifyData && ipifyData.ip) detectedIp = ipifyData.ip.trim();
       } catch (e) {
-        // use server detected IP
+        // fallback to server detected
       }
 
-      const shopIp = data.storeWifiIp?.trim() || '';
+      const params = new URLSearchParams();
+      if (activeToken) params.append('device_token', activeToken);
+      if (detectedIp) params.append('client_public_ip', detectedIp);
 
-      setClientIp(detectedIp);
-      setStoreWifiIp(shopIp);
-      setEditingWifiIp(shopIp);
-      setIsWifiMatch(Boolean(shopIp) && detectedIp === shopIp);
+      const res = await fetch(`/api/attendance?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi tải dữ liệu chấm công');
+
+      const serverDetectedIp = detectedIp || data.clientIp || '';
+      const allowedIps: string[] = Array.isArray(data.storeWifiIps) ? data.storeWifiIps : (data.storeWifiIp ? [data.storeWifiIp] : []);
+
+      setClientIp(serverDetectedIp);
+      setStoreWifiIp(data.storeWifiIp || '');
+      setStoreWifiIps(allowedIps);
+      setIsWifiMatch(Boolean(data.isWifiMatch));
+      setIsDeviceTrusted(Boolean(data.isDeviceTrusted));
+      setIsAccessAllowed(Boolean(data.isAccessAllowed || !isStaff));
+      setDeviceTokenExpiresAt(data.deviceTokenExpiresAt || null);
+
       setAssignedShift(data.assignedShift || 'shift1');
       setWeekNumber(data.weekNumber || 1);
       setMorningRecord(data.morningRecord || null);
@@ -194,22 +229,39 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     fetchUsersList();
   }, []);
 
-  const handleSaveStoreWifiIp = async () => {
+  // Save updated IP Whitelist
+  const handleSaveStoreWifiIpsList = async (updatedIps: string[]) => {
     try {
       setSavingSettings(true);
+      const cleanList = Array.from(new Set(updatedIps.map((ip) => ip.trim()).filter(Boolean)));
+      
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          key: 'store_wifi_ip',
-          value: editingWifiIp.trim(),
-          description: 'Địa chỉ IP Wifi cửa hàng dùng cho chấm công',
+          key: 'store_wifi_ips',
+          value: JSON.stringify(cleanList),
+          description: 'Danh sách Dải IP Wi-Fi cửa hàng tin tưởng',
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi lưu cấu hình Wifi');
+      if (!res.ok) throw new Error(data.error || 'Lỗi lưu cấu hình Dải IP');
 
-      setMessage({ type: 'success', text: 'Đã lưu cấu hình IP Wifi cửa hàng thành công!' });
+      // Also sync single store_wifi_ip for backward compatibility
+      if (cleanList.length > 0) {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: 'store_wifi_ip',
+            value: cleanList[0],
+            description: 'Địa chỉ IP Wi-Fi chính của cửa hàng',
+          }),
+        });
+      }
+
+      setMessage({ type: 'success', text: 'Đã cập nhật Danh Sách IP Wi-Fi Cửa Hàng thành công!' });
+      setNewWifiIpInput('');
       fetchAttendanceData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
@@ -218,34 +270,93 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     }
   };
 
-  // Session Check In handler with STRICT IP check
+  const handleAddNewWifiIp = (ipToAdd: string) => {
+    const clean = ipToAdd.trim();
+    if (!clean) return;
+    if (storeWifiIps.includes(clean)) {
+      setMessage({ type: 'error', text: `Địa chỉ IP ${clean} đã có trong danh sách tin tưởng rồi!` });
+      return;
+    }
+    const updated = [...storeWifiIps, clean];
+    handleSaveStoreWifiIpsList(updated);
+  };
+
+  const handleRemoveWifiIp = (ipToRemove: string) => {
+    if (!confirm(`Bạn có chắc muốn xóa IP ${ipToRemove} khỏi danh sách tin tưởng?`)) return;
+    const updated = storeWifiIps.filter((ip) => ip !== ipToRemove);
+    handleSaveStoreWifiIpsList(updated);
+  };
+
+  // Grant Device Token (Admin action or self-registration when on Wifi)
+  const handleGrantDeviceToken = async (targetUserId?: string) => {
+    try {
+      setGrantingToken(true);
+      setMessage(null);
+
+      const currentIp = await getPublicIp();
+      const res = await fetch('/api/attendance/device-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_user_id: targetUserId || user?.id,
+          client_public_ip: currentIp,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi cấp quyền thiết bị');
+
+      if (data.deviceToken) {
+        // Save to localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('td_attendance_device_token', data.deviceToken);
+          localStorage.setItem('td_attendance_device_token_user_id', data.userId || user?.id);
+        }
+        setDeviceToken(data.deviceToken);
+        setIsDeviceTrusted(true);
+        setIsAccessAllowed(true);
+      }
+
+      setMessage({
+        type: 'success',
+        text: `✓ Cấp quyền Thiết Bị Tin Tưởng thành công (Hạn 30 ngày)! Thiết bị này có thể chấm công bình thường kể cả khi Wi-Fi bị đổi IP.`,
+      });
+      fetchAttendanceData(data.deviceToken);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setGrantingToken(false);
+    }
+  };
+
+  // Session Check In handler with RESILIENT IP + Device Token check
   const handleSessionCheckIn = async (session: 'morning' | 'afternoon') => {
     try {
       setSubmitting(true);
       setMessage(null);
 
       const currentIp = await getPublicIp();
-      if (!storeWifiIp) {
-        const errText = 'Cửa hàng chưa thiết lập IP Wifi chấm công. Vui lòng liên hệ Quản lý / Admin để cấu hình!';
-        setMessage({ type: 'error', text: errText });
-        setIsWifiMatch(false);
-        return;
-      }
-
-      if (currentIp !== storeWifiIp) {
-        const errText = `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${currentIp || 'Không xác định'} != IP Shop: ${storeWifiIp})`;
-        setMessage({ type: 'error', text: errText });
-        setIsWifiMatch(false);
-        return;
-      }
+      const currentToken = deviceToken || (typeof window !== 'undefined' ? localStorage.getItem('td_attendance_device_token') || '' : '');
 
       const res = await fetch('/api/attendance/check-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shift: assignedShift, session, client_public_ip: currentIp }),
+        body: JSON.stringify({
+          shift: assignedShift,
+          session,
+          client_public_ip: currentIp,
+          device_token: currentToken || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi chấm công vào ca');
+
+      // If server generated a renewed deviceToken, store in localStorage
+      if (data.deviceToken && typeof window !== 'undefined') {
+        localStorage.setItem('td_attendance_device_token', data.deviceToken);
+        localStorage.setItem('td_attendance_device_token_user_id', user?.id);
+        setDeviceToken(data.deviceToken);
+      }
 
       setMessage({ type: 'success', text: data.message });
       fetchAttendanceData();
@@ -256,34 +367,34 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     }
   };
 
-  // Session Check Out handler with STRICT IP check
+  // Session Check Out handler with RESILIENT IP + Device Token check
   const handleSessionCheckOut = async (session: 'morning' | 'afternoon', recordId?: string) => {
     try {
       setSubmitting(true);
       setMessage(null);
 
       const currentIp = await getPublicIp();
-      if (!storeWifiIp) {
-        const errText = 'Cửa hàng chưa thiết lập IP Wifi chấm công. Vui lòng liên hệ Quản lý / Admin để cấu hình!';
-        setMessage({ type: 'error', text: errText });
-        setIsWifiMatch(false);
-        return;
-      }
-
-      if (currentIp !== storeWifiIp) {
-        const errText = `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${currentIp || 'Không xác định'} != IP Shop: ${storeWifiIp})`;
-        setMessage({ type: 'error', text: errText });
-        setIsWifiMatch(false);
-        return;
-      }
+      const currentToken = deviceToken || (typeof window !== 'undefined' ? localStorage.getItem('td_attendance_device_token') || '' : '');
 
       const res = await fetch('/api/attendance/check-out', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session, attendance_id: recordId, client_public_ip: currentIp }),
+        body: JSON.stringify({
+          session,
+          attendance_id: recordId,
+          client_public_ip: currentIp,
+          device_token: currentToken || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi chấm công ra ca');
+
+      // If server generated a renewed deviceToken, store in localStorage
+      if (data.deviceToken && typeof window !== 'undefined') {
+        localStorage.setItem('td_attendance_device_token', data.deviceToken);
+        localStorage.setItem('td_attendance_device_token_user_id', user?.id);
+        setDeviceToken(data.deviceToken);
+      }
 
       setMessage({ type: 'success', text: data.message });
       fetchAttendanceData();
@@ -327,9 +438,10 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       ? 'Ca 2 (Sáng: 09:00-13:00 | Chiều: 14:00-21:00)'
       : 'Ca Quản Lý (09:00 - 21:00)';
 
-  // Controls whether staff is locked out from checking in/out
-  const isStaffLocked = isStaff && !isWifiMatch;
-  const isButtonDisabled = submitting || (!isWifiMatch && isStaff);
+  // Controls whether staff is locked out from checking in/out:
+  // Unlocked if IP is in whitelist OR device is trusted with a 30-day token
+  const isStaffLocked = isStaff && !isAccessAllowed;
+  const isButtonDisabled = submitting || isStaffLocked;
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-16">
@@ -356,12 +468,12 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       )}
 
       {/* ======================================================== */}
-      {/* 0. BẢNG HIỂN THỊ KIỂM SOÁT IP WIFI CỬA HÀNG (CHỈ DÀNH CHO ADMIN) */}
+      {/* 0. BẢNG HIỂN THỊ KIỂM SOÁT IP WIFI & THIẾT BỊ TIN TƯỞNG (ADMIN & QUẢN LÝ) */}
       {/* ======================================================== */}
       {isAdmin && (
         <div
           className={`p-4 rounded-3xl border shadow-xl transition backdrop-blur-xl ${
-            isWifiMatch
+            isWifiMatch || isDeviceTrusted
               ? 'bg-emerald-950/40 border-emerald-500/30'
               : 'bg-slate-900/90 border-rose-500/30'
           }`}
@@ -372,10 +484,12 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                 className={`p-3 rounded-2xl flex-shrink-0 border ${
                   isWifiMatch
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : isDeviceTrusted
+                    ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
                     : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
                 }`}
               >
-                {isWifiMatch ? <Wifi className="w-6 h-6" /> : <WifiOff className="w-6 h-6" />}
+                {isWifiMatch ? <Wifi className="w-6 h-6" /> : isDeviceTrusted ? <Smartphone className="w-6 h-6" /> : <WifiOff className="w-6 h-6" />}
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -383,13 +497,23 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                     className={`text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg border ${
                       isWifiMatch
                         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : isDeviceTrusted
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
                         : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                     }`}
                   >
                     {isWifiMatch
                       ? '🟢 ĐÃ KẾT NỐI ĐÚNG WIFI CỬA HÀNG'
-                      : '🔴 CHƯA KẾT NỐI ĐÚNG WIFI CỬA HÀNG'}
+                      : isDeviceTrusted
+                      ? '🟢 THIẾT BỊ ĐÃ XÁC THỰC TIN TƯỞNG (30 NGÀY)'
+                      : '🔴 CHƯA KẾT NỐI WIFI HOẶC CHƯA CẤP QUYỀN THIẾT BỊ'}
                   </span>
+                  {isDeviceTrusted && (
+                    <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded-md text-[10px] font-black uppercase flex items-center space-x-1">
+                      <ShieldCheck className="w-3 h-3 text-cyan-400" />
+                      <span>TOKEN HỢP LỆ {deviceTokenExpiresAt ? `(Hết hạn: ${new Date(deviceTokenExpiresAt).toLocaleDateString('vi-VN')})` : ''}</span>
+                    </span>
+                  )}
                   {isStaffLocked && (
                     <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-md text-[10px] font-black uppercase">
                       🔒 ĐÃ KHÓA NÚT CHẤM CÔNG CỦA NHÂN VIÊN
@@ -398,19 +522,23 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                 </div>
                 <p className="text-xs text-slate-300 mt-1 font-medium">
                   {isWifiMatch
-                    ? 'Địa chỉ IP thiết bị trùng khớp 100% với IP Wifi Shop đã lưu. Toàn bộ tính năng chấm công đã sẵn sàng.'
-                    : !storeWifiIp
-                    ? 'Cửa hàng chưa lưu cấu hình IP Wifi. Quản lý / Admin vui lòng cài đặt IP Wifi phía dưới để kích hoạt chấm công.'
-                    : 'IP thiết bị của bạn không trùng với IP Wifi của cửa hàng. Toàn bộ nút chấm công đã bị vô hiệu hóa để chống chấm công ngoài cửa hàng.'}
+                    ? 'IP thiết bị trùng khớp với Dải IP Wi-Fi cửa hàng. Hệ thống đã tự động ghi nhớ và cấp Token 30 ngày cho thiết bị.'
+                    : isDeviceTrusted
+                    ? 'Thiết bị này đã được cấp quyền tin tưởng (Device Token 30 ngày). Nhân viên có thể chấm công bình thường mà không bị ảnh hưởng khi Router đổi IP!'
+                    : storeWifiIps.length === 0
+                    ? 'Cửa hàng chưa lưu Dải IP Wi-Fi tin tưởng. Quản lý / Admin vui lòng thêm IP Wi-Fi bên dưới hoặc cấp quyền thiết bị.'
+                    : 'IP thiết bị không khớp với Dải IP Shop và thiết bị chưa có Token tin tưởng. Vui lòng kết nối Wi-Fi Shop hoặc liên hệ Quản lý để cấp quyền.'}
                 </p>
               </div>
             </div>
 
-            {/* IP Diagnostic Badges */}
+            {/* Diagnostic Badges & Actions */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">IP Shop Đã Lưu:</span>
-                <span className="font-mono font-bold text-amber-300">{storeWifiIp || 'Chưa lưu'}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Dải IP Shop ({storeWifiIps.length}):</span>
+                <span className="font-mono font-bold text-amber-300">
+                  {storeWifiIps.length > 0 ? storeWifiIps.join(', ') : 'Chưa lưu'}
+                </span>
               </div>
               <div className="px-3 py-2 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center space-x-2">
                 <span className="text-[10px] text-slate-400 font-bold uppercase">IP Máy Hiện Tại:</span>
@@ -421,7 +549,7 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
               <button
                 type="button"
                 onClick={() => fetchAttendanceData()}
-                title="Kiểm tra lại mạng & IP"
+                title="Kiểm tra lại mạng, IP & Token"
                 className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-2xl transition border border-slate-700 active:scale-95"
               >
                 <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -681,40 +809,162 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       {isManagerOrAbove && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
           
-          {/* Card Lưu IP Wifi Cửa Hàng */}
-          <div className="lg:col-span-5 bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3">
-            <div className="flex items-center justify-between">
+          {/* Card Quản Lý IP Whitelist & Cấp Quyền Thiết Bị Tin Tưởng */}
+          <div className="lg:col-span-5 bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
               <div className="flex items-center space-x-2">
                 <Settings className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-xs font-black text-white uppercase">Cài Đặt IP Wifi Cửa Hàng</h3>
+                <h3 className="text-xs font-black text-white uppercase tracking-wider">Wi-Fi & Thiết Bị Tin Tưởng</h3>
               </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-bold">
+                {storeWifiIps.length} IP Whitelist
+              </span>
+            </div>
+
+            {/* 1. Danh sách IP Tin Tưởng (Whitelist) */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                <span>Danh sách IP Tin Tưởng (Wi-Fi Shop):</span>
+                {clientIp && (
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    IP máy: <strong className="text-cyan-400">{clientIp}</strong>
+                  </span>
+                )}
+              </label>
+
+              {/* IP Badges */}
+              <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-slate-950/70 border border-slate-800 rounded-2xl">
+                {storeWifiIps.length === 0 ? (
+                  <span className="text-[11px] text-slate-500 italic">Chưa có IP tin tưởng nào. Vui lòng thêm IP bên dưới.</span>
+                ) : (
+                  storeWifiIps.map((ip) => (
+                    <span
+                      key={ip}
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-mono font-bold group"
+                    >
+                      <span>{ip}</span>
+                      {ip === clientIp && (
+                        <span className="text-[9px] bg-cyan-500 text-slate-950 px-1 rounded font-black">Máy này</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWifiIp(ip)}
+                        disabled={savingSettings}
+                        title={`Xóa ${ip}`}
+                        className="text-slate-400 hover:text-rose-400 transition p-0.5 rounded"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+
+              {/* Add custom IP */}
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="text"
+                  value={newWifiIpInput}
+                  onChange={(e) => setNewWifiIpInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddNewWifiIp(newWifiIpInput);
+                    }
+                  }}
+                  placeholder="Nhập IP mới (VD: 14.169.123.45)..."
+                  className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-cyan-500 placeholder:text-slate-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddNewWifiIp(newWifiIpInput)}
+                  disabled={savingSettings || !newWifiIpInput.trim()}
+                  className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl text-xs transition shadow-sm active:scale-95 disabled:opacity-40 flex items-center space-x-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Thêm IP</span>
+                </button>
+              </div>
+
+              {/* Quick Add Current IP Button */}
               {clientIp && (
                 <button
                   type="button"
-                  onClick={() => setEditingWifiIp(clientIp)}
-                  className="text-[10px] text-cyan-400 hover:underline font-bold"
+                  onClick={() => handleAddNewWifiIp(clientIp)}
+                  disabled={savingSettings || storeWifiIps.includes(clientIp)}
+                  className={`w-full py-1.5 px-3 rounded-xl text-[11px] font-bold transition flex items-center justify-center space-x-1.5 border ${
+                    storeWifiIps.includes(clientIp)
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 cursor-default'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700 text-cyan-300 hover:border-cyan-500'
+                  }`}
                 >
-                  Lấy IP máy hiện tại: {clientIp}
+                  {storeWifiIps.includes(clientIp) ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>IP hiện tại ({clientIp}) đã nằm trong danh sách tin tưởng</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>+ Thêm IP Hiện Tại ({clientIp}) Vào Danh Sách Tin Tưởng</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={editingWifiIp}
-                onChange={(e) => setEditingWifiIp(e.target.value)}
-                placeholder="VD: 14.169.123.45"
-                className="flex-1 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
-              />
-              <button
-                type="button"
-                onClick={handleSaveStoreWifiIp}
-                disabled={savingSettings}
-                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black rounded-xl text-xs transition shadow-glow-cyan active:scale-95 disabled:opacity-50 badge-nowrap"
-              >
-                {savingSettings ? 'Đang lưu...' : 'Lưu IP Wifi'}
-              </button>
+            {/* 2. Cấp Quyền Thiết Bị Tin Tưởng (Device Token) */}
+            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+              <label className="text-[11px] font-bold text-slate-300 flex items-center space-x-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Cấp Quyền Thiết Bị Tin Tưởng (Hạn 30 Ngày):</span>
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* Issue for this device */}
+                <button
+                  type="button"
+                  onClick={() => handleGrantDeviceToken()}
+                  disabled={grantingToken}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-[11px] transition shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center space-x-1.5"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>{grantingToken ? 'Đang cấp...' : '🛡️ Tin Tưởng Máy Này'}</span>
+                </button>
+
+                {/* Issue for another staff */}
+                <div className="flex items-center space-x-1">
+                  <select
+                    value={selectedStaffForToken}
+                    onChange={(e) => setSelectedStaffForToken(e.target.value)}
+                    className="flex-1 px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-[11px] text-slate-200 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">-- Chọn NV --</option>
+                    {(usersList.length > 0 ? usersList : offDaysData?.users || []).map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name || u.full_name || u.email}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedStaffForToken) {
+                        setMessage({ type: 'error', text: 'Vui lòng chọn nhân viên cần cấp quyền!' });
+                        return;
+                      }
+                      handleGrantDeviceToken(selectedStaffForToken);
+                    }}
+                    disabled={grantingToken || !selectedStaffForToken}
+                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-[11px] transition active:scale-95 disabled:opacity-40"
+                  >
+                    Cấp
+                  </button>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                * Thiết bị được cấp Token sẽ chấm công thành công suốt 30 ngày kể cả khi Router đổi IP mạng.
+              </p>
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
-import { getClientIp } from '@/lib/ipHelper';
+import { validateAttendanceAccess } from '@/lib/attendanceServerHelper';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,36 +11,26 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { shift, session, note, client_public_ip } = body;
+    const { shift, session, note, client_public_ip, device_token } = body;
     const validShifts = ['shift1', 'shift2', 'manager', 'morning', 'afternoon', 'evening', 'full'];
     const chosenShift = shift && validShifts.includes(shift) ? shift : 'shift1';
 
-    // IP Wifi Validation
-    const requestIp = getClientIp(request);
-    const effectiveIp = (client_public_ip || requestIp || '').trim();
-    const settingsRes = await query("SELECT value FROM store_settings WHERE key = 'store_wifi_ip'");
-    const storeWifiIp = settingsRes.rows[0]?.value?.trim() || '';
+    // IP Whitelist & Device Token Validation
+    const access = await validateAttendanceAccess({
+      request,
+      userId: user.id,
+      clientPublicIp: client_public_ip,
+      deviceToken: device_token,
+    });
 
-    if (!storeWifiIp) {
+    if (!access.allowed) {
       return NextResponse.json(
         {
-          error: 'Cửa hàng chưa cấu hình IP Wifi chấm công. Vui lòng liên hệ Quản lý / Admin để cài đặt IP trước khi chấm công!',
+          error: access.errorMessage || 'Không thể chấm công. Vui lòng kết nối đúng Wi-Fi cửa hàng hoặc yêu cầu Quản lý cấp quyền thiết bị!',
           isWifiMatch: false,
-          clientIp: effectiveIp || requestIp,
-          storeWifiIp: '',
-        },
-        { status: 403 }
-      );
-    }
-
-    const isMatched = effectiveIp === storeWifiIp || requestIp === storeWifiIp;
-    if (!isMatched) {
-      return NextResponse.json(
-        {
-          error: `Bạn chưa kết nối đúng mạng Wifi của cửa hàng (IP hiện tại: ${effectiveIp || requestIp} != IP Shop: ${storeWifiIp})`,
-          isWifiMatch: false,
-          clientIp: effectiveIp || requestIp,
-          storeWifiIp,
+          isDeviceTrusted: false,
+          clientIp: access.clientIp,
+          storeWifiIps: access.storeWifiIps,
         },
         { status: 403 }
       );
@@ -116,7 +106,7 @@ export async function POST(request: NextRequest) {
       `INSERT INTO attendance (user_id, date, shift, session, check_in, ip_address, status, late_minutes, is_off_day, note)
        VALUES ($1, $2, $3, $4, NOW(), $5, 'working', $6, $7, $8)
        RETURNING *`,
-      [user.id, todayStr, chosenShift, targetSession, effectiveIp || requestIp, lateMinutes, isOffDay, note || null]
+      [user.id, todayStr, chosenShift, targetSession, access.clientIp, lateMinutes, isOffDay, note || null]
     );
 
     return NextResponse.json({
@@ -125,6 +115,9 @@ export async function POST(request: NextRequest) {
       attendance: insertRes.rows[0],
       lateMinutes,
       isOffDay,
+      deviceToken: access.newDeviceToken,
+      isDeviceTrusted: access.isDeviceTrusted,
+      isWifiMatch: access.isIpMatched,
     });
   } catch (err: any) {
     console.error('Check-in error:', err);

@@ -1,5 +1,5 @@
 /**
- * Attendance and Work Hours Calculation Helper
+ * Attendance and Work Hours Calculation Helper (Client & Server Safe)
  * TD Mobile Store Attendance & Payroll Module
  */
 
@@ -16,6 +16,30 @@ export interface WorkHoursResult {
   lateMinutes: number;    // Minutes late after scheduled start
   earlyMinutes: number;   // Minutes left early before scheduled end
   totalDurationHours: number; // Total duration in decimal hours (workHours + otHours)
+}
+
+/**
+ * Device Token Payload for 30-day trusted attendance devices
+ */
+export interface DeviceTokenPayload {
+  userId: string;
+  type: 'attendance_device_token';
+  shopId: string;
+  issuedAt: number;
+  expiresAt: number;
+}
+
+/**
+ * Check if a client IP is present in the whitelist
+ */
+export function isIpInWhitelist(clientIp: string, allowedIps: string[]): boolean {
+  if (!clientIp || allowedIps.length === 0) return false;
+  const cleanClient = clientIp.trim();
+  return allowedIps.some((allowed) => {
+    const cleanAllowed = allowed.trim();
+    if (!cleanAllowed) return false;
+    return cleanAllowed === cleanClient || cleanAllowed === '0.0.0.0' || cleanAllowed === '*';
+  });
 }
 
 /**

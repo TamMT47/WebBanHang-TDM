@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
+import { isIpInWhitelist } from '@/lib/attendanceHelper';
+import { getStoreWifiIps, verifyDeviceToken } from '@/lib/attendanceServerHelper';
 import { getClientIp } from '@/lib/ipHelper';
 
 export const dynamic = 'force-dynamic';
@@ -25,14 +27,28 @@ export async function GET(request: NextRequest) {
     const dateParam = searchParams.get('date') || ''; // 'YYYY-MM-DD'
     const monthParam = searchParams.get('month') || ''; // 'YYYY-MM'
     const targetUserId = searchParams.get('user_id') || (isManagerOrAbove ? '' : user.id);
+    const clientPublicIpParam = searchParams.get('client_public_ip') || '';
+    const deviceTokenParam = searchParams.get('device_token') || '';
 
-    // Get Store Wifi IP Setting & Client IP
-    const clientIp = getClientIp(request);
-    const settingsRes = await query("SELECT value FROM store_settings WHERE key = 'store_wifi_ip'");
-    const storeWifiIp = settingsRes.rows[0]?.value?.trim() || '';
+    // Get Store Wifi IPs Whitelist & Client IP
+    const requestIp = getClientIp(request);
+    const clientIp = (clientPublicIpParam || requestIp || '').trim();
+    const storeWifiIps = await getStoreWifiIps();
+    const storeWifiIp = storeWifiIps[0] || '';
 
-    // Wifi Match check: MUST have storeWifiIp and match clientIp
-    const isWifiMatch = Boolean(storeWifiIp) && (storeWifiIp === clientIp);
+    // Wifi Match check: clientIp or requestIp in whitelist
+    const isWifiMatch = isIpInWhitelist(clientIp, storeWifiIps) || isIpInWhitelist(requestIp, storeWifiIps);
+
+    // Device Token verification
+    let isDeviceTrusted = false;
+    let deviceTokenPayload: any = null;
+    if (deviceTokenParam) {
+      const tokenResult = verifyDeviceToken(deviceTokenParam, user.id);
+      isDeviceTrusted = tokenResult.valid;
+      deviceTokenPayload = tokenResult.payload || null;
+    }
+
+    const isAccessAllowed = isWifiMatch || isDeviceTrusted;
 
     // 2 Fulltime Shifts (11 hours/day) + Manager Shift
     const shifts = [
@@ -162,7 +178,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       clientIp,
       storeWifiIp,
+      storeWifiIps,
       isWifiMatch,
+      isDeviceTrusted,
+      isAccessAllowed,
+      deviceTokenExpiresAt: deviceTokenPayload?.expiresAt ? new Date(deviceTokenPayload.expiresAt * 1000).toISOString() : null,
       shifts,
       isManagerOrAbove,
       weekNumber,
