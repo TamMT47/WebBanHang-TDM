@@ -7,12 +7,13 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET: Ping & Check Status / Discover Printers from QZ Tray
+ * Priority: Port 8181 (ws:// non-SSL)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const qzHost = searchParams.get('qzHost') || '127.0.0.1';
-    const qzPort = parseInt(searchParams.get('qzPort') || '8182', 10);
+    const qzPort = parseInt(searchParams.get('qzPort') || '8181', 10);
     const qzSecure = searchParams.get('qzSecure') === 'true';
 
     const qzBridge = new QzTrayServerBridge({
@@ -36,8 +37,8 @@ export async function POST(request: NextRequest) {
     const { action = 'print', order, docType = 'invoice', rawBase64 } = body;
 
     const qzHost = body.qzHost || body.settings?.qzHost || '127.0.0.1';
-    const qzPort = parseInt(body.qzPort || body.settings?.qzPort || '8182', 10);
-    const qzSecure = body.qzSecure !== undefined ? Boolean(body.qzSecure) : body.settings?.qzSecure ?? true;
+    const qzPort = parseInt(body.qzPort || body.settings?.qzPort || '8181', 10);
+    const qzSecure = body.qzSecure !== undefined ? Boolean(body.qzSecure) : body.settings?.qzSecure ?? false;
     const targetPrinter = (body.qzPrinterName || body.settings?.qzPrinterName || 'Xprinter USB Printer P').trim();
 
     const customSettings: InvoiceSettings = {

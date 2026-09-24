@@ -15,19 +15,21 @@ export interface PrinterPingResult {
   mode?: string;
   printers?: string[];
   error?: string;
+  activeEndpoint?: string;
 }
 
 /**
  * Check/Ping Printer connection status (QZ Tray Print Server on MacBook Host)
+ * Prioritizes port 8181 (ws:// direct non-SSL) with automatic fallback
  */
 export async function pingPrinterStatus(customSettings?: Partial<InvoiceSettings>): Promise<PrinterPingResult> {
   const settings = getInvoiceSettings();
   const merged = { ...settings, ...customSettings };
   const startTime = Date.now();
 
-  const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1');
-  const qzPort = merged.qzPort || 8182;
-  const qzSecure = merged.qzSecure ?? true;
+  const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'MacBook-Air-cua-Truong.local');
+  const qzPort = merged.qzPort || 8181;
+  const qzSecure = merged.qzSecure ?? false;
 
   try {
     const res = await fetch(
@@ -37,16 +39,17 @@ export async function pingPrinterStatus(customSettings?: Partial<InvoiceSettings
     const data = await res.json();
     return {
       online: Boolean(data.online),
-      message: data.message || (data.online ? '🟢 QZ Tray sẵn sàng trên MacBook Host' : '🔴 Chưa kết nối QZ Tray'),
+      message: data.message || (data.online ? `🟢 QZ Tray sẵn sàng tại ${qzHost}:${qzPort}` : `🔴 Chưa kết nối QZ Tray tại ${qzHost}:${qzPort}`),
       latencyMs: data.latencyMs || (Date.now() - startTime),
       mode: 'qz-tray',
       printers: data.printers || [],
       error: data.error,
+      activeEndpoint: data.activeEndpoint || `${qzSecure ? 'wss' : 'ws'}://${qzHost}:${qzPort}`,
     };
   } catch (err: any) {
     return {
       online: false,
-      message: `🔴 Không kết nối được QZ Tray Print Server: ${err.message}`,
+      message: `🔴 Không kết nối được QZ Tray Print Server tại ${qzHost}:${qzPort}: ${err.message}`,
       mode: 'qz-tray',
       error: err.message,
     };
@@ -64,7 +67,9 @@ export async function testLanPrinter(
 ): Promise<PrintResult> {
   const settings = getInvoiceSettings();
   const merged = { ...settings, ...customSettings };
-  const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1');
+  const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'MacBook-Air-cua-Truong.local');
+  const qzPort = merged.qzPort || 8181;
+  const qzSecure = merged.qzSecure ?? false;
 
   try {
     const res = await fetch('/api/print', {
@@ -74,13 +79,15 @@ export async function testLanPrinter(
         action: 'test',
         connectionMode: 'qz-tray',
         qzHost,
-        qzPort: merged.qzPort || 8182,
-        qzSecure: merged.qzSecure ?? true,
+        qzPort,
+        qzSecure,
         qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
         settings: {
           ...merged,
           printerConnectionMode: 'qz-tray',
           qzHost,
+          qzPort,
+          qzSecure,
           qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
         },
       }),
@@ -93,7 +100,7 @@ export async function testLanPrinter(
 
     return {
       success: true,
-      message: data.message || '🟢 Đã gửi lệnh in thử nghiệm thành công',
+      message: data.message || `🟢 Đã gửi lệnh in thử nghiệm thành công (${merged.qzPrinterName || 'Xprinter USB Printer P'})`,
       printer: data.printer,
       mode: 'qz-tray',
     };
@@ -118,7 +125,9 @@ export async function printToLanPrinter(
 ): Promise<PrintResult> {
   const settings = getInvoiceSettings();
   const merged = { ...settings, ...options?.customSettings };
-  const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1');
+  const qzHost = merged.qzHost || (typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'MacBook-Air-cua-Truong.local');
+  const qzPort = merged.qzPort || 8181;
+  const qzSecure = merged.qzSecure ?? false;
 
   try {
     const res = await fetch('/api/print', {
@@ -128,8 +137,8 @@ export async function printToLanPrinter(
         action: 'print',
         connectionMode: 'qz-tray',
         qzHost,
-        qzPort: merged.qzPort || 8182,
-        qzSecure: merged.qzSecure ?? true,
+        qzPort,
+        qzSecure,
         qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
         order,
         docType,
@@ -137,6 +146,8 @@ export async function printToLanPrinter(
           ...merged,
           printerConnectionMode: 'qz-tray',
           qzHost,
+          qzPort,
+          qzSecure,
           qzPrinterName: merged.qzPrinterName || 'Xprinter USB Printer P',
         },
       }),
@@ -149,7 +160,7 @@ export async function printToLanPrinter(
 
     return {
       success: true,
-      message: data.message || '🟢 Đã in hóa đơn thành công',
+      message: data.message || `🟢 Đã in hóa đơn thành công (${data.printer || merged.qzPrinterName || 'Xprinter USB Printer P'})`,
       printer: data.printer,
       mode: 'qz-tray',
     };

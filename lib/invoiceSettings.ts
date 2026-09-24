@@ -58,11 +58,11 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
     '4. Quý khách vui lòng xuất trình hóa đơn này hoặc cung cấp SĐT đã mua hàng khi cần hỗ trợ kỹ thuật / bảo hành.',
   ],
 
-  // QZ Tray Defaults (MacBook USB Xprinter USB Printer P)
+  // QZ Tray Defaults (MacBook USB Xprinter USB Printer P - Port 8181 WS Direct Non-SSL)
   printerConnectionMode: 'qz-tray',
-  qzHost: 'localhost',
-  qzPort: 8182,
-  qzSecure: true,
+  qzHost: 'MacBook-Air-cua-Truong.local',
+  qzPort: 8181,
+  qzSecure: false,
   qzPrinterName: 'Xprinter USB Printer P',
 
   printerPaperSize: 'k80',
@@ -77,26 +77,25 @@ export function getInvoiceSettings(): InvoiceSettings {
   if (typeof window === 'undefined') return DEFAULT_INVOICE_SETTINGS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+    const hostname = window.location.hostname;
+    const detectedHost = hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' ? hostname : 'MacBook-Air-cua-Truong.local';
+
     if (!raw) {
-      // If no saved settings, detect if on mobile device / remote host
-      const hostname = window.location.hostname;
-      const initialHost = hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' ? hostname : 'localhost';
       return {
         ...DEFAULT_INVOICE_SETTINGS,
-        qzHost: initialHost,
+        qzHost: detectedHost,
       };
     }
     const parsed = JSON.parse(raw);
-    const hostname = window.location.hostname;
-    const detectedHost = parsed.qzHost || (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' ? hostname : 'localhost');
+    const host = parsed.qzHost || detectedHost;
     
     return {
       ...DEFAULT_INVOICE_SETTINGS,
       ...parsed,
       printerConnectionMode: 'qz-tray',
-      qzHost: detectedHost,
-      qzPort: parsed.qzPort || 8182,
-      qzSecure: parsed.qzSecure !== undefined ? parsed.qzSecure : true,
+      qzHost: host,
+      qzPort: parsed.qzPort && parsed.qzPort !== 8182 ? parsed.qzPort : 8181,
+      qzSecure: parsed.qzSecure !== undefined ? parsed.qzSecure : false,
       qzPrinterName: parsed.qzPrinterName && parsed.qzPrinterName !== 'XP-A160H' ? parsed.qzPrinterName : 'Xprinter USB Printer P',
     };
   } catch (err) {
@@ -113,6 +112,8 @@ export function saveInvoiceSettings(settings: Partial<InvoiceSettings>): Invoice
       ...current,
       ...settings,
       printerConnectionMode: 'qz-tray',
+      qzPort: settings.qzPort || current.qzPort || 8181,
+      qzSecure: settings.qzSecure !== undefined ? settings.qzSecure : false,
       qzPrinterName: settings.qzPrinterName || current.qzPrinterName || 'Xprinter USB Printer P',
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));

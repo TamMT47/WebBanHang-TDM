@@ -116,10 +116,10 @@ export default function PrinterSettingsView({ user }: PrinterSettingsViewProps) 
           <div className="p-3.5 bg-slate-950/70 rounded-xl border border-slate-800 space-y-1.5">
             <div className="font-bold text-white flex items-center space-x-1.5">
               <Wifi className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Cùng Mạng Wi-Fi Nội Bộ:</span>
+              <span>Cùng Mạng Wi-Fi Nội Bộ (mDNS / IP):</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              Điện thoại của nhân viên thu ngân và MacBook Host cần kết nối chung mạng Wi-Fi tại cửa hàng. Nhập IP LAN của MacBook (ví dụ: <span className="font-mono text-cyan-300">192.168.1.133</span>) vào ô <strong>Địa Chỉ IP Host MacBook</strong>.
+              Điện thoại của nhân viên thu ngân và MacBook Host cần kết nối chung mạng Wi-Fi tại cửa hàng. Nên dùng tên miền mDNS <strong className="font-mono text-cyan-300">MacBook-Air-cua-Truong.local</strong> và cổng <strong className="font-mono text-emerald-400">8181</strong> để không bị ảnh hưởng khi Router đổi IP.
             </p>
           </div>
 

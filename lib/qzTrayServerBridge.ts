@@ -18,7 +18,7 @@ export interface QzBridgeResult {
 
 /**
  * Server-Side WebSocket Bridge to QZ Tray running on MacBook Host
- * Directly communicates with QZ Tray daemon (ws://host:8181 / wss://host:8182)
+ * Priority: ws://host:8181 (Direct Non-SSL) with fallback to wss://host:8182
  */
 export class QzTrayServerBridge {
   private host: string;
@@ -29,28 +29,30 @@ export class QzTrayServerBridge {
   constructor(options?: QzPrintOptions) {
     this.host = (options?.host || '127.0.0.1').trim();
     if (this.host === 'localhost') this.host = '127.0.0.1';
-    this.port = options?.port || (options?.secure ? 8182 : 8181);
+    this.port = options?.port || 8181;
     this.secure = options?.secure ?? (this.port === 8182 || this.port === 8183);
-    this.timeoutMs = options?.timeoutMs || 5000;
+    this.timeoutMs = options?.timeoutMs || 4000;
   }
 
   /**
-   * Connect to QZ Tray WebSocket with fallbacks (ws on 8181, wss on 8182)
+   * Connect to QZ Tray WebSocket with fallbacks (ws on 8181 primary, wss on 8182 secondary)
    */
   private connectSocket(): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
       const endpoints: { url: string; secure: boolean }[] = [];
 
-      // Add preferred endpoint first
+      // Primary endpoint based on configuration (default: ws://host:8181)
       const protocol = this.secure ? 'wss' : 'ws';
       endpoints.push({ url: `${protocol}://${this.host}:${this.port}`, secure: this.secure });
 
-      // Add fallback endpoints
-      if (this.secure) {
-        endpoints.push({ url: `ws://${this.host}:8181`, secure: false });
+      // Fallback endpoints
+      if (!this.secure) {
+        endpoints.push({ url: `ws://${this.host}:8184`, secure: false });
+        endpoints.push({ url: `wss://${this.host}:8182`, secure: true });
         endpoints.push({ url: `wss://${this.host}:8183`, secure: true });
       } else {
-        endpoints.push({ url: `wss://${this.host}:8182`, secure: true });
+        endpoints.push({ url: `ws://${this.host}:8181`, secure: false });
+        endpoints.push({ url: `wss://${this.host}:8183`, secure: true });
         endpoints.push({ url: `ws://${this.host}:8184`, secure: false });
       }
 
@@ -71,7 +73,7 @@ export class QzTrayServerBridge {
         try {
           socket = new WebSocket(endpoint.url, {
             rejectUnauthorized: false,
-            handshakeTimeout: 2500,
+            handshakeTimeout: 2000,
           });
         } catch (e: any) {
           return tryNext();
@@ -82,7 +84,7 @@ export class QzTrayServerBridge {
             socket.terminate();
           } catch (e) {}
           tryNext();
-        }, 2500);
+        }, 2000);
 
         socket.on('open', () => {
           clearTimeout(timer);
@@ -310,7 +312,7 @@ export class QzTrayServerBridge {
   /**
    * Ping / Check QZ Tray Status
    */
-  public async ping(): Promise<{ online: boolean; message: string; printers?: string[]; latencyMs?: number }> {
+  public async ping(): Promise<{ online: boolean; message: string; printers?: string[]; latencyMs?: number; activeEndpoint?: string }> {
     const start = Date.now();
     try {
       const printers = await this.listPrinters();
@@ -322,18 +324,21 @@ export class QzTrayServerBridge {
           p.toLowerCase().includes('usb')
       );
 
+      const endpoint = `${this.secure ? 'wss' : 'ws'}://${this.host}:${this.port}`;
+
       return {
         online: true,
         message: xprinter
-          ? `🟢 QZ Tray sẵn sàng trên MacBook Host (Đã nhận diện: ${xprinter})`
-          : `🟢 QZ Tray sẵn sàng trên MacBook Host (${printers.length} máy in)`,
+          ? `🟢 QZ Tray sẵn sàng tại ${this.host}:${this.port} (Đã nhận diện: ${xprinter})`
+          : `🟢 QZ Tray sẵn sàng tại ${this.host}:${this.port} (${printers.length} máy in)`,
         printers,
         latencyMs,
+        activeEndpoint: endpoint,
       };
     } catch (err: any) {
       return {
         online: false,
-        message: `🔴 Chưa kết nối được QZ Tray: ${err.message}`,
+        message: `🔴 Chưa kết nối được QZ Tray tại ${this.host}:${this.port}: ${err.message}`,
         latencyMs: Date.now() - start,
       };
     }

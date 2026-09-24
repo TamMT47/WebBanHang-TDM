@@ -3,6 +3,7 @@
 /**
  * QZ Tray Client Bridge for TD Mobile Store
  * Enables direct silent printing to Xprinter USB Printer P connected via USB to MacBook Host
+ * Default: Port 8181 (ws:// non-SSL) with automatic fallback to Port 8182 (wss://)
  */
 
 export interface QzClientResult {
@@ -60,11 +61,74 @@ async function getQz() {
 }
 
 /**
- * Connect to QZ Tray WebSocket
+ * Direct WebSocket probe from browser within timeoutMs (default: 2000ms)
+ * Tests ws://<host>:8181 and falls back to wss://<host>:8182
  */
-export async function connectQzTray(host = 'localhost', port = 8182, secure = true): Promise<boolean> {
+export function probeWebSocket(host: string, port = 8181, timeoutMs = 2000): Promise<{ ok: boolean; protocol: string; url: string }> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !('WebSocket' in window)) {
+      return resolve({ ok: false, protocol: 'ws', url: `ws://${host}:${port}` });
+    }
+
+    const cleanHost = host.trim() || 'MacBook-Air-cua-Truong.local';
+    const isSsl = port === 8182 || port === 8183;
+    const protocol = isSsl ? 'wss' : 'ws';
+    const wsUrl = `${protocol}://${cleanHost}:${port}`;
+
+    let socket: WebSocket;
+    let isSettled = false;
+
+    const timer = setTimeout(() => {
+      if (!isSettled) {
+        isSettled = true;
+        try {
+          socket.close();
+        } catch (e) {}
+        resolve({ ok: false, protocol, url: wsUrl });
+      }
+    }, timeoutMs);
+
+    try {
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        if (!isSettled) {
+          isSettled = true;
+          clearTimeout(timer);
+          try {
+            socket.close();
+          } catch (e) {}
+          resolve({ ok: true, protocol, url: wsUrl });
+        }
+      };
+
+      socket.onerror = () => {
+        if (!isSettled) {
+          isSettled = true;
+          clearTimeout(timer);
+          try {
+            socket.close();
+          } catch (e) {}
+          resolve({ ok: false, protocol, url: wsUrl });
+        }
+      };
+    } catch (err) {
+      clearTimeout(timer);
+      resolve({ ok: false, protocol, url: wsUrl });
+    }
+  });
+}
+
+/**
+ * Connect to QZ Tray WebSocket
+ * Priority 1: Direct Non-SSL Port 8181 (ws://)
+ * Priority 2: SSL Port 8182 (wss://)
+ */
+export async function connectQzTray(host = 'MacBook-Air-cua-Truong.local', port = 8181, secure = false): Promise<boolean> {
   const qz = await getQz();
   if (!qz) return false;
+
+  const cleanHost = host.trim() || 'MacBook-Air-cua-Truong.local';
 
   try {
     if (qz.websocket.isActive()) {
@@ -72,30 +136,36 @@ export async function connectQzTray(host = 'localhost', port = 8182, secure = tr
       return true;
     }
 
+    // 1. Primary: ws:// on port 8181 (or custom port)
     await qz.websocket.connect({
-      host,
+      host: cleanHost,
       port: {
+        insecure: [port, 8181, 8184],
         secure: [8182, 8183],
-        insecure: [8181, 8184],
       },
       usingSecure: secure,
       keepAlive: 60,
-      retries: 2,
-      delay: 1,
+      retries: 1,
+      delay: 0.5,
     });
 
     isConnected = true;
     return true;
   } catch (err: any) {
-    console.warn('QZ Tray WebSocket connection notice:', err?.message || err);
-    // Try fallback on insecure local port
+    console.warn('QZ Tray direct ws connect failed, trying fallback:', err?.message || err);
+    
+    // 2. Fallback: try inverted secure setting
     try {
       if (!qz.websocket.isActive()) {
         await qz.websocket.connect({
-          host,
-          usingSecure: false,
-          port: { insecure: [8181, 8184] },
+          host: cleanHost,
+          usingSecure: !secure,
+          port: {
+            insecure: [8181, 8184],
+            secure: [8182, 8183],
+          },
           retries: 1,
+          delay: 0.5,
         });
         isConnected = true;
         return true;
@@ -110,13 +180,13 @@ export async function connectQzTray(host = 'localhost', port = 8182, secure = tr
 /**
  * List all available printers recognized by QZ Tray
  */
-export async function listQzPrinters(host = 'localhost'): Promise<string[]> {
+export async function listQzPrinters(host = 'MacBook-Air-cua-Truong.local', port = 8181, secure = false): Promise<string[]> {
   try {
     const qz = await getQz();
     if (!qz) throw new Error('Thư viện QZ Tray không tải được');
 
     if (!qz.websocket.isActive()) {
-      await connectQzTray(host);
+      await connectQzTray(host, port, secure);
     }
 
     // Call find with Xprinter/USB filter first, or list all
@@ -147,12 +217,17 @@ export async function listQzPrinters(host = 'localhost'): Promise<string[]> {
 /**
  * Find matched Xprinter or specified printer (e.g. "Xprinter USB Printer P")
  */
-export async function findQzPrinter(targetName = 'Xprinter USB Printer P', host = 'localhost'): Promise<string> {
+export async function findQzPrinter(
+  targetName = 'Xprinter USB Printer P',
+  host = 'MacBook-Air-cua-Truong.local',
+  port = 8181,
+  secure = false
+): Promise<string> {
   const qz = await getQz();
   if (!qz) throw new Error('Thư viện QZ Tray không sẵn sàng');
 
   if (!qz.websocket.isActive()) {
-    await connectQzTray(host);
+    await connectQzTray(host, port, secure);
   }
 
   try {
@@ -204,20 +279,22 @@ export async function findQzPrinter(targetName = 'Xprinter USB Printer P', host 
 export async function printQzRaw(
   base64Data: string,
   printerName = 'Xprinter USB Printer P',
-  host = 'localhost'
+  host = 'MacBook-Air-cua-Truong.local',
+  port = 8181,
+  secure = false
 ): Promise<QzClientResult> {
   try {
     const qz = await getQz();
     if (!qz) throw new Error('Thư viện QZ Tray không thể tải.');
 
     if (!qz.websocket.isActive()) {
-      const ok = await connectQzTray(host);
+      const ok = await connectQzTray(host, port, secure);
       if (!ok) {
-        throw new Error(`Không thể kết nối QZ Tray Print Server trên MacBook Host (${host}:8182/8181).`);
+        throw new Error(`Không thể kết nối QZ Tray Print Server trên MacBook Host (${host}:${port}).`);
       }
     }
 
-    const matchedPrinter = await findQzPrinter(printerName, host);
+    const matchedPrinter = await findQzPrinter(printerName, host, port, secure);
     const config = qz.configs.create(matchedPrinter, {
       encoding: 'UTF-8',
       altPrinting: false,
@@ -249,25 +326,45 @@ export async function printQzRaw(
 }
 
 /**
- * Ping QZ Tray status on client
+ * Ping QZ Tray status on client (checks both direct WebSocket probe and QZ Tray API)
  */
-export async function pingQzClient(host = 'localhost'): Promise<{ online: boolean; message: string; printers: string[] }> {
+export async function pingQzClient(
+  host = 'MacBook-Air-cua-Truong.local',
+  port = 8181,
+  secure = false
+): Promise<{ online: boolean; message: string; printers: string[]; activeUrl?: string }> {
   try {
+    const cleanHost = host.trim() || 'MacBook-Air-cua-Truong.local';
+
+    // 1. Quick probe WebSocket on port 8181 (and 8182 fallback)
+    const probe = await probeWebSocket(cleanHost, port, 1500);
+    let activePort = port;
+    let activeSecure = secure;
+
+    if (!probe.ok && port === 8181) {
+      // try probing 8182
+      const probeSsl = await probeWebSocket(cleanHost, 8182, 1500);
+      if (probeSsl.ok) {
+        activePort = 8182;
+        activeSecure = true;
+      }
+    }
+
     const qz = await getQz();
     if (!qz) {
       return { online: false, message: 'Chưa nạp được thư viện QZ Tray', printers: [] };
     }
 
-    const connected = await connectQzTray(host);
+    const connected = await connectQzTray(cleanHost, activePort, activeSecure);
     if (!connected) {
       return {
         online: false,
-        message: `🔴 Không kết nối được QZ Tray tại ${host}. Hãy khởi chạy ứng dụng QZ Tray trên MacBook Host.`,
+        message: `🔴 Không kết nối được QZ Tray tại ${cleanHost}:${activePort}. Hãy kiểm tra QZ Tray đang chạy trên MacBook.`,
         printers: [],
       };
     }
 
-    const printers = await listQzPrinters(host);
+    const printers = await listQzPrinters(cleanHost, activePort, activeSecure);
     const xprinter = printers.find(
       (p) =>
         p.toLowerCase().includes('xprinter usb printer p') ||
@@ -278,9 +375,10 @@ export async function pingQzClient(host = 'localhost'): Promise<{ online: boolea
     return {
       online: true,
       message: xprinter
-        ? `🟢 QZ Tray sẵn sàng! Nhận diện máy in: ${xprinter}`
-        : `🟢 QZ Tray đã kết nối (${printers.length} máy in)`,
+        ? `🟢 QZ Tray sẵn sàng tại ${cleanHost}:${activePort} (Máy in: ${xprinter})`
+        : `🟢 QZ Tray đã kết nối tại ${cleanHost}:${activePort} (${printers.length} máy in)`,
       printers,
+      activeUrl: `${activeSecure ? 'wss' : 'ws'}://${cleanHost}:${activePort}`,
     };
   } catch (err: any) {
     return {

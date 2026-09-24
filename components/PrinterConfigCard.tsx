@@ -21,7 +21,9 @@ import {
   Wifi,
   Radio,
   Check,
-  Info
+  Info,
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import {
   InvoiceSettings,
@@ -30,7 +32,7 @@ import {
   saveInvoiceSettings
 } from '@/lib/invoiceSettings';
 import { testLanPrinter, pingPrinterStatus, PrinterPingResult } from '@/lib/printerHelper';
-import { listQzPrinters, findQzPrinter } from '@/lib/qzTrayClient';
+import { listQzPrinters, findQzPrinter, probeWebSocket } from '@/lib/qzTrayClient';
 
 interface PrinterConfigCardProps {
   user?: any;
@@ -52,13 +54,13 @@ export default function PrinterConfigCard({
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
   const [pingResult, setPingResult] = useState<PrinterPingResult | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; printer?: string } | null>(null);
-  const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [detectedHost, setDetectedHost] = useState<string>('localhost');
+  const [saveNotice, setSaveNotice] = useState<{ type: 'success' | 'error'; message: string; details?: string[] } | null>(null);
+  const [detectedHost, setDetectedHost] = useState<string>('MacBook-Air-cua-Truong.local');
 
   useEffect(() => {
     const current = getInvoiceSettings();
     
-    // Auto-detect LAN IP of host when running in browser
+    // Auto-detect LAN IP / hostname when running in browser
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
@@ -69,10 +71,14 @@ export default function PrinterConfigCard({
       }
     }
 
-    // Default printer name to "Xprinter USB Printer P"
+    // Default printer name and port 8181
     if (!current.qzPrinterName || current.qzPrinterName === 'XP-A160H') {
       current.qzPrinterName = 'Xprinter USB Printer P';
     }
+    if (!current.qzPort || current.qzPort === 8182) {
+      current.qzPort = 8181;
+    }
+    current.qzSecure = false;
 
     setForm(current);
   }, []);
@@ -86,13 +92,39 @@ export default function PrinterConfigCard({
       if (res.printers && res.printers.length > 0) {
         setAvailablePrinters(res.printers);
       }
+      if (res.online) {
+        setSaveNotice({
+          type: 'success',
+          message: `🟢 Đã kết nối QZ Tray thành công tại ${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181}`,
+        });
+      } else {
+        setSaveNotice({
+          type: 'error',
+          message: `🔴 Chưa thể kết nối QZ Tray tại ${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181}`,
+          details: [
+            '1. Đảm bảo ứng dụng QZ Tray đang chạy trên MacBook (biểu tượng xanh lá ở Menu Bar).',
+            '2. Điện thoại và MacBook cần kết nối chung một mạng Wi-Fi tại cửa hàng.',
+            `3. Đang thử kết nối WebSocket: ws://${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181}`,
+            '4. Thử đổi sang tên miền mDNS cố định: MacBook-Air-cua-Truong.local',
+          ],
+        });
+      }
     } catch (err: any) {
       setPingResult({
         online: false,
         message: err.message || 'Lỗi kiểm tra trạng thái QZ Tray Print Server',
       });
+      setSaveNotice({
+        type: 'error',
+        message: `🔴 Lỗi kết nối QZ Tray: ${err.message}`,
+        details: [
+          'Kiểm tra QZ Tray trên máy chủ MacBook đã bật.',
+          'Kiểm tra địa chỉ Host và cổng WebSocket 8181.',
+        ],
+      });
     } finally {
       setPinging(false);
+      setTimeout(() => setSaveNotice(null), 7000);
     }
   };
 
@@ -101,9 +133,9 @@ export default function PrinterConfigCard({
     try {
       let foundList: string[] = [];
 
-      // 1. First try client-side QZ Tray connection
+      // 1. First try client-side QZ Tray connection via port 8181
       try {
-        const clientList = await listQzPrinters(form.qzHost || 'localhost');
+        const clientList = await listQzPrinters(form.qzHost || 'MacBook-Air-cua-Truong.local', form.qzPort || 8181, form.qzSecure ?? false);
         if (clientList && clientList.length > 0) {
           foundList = clientList;
         }
@@ -114,7 +146,7 @@ export default function PrinterConfigCard({
       // 2. Fallback to server API scan if client list empty
       if (foundList.length === 0) {
         const res = await fetch(
-          `/api/print?mode=qz-tray&qzHost=${encodeURIComponent(form.qzHost || '127.0.0.1')}&qzPort=${form.qzPort || 8182}&qzSecure=${form.qzSecure ?? true}`,
+          `/api/print?mode=qz-tray&qzHost=${encodeURIComponent(form.qzHost || 'MacBook-Air-cua-Truong.local')}&qzPort=${form.qzPort || 8181}&qzSecure=${form.qzSecure ?? false}`,
           { cache: 'no-store' }
         );
         const data = await res.json();
@@ -136,26 +168,49 @@ export default function PrinterConfigCard({
 
         if (matched) {
           setForm((prev) => ({ ...prev, qzPrinterName: matched }));
-          setSaveNotice(`🟢 Đã tự động nhận diện máy in thực tế: "${matched}"`);
+          setSaveNotice({
+            type: 'success',
+            message: `🟢 Đã tự động nhận diện máy in thực tế: "${matched}" từ QZ Tray!`,
+          });
         } else {
-          setSaveNotice(`Tìm thấy ${foundList.length} máy in từ QZ Tray MacBook!`);
+          setSaveNotice({
+            type: 'success',
+            message: `🟢 Tìm thấy ${foundList.length} máy in từ QZ Tray MacBook!`,
+          });
         }
-        setTimeout(() => setSaveNotice(null), 4500);
       } else {
-        setSaveNotice('⚠️ QZ Tray đã kết nối nhưng chưa thấy máy in nào. Vui lòng cắm cáp USB và bật nguồn máy in.');
-        setTimeout(() => setSaveNotice(null), 4500);
+        setSaveNotice({
+          type: 'error',
+          message: '⚠️ QZ Tray đã kết nối nhưng chưa thấy máy in nào.',
+          details: [
+            'Cắm cáp USB từ máy in Xprinter vào máy chủ MacBook.',
+            'Bật công tắc nguồn của máy in Xprinter.',
+          ],
+        });
       }
     } catch (err: any) {
-      setSaveNotice(`🔴 Lỗi quét máy in: ${err.message}`);
-      setTimeout(() => setSaveNotice(null), 4000);
+      setSaveNotice({
+        type: 'error',
+        message: `🔴 Lỗi quét máy in: ${err.message}`,
+        details: [
+          'Đảm bảo ứng dụng QZ Tray đang chạy trên MacBook.',
+          `Kiểm tra kết nối tới ws://${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181}`,
+        ],
+      });
     } finally {
       setScanningPrinters(false);
+      setTimeout(() => setSaveNotice(null), 6000);
     }
   };
 
   const handleTestPrint = async () => {
     setTesting(true);
     setTestResult(null);
+
+    // Save current form settings first
+    const updated = saveInvoiceSettings(form);
+    setForm(updated);
+
     try {
       const res = await testLanPrinter(undefined, undefined, form);
       if (res.success) {
@@ -165,12 +220,24 @@ export default function PrinterConfigCard({
           message: msg,
           printer: res.printer,
         });
-        setSaveNotice(msg);
-        setTimeout(() => setSaveNotice(null), 4000);
+        setSaveNotice({
+          type: 'success',
+          message: `🟢 Đã kết nối và in thử nghiệm thành công tại ${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181} (Máy in: ${res.printer || form.qzPrinterName})`,
+        });
       } else {
         setTestResult({
           success: false,
           message: res.error || '🔴 Lỗi gửi lệnh in tới máy in Xprinter USB',
+        });
+        setSaveNotice({
+          type: 'error',
+          message: `🔴 Không thể gửi lệnh in tới ${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181}`,
+          details: [
+            '1. Kiểm tra ứng dụng QZ Tray đang chạy trên MacBook (biểu tượng xanh lá cây).',
+            '2. Kiểm tra iPhone và MacBook đang dùng chung mạng Wi-Fi.',
+            `3. Đang kết nối tới: ws://${form.qzHost || 'MacBook-Air-cua-Truong.local'}:${form.qzPort || 8181}`,
+            '4. Thử bấm nút [Quét Tìm Máy In USB] để đồng bộ lại tên thiết bị.',
+          ],
         });
       }
     } catch (err: any) {
@@ -178,8 +245,16 @@ export default function PrinterConfigCard({
         success: false,
         message: `🔴 ${err.message || 'Lỗi gửi lệnh in'}`,
       });
+      setSaveNotice({
+        type: 'error',
+        message: `🔴 Lỗi in thử nghiệm: ${err.message}`,
+        details: [
+          'Kiểm tra kết nối mạng Wi-Fi và ứng dụng QZ Tray trên MacBook.',
+        ],
+      });
     } finally {
       setTesting(false);
+      setTimeout(() => setSaveNotice(null), 7000);
     }
   };
 
@@ -187,6 +262,34 @@ export default function PrinterConfigCard({
     if (e) e.preventDefault();
     const updated = saveInvoiceSettings(form);
     setForm(updated);
+
+    // Test connection quickly in background
+    try {
+      const res = await pingPrinterStatus(updated);
+      setPingResult(res);
+      if (res.online) {
+        setSaveNotice({
+          type: 'success',
+          message: `🟢 Đã lưu cấu hình và kết nối QZ Tray thành công tại ${updated.qzHost}:${updated.qzPort}!`,
+        });
+      } else {
+        setSaveNotice({
+          type: 'error',
+          message: `⚠️ Đã lưu cấu hình nhưng chưa thể kết nối QZ Tray tại ${updated.qzHost}:${updated.qzPort}`,
+          details: [
+            '1. Đảm bảo ứng dụng QZ Tray đang chạy trên MacBook.',
+            '2. Điện thoại và MacBook phải kết nối chung Wi-Fi cửa hàng.',
+            `3. Chuỗi kết nối đang dùng: ws://${updated.qzHost}:${updated.qzPort}`,
+            '4. Thử bấm nút "MacBook-Air-cua-Truong.local" nếu router đổi IP.',
+          ],
+        });
+      }
+    } catch (err: any) {
+      setSaveNotice({
+        type: 'success',
+        message: 'Đã lưu cấu hình máy in QZ Tray thành công!',
+      });
+    }
 
     // Sync settings to DB for store persistence if Admin/Owner
     if (user && ['admin', 'owner'].includes(user.role)) {
@@ -215,8 +318,17 @@ export default function PrinterConfigCard({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               key: 'qz_host',
-              value: form.qzHost,
-              description: 'Host máy chủ QZ Tray (MacBook Host IP)',
+              value: form.qzHost || 'MacBook-Air-cua-Truong.local',
+              description: 'Host máy chủ QZ Tray (MacBook Host IP / mDNS)',
+            }),
+          }),
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: 'qz_port',
+              value: String(form.qzPort || 8181),
+              description: 'Cổng WebSocket QZ Tray (8181)',
             }),
           }),
         ]);
@@ -225,8 +337,7 @@ export default function PrinterConfigCard({
       }
     }
 
-    setSaveNotice('Đã lưu cấu hình máy in QZ Tray thành công!');
-    setTimeout(() => setSaveNotice(null), 3500);
+    setTimeout(() => setSaveNotice(null), 6000);
 
     if (onSaved) {
       onSaved(updated);
@@ -236,18 +347,23 @@ export default function PrinterConfigCard({
   const handleReset = () => {
     if (
       confirm(
-        'Khôi phục cấu hình máy in về thiết lập mặc định (Máy Chủ MacBook USB via QZ Tray - Xprinter USB Printer P)?'
+        'Khôi phục cấu hình máy in về thiết lập mặc định (Máy Chủ MacBook USB via QZ Tray ws://MacBook-Air-cua-Truong.local:8181)?'
       )
     ) {
       const reset = saveInvoiceSettings({
         ...DEFAULT_INVOICE_SETTINGS,
         qzPrinterName: 'Xprinter USB Printer P',
-        qzHost: detectedHost || 'localhost',
+        qzHost: 'MacBook-Air-cua-Truong.local',
+        qzPort: 8181,
+        qzSecure: false,
       });
       setForm(reset);
       setTestResult(null);
       setPingResult(null);
-      setSaveNotice('Đã khôi phục cấu hình máy in về mặc định QZ Tray!');
+      setSaveNotice({
+        type: 'success',
+        message: 'Đã khôi phục cấu hình máy in về mặc định QZ Tray (Cổng 8181)!',
+      });
       setTimeout(() => setSaveNotice(null), 3000);
     }
   };
@@ -256,12 +372,31 @@ export default function PrinterConfigCard({
     <div
       className={`bg-slate-900/90 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden ${className}`}
     >
-      {/* Toast Alert */}
+      {/* Toast / Banner Alert */}
       {saveNotice && (
-        <div className="bg-emerald-500 text-slate-950 px-4 py-2.5 font-black text-xs flex items-center justify-between animate-in slide-in-from-top border-b border-emerald-400 shadow-glow-emerald">
-          <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-slate-950" />
-            <span>{saveNotice}</span>
+        <div
+          className={`px-4 sm:px-5 py-3 font-bold text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-in slide-in-from-top border-b shadow-lg ${
+            saveNotice.type === 'success'
+              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-glow-emerald'
+              : 'bg-rose-600 text-white border-rose-500 shadow-lg'
+          }`}
+        >
+          <div className="flex items-start space-x-2.5">
+            {saveNotice.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-slate-950 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-white flex-shrink-0 mt-0.5" />
+            )}
+            <div>
+              <div className="font-black text-sm">{saveNotice.message}</div>
+              {saveNotice.details && (
+                <ul className="mt-1 space-y-0.5 text-[11px] opacity-95 font-medium list-disc list-inside">
+                  {saveNotice.details.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -278,7 +413,7 @@ export default function PrinterConfigCard({
                 Cấu Hình Máy In Hóa Đơn (QZ Tray USB Print Server)
               </h3>
               <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px] font-black rounded-lg badge-nowrap">
-                ESC/POS K80
+                Port 8181 (ws://)
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -349,18 +484,18 @@ export default function PrinterConfigCard({
                   <div className="text-xs font-black text-white flex items-center space-x-2">
                     <span>Máy Chủ MacBook (USB Print Server via QZ Tray)</span>
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-extrabold rounded-md uppercase">
-                      Phương Thức Chuẩn
+                      Cổng 8181 Trực Tiếp
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-                    Kết nối WebSocket bảo mật với QZ Tray daemon chạy trên máy chủ MacBook, đẩy trực tiếp lệnh ESC/POS qua cổng USB máy in Xprinter tốc độ siêu tốc và bỏ qua hoàn toàn hộp thoại AirPrint trên iPhone/iPad.
+                    Kết nối WebSocket không SSL qua cổng <strong>8181</strong> (<code>ws://</code>) giúp iPhone/iPad trong mạng LAN kết nối mượt mà không bị trình duyệt chặn chứng chỉ SSL, in tức thì qua cổng USB máy in Xprinter.
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center space-x-1.5 text-xs font-bold text-cyan-400 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-cyan-500/30 self-start sm:self-center">
                 <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                <span>Đang Áp Dụng</span>
+                <span>Đang Dùng ws://8181</span>
               </div>
             </div>
           </div>
@@ -441,49 +576,56 @@ export default function PrinterConfigCard({
               </p>
             </div>
 
-            {/* QZ Host IP / LAN */}
+            {/* QZ Host IP / LAN / mDNS */}
             <div className="sm:col-span-5 space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-300">
-                  Địa Chỉ IP Host MacBook *
+                  Địa Chỉ IP Host / Tên Miền Cục Bộ *
                 </label>
-                <span className="text-[10px] text-slate-500">Wi-Fi LAN / Local</span>
+                <span className="text-[10px] text-cyan-400 font-mono font-bold">mDNS / IP</span>
               </div>
 
               <input
                 type="text"
-                value={form.qzHost || 'localhost'}
+                value={form.qzHost || 'MacBook-Air-cua-Truong.local'}
                 onChange={(e) => setForm({ ...form, qzHost: e.target.value.trim() })}
-                placeholder="VD: 192.168.1.133 hoặc localhost"
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
+                placeholder="VD: MacBook-Air-cua-Truong.local hoặc 192.168.1.133"
+                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shadow-inner"
                 required
               />
 
               {/* Quick Host Suggestion Badges */}
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] text-slate-500">Gợi ý nhanh:</span>
-                {detectedHost && detectedHost !== 'localhost' && (
+                <span className="text-[10px] text-slate-500 font-medium">Gợi ý cố định:</span>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, qzHost: 'MacBook-Air-cua-Truong.local' })}
+                  className="px-2 py-0.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-mono font-bold rounded-lg transition"
+                >
+                  ✨ MacBook-Air-cua-Truong.local
+                </button>
+                {detectedHost && detectedHost !== 'localhost' && detectedHost !== 'MacBook-Air-cua-Truong.local' && (
                   <button
                     type="button"
                     onClick={() => setForm({ ...form, qzHost: detectedHost })}
-                    className="px-2 py-0.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-mono font-bold rounded-lg transition"
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono rounded-lg transition"
                   >
-                    IP máy: {detectedHost}
+                    IP: {detectedHost}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, qzHost: 'localhost' })}
-                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono rounded-lg transition"
-                >
-                  localhost
-                </button>
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, qzHost: '192.168.1.133' })}
                   className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono rounded-lg transition"
                 >
                   192.168.1.133
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, qzHost: 'localhost' })}
+                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono rounded-lg transition"
+                >
+                  localhost
                 </button>
               </div>
             </div>
@@ -493,19 +635,22 @@ export default function PrinterConfigCard({
           {/* Port & Secure Settings */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Cổng WebSocket QZ Tray
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-300">
+                  Cổng WebSocket QZ Tray *
+                </label>
+                <span className="text-[10px] text-emerald-400 font-bold">ws:// (Khuyên dùng)</span>
+              </div>
               <input
                 type="number"
-                value={form.qzPort || 8182}
-                onChange={(e) => setForm({ ...form, qzPort: parseInt(e.target.value, 10) || 8182 })}
-                placeholder="8182"
+                value={form.qzPort || 8181}
+                onChange={(e) => setForm({ ...form, qzPort: parseInt(e.target.value, 10) || 8181 })}
+                placeholder="8181"
                 className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-500 shadow-inner"
                 required
               />
-              <p className="text-[10px] text-slate-500 mt-1">
-                Mặc định: <span className="font-mono text-slate-400">8182 (WSS Bảo mật) / 8181 (WS Trực tiếp)</span>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Chuỗi kết nối thực tế: <strong className="font-mono text-cyan-300">ws://{form.qzHost || 'MacBook-Air-cua-Truong.local'}:{form.qzPort || 8181}</strong>
               </p>
             </div>
 
