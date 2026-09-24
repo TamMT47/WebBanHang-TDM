@@ -14,8 +14,17 @@ export interface InvoiceSettings {
   bankAccount: string;
   bankAccountHolder: string;
   warrantyPolicies: string[];
-  // LAN / Wifi / Tunnel Printer Settings (Xprinter XP-Q80BS)
-  printerConnectionMode: 'tunnel' | 'lan';
+
+  // Print Mode & Server Settings (QZ Tray / Tunnel / Direct LAN)
+  printerConnectionMode: 'qz-tray' | 'tunnel' | 'lan';
+
+  // QZ Tray Settings (Print Server on MacBook M2 via USB)
+  qzHost: string;
+  qzPort: number;
+  qzSecure: boolean;
+  qzPrinterName: string;
+
+  // Cloudflare Tunnel / LAN Socket Settings (Xprinter XP-A160H / XP-Q80BS)
   printerTunnelUrl: string;
   printerIp: string;
   printerPort: number;
@@ -46,8 +55,15 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
     '3. Từ chối bảo hành đối với các trường hợp rơi vỡ, cấn móp, ngấm nước, tự ý tháo mở máy hoặc can thiệp phần mềm.',
     '4. Quý khách vui lòng xuất trình hóa đơn này hoặc cung cấp SĐT đã mua hàng khi cần hỗ trợ kỹ thuật / bảo hành.',
   ],
-  // Cloudflare Tunnel & LAN Printer defaults for Xprinter XP-Q80BS
-  printerConnectionMode: 'tunnel',
+
+  // QZ Tray Defaults (MacBook M2 USB Xprinter XP-A160H)
+  printerConnectionMode: 'qz-tray',
+  qzHost: 'localhost',
+  qzPort: 8182,
+  qzSecure: true,
+  qzPrinterName: 'XP-A160H',
+
+  // Fallback Tunnel & LAN Printer defaults
   printerTunnelUrl: 'https://cet-step-perfectly-joseph.trycloudflare.com',
   printerIp: '192.168.1.133',
   printerPort: 9100,
@@ -68,8 +84,12 @@ export function getInvoiceSettings(): InvoiceSettings {
     return {
       ...DEFAULT_INVOICE_SETTINGS,
       ...parsed,
+      printerConnectionMode: parsed.printerConnectionMode || 'qz-tray',
+      qzHost: parsed.qzHost || 'localhost',
+      qzPort: parsed.qzPort || 8182,
+      qzSecure: parsed.qzSecure !== undefined ? parsed.qzSecure : true,
+      qzPrinterName: parsed.qzPrinterName || 'XP-A160H',
       printerTunnelUrl: parsed.printerTunnelUrl || DEFAULT_INVOICE_SETTINGS.printerTunnelUrl,
-      printerConnectionMode: parsed.printerConnectionMode || 'tunnel',
       printerIp: parsed.printerIp || '192.168.1.133',
       printerPort: parsed.printerPort || 9100,
     };

@@ -10,6 +10,7 @@
     "migrate": "node scripts/migrate.js"
   },
   "dependencies": {
+    "@types/ws": "^8.18.1",
     "bcryptjs": "^2.4.3",
     "canvas-confetti": "^1.9.4",
     "dotenv": "^16.4.7",
@@ -18,8 +19,10 @@
     "lucide-react": "^0.475.0",
     "next": "14.2.24",
     "pg": "^8.13.3",
+    "qz-tray": "^2.3.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

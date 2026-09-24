@@ -121,7 +121,8 @@ export default function InvoiceModal({
   const handleDirectLanPrint = async () => {
     if (!order) return;
     setIsPrintingLan(true);
-    setPrintNotice({ text: 'Đang gửi lệnh in tới Xprinter qua Cloudflare Tunnel...' });
+    const modeLabel = settings.printerConnectionMode === 'qz-tray' ? 'QZ Tray (MacBook M2)' : 'Print Server';
+    setPrintNotice({ text: `Đang gửi lệnh in tới Xprinter XP-A160H qua ${modeLabel}...` });
 
     try {
       const res = await printToLanPrinter(order, docType, {
@@ -129,12 +130,12 @@ export default function InvoiceModal({
       });
 
       if (res.success) {
-        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter thành công');
+        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter XP-A160H thành công');
       } else {
-        showToast(res.error || '🔴 Không kết nối được máy in qua Cloudflare Tunnel', true);
+        showToast(res.error || '🔴 Không kết nối được máy in qua Print Server / QZ Tray', true);
       }
     } catch (err: any) {
-      showToast('🔴 Lỗi gửi lệnh in tới máy in qua Cloudflare Tunnel', true);
+      showToast('🔴 Lỗi gửi lệnh in tới máy in Xprinter', true);
     } finally {
       setIsPrintingLan(false);
     }
@@ -148,12 +149,12 @@ export default function InvoiceModal({
     try {
       const res = await testLanPrinter(editForm.printerIp, editForm.printerPort, editForm);
       if (res.success) {
-        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter thành công');
+        showToast(res.message || '🟢 Đã gửi lệnh in tới Xprinter XP-A160H thành công');
       } else {
-        showToast(res.error || '🔴 Lỗi gửi lệnh in tới Xprinter qua Cloudflare Tunnel', true);
+        showToast(res.error || '🔴 Lỗi gửi lệnh in tới Xprinter qua Print Server', true);
       }
     } catch (err: any) {
-      showToast(err.message || '🔴 Lỗi kiểm tra kết nối Cloudflare Tunnel', true);
+      showToast(err.message || '🔴 Lỗi kiểm tra kết nối Print Server', true);
     } finally {
       setIsTestingLan(false);
     }

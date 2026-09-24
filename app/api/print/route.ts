@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import net from 'net';
 import { generateOrderReceiptEscpos, generateTestReceiptEscpos } from '@/lib/escpos';
 import { DEFAULT_INVOICE_SETTINGS, InvoiceSettings } from '@/lib/invoiceSettings';
+import { QzTrayServerBridge } from '@/lib/qzTrayServerBridge';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,6 @@ function sendRawSocket(host: string, port: number, buffer: Buffer, timeoutMs = 4
             reject(writeErr);
           }
         } else {
-          // Ensure all buffer is drained before closing socket
           socket.end(() => {
             if (!isHandled) {
               isHandled = true;
@@ -82,7 +82,6 @@ async function sendTunnelPayload(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    // 1. Try sending raw octet-stream binary
     const response = await fetch(cleanUrl, {
       method: 'POST',
       headers: {
@@ -99,7 +98,6 @@ async function sendTunnelPayload(
       return { success: true, message: 'Đã gửi lệnh in thành công qua Cloudflare Tunnel' };
     }
 
-    // 2. Try JSON Base64 payload
     const jsonRes = await fetch(cleanUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -126,28 +124,84 @@ async function sendTunnelPayload(
   }
 }
 
+/**
+ * GET: Ping & Check Status (QZ Tray / Tunnel / Socket)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const mode = searchParams.get('mode') || 'qz-tray';
+    const qzHost = searchParams.get('qzHost') || '127.0.0.1';
+    const qzPort = parseInt(searchParams.get('qzPort') || '8182', 10);
+    const qzSecure = searchParams.get('qzSecure') === 'true';
+
+    if (mode === 'qz-tray') {
+      const qzBridge = new QzTrayServerBridge({
+        host: qzHost,
+        port: qzPort,
+        secure: qzSecure,
+      });
+      const pingResult = await qzBridge.ping();
+      return NextResponse.json(pingResult);
+    }
+
+    if (mode === 'tunnel') {
+      const tunnelUrl = searchParams.get('tunnelUrl');
+      if (!tunnelUrl) {
+        return NextResponse.json({ online: false, message: 'Chưa cấu hình URL Cloudflare Tunnel' });
+      }
+      try {
+        const res = await fetch(tunnelUrl, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+        return NextResponse.json({
+          online: res.ok,
+          message: res.ok ? '🟢 Cloudflare Tunnel hoạt động' : `🔴 Tunnel trả về mã ${res.status}`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({ online: false, message: `🔴 Lỗi kết nối Tunnel: ${err.message}` });
+      }
+    }
+
+    return NextResponse.json({ online: true, message: '🟢 Sẵn sàng in' });
+  } catch (err: any) {
+    return NextResponse.json({ online: false, message: err.message }, { status: 500 });
+  }
+}
+
+/**
+ * POST: Execute Silent Print Job (K80 ESC/POS Payload)
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const { action = 'print', order, docType = 'invoice', rawBase64 } = body;
+
+    const connectionMode = body.connectionMode || body.settings?.printerConnectionMode || 'qz-tray';
+    const qzHost = body.qzHost || body.settings?.qzHost || '127.0.0.1';
+    const qzPort = parseInt(body.qzPort || body.settings?.qzPort || '8182', 10);
+    const qzSecure = body.qzSecure !== undefined ? Boolean(body.qzSecure) : body.settings?.qzSecure ?? true;
+    const targetPrinter = (body.qzPrinterName || body.settings?.qzPrinterName || 'XP-A160H').trim();
 
     const rawTunnel = String(
       body.tunnelUrl || body.settings?.printerTunnelUrl || 'https://cet-step-perfectly-joseph.trycloudflare.com'
     ).trim();
     const rawIp = String(body.ip || body.printerIp || body.settings?.printerIp || '192.168.1.133').trim();
     const port = parseInt(body.port || body.printerPort || body.settings?.printerPort || '9100', 10);
-    const connectionMode = body.connectionMode || body.settings?.printerConnectionMode || 'tunnel';
 
     const customSettings: InvoiceSettings = {
       ...DEFAULT_INVOICE_SETTINGS,
       ...(body.settings || {}),
+      printerConnectionMode: connectionMode,
+      qzHost,
+      qzPort,
+      qzSecure,
+      qzPrinterName: targetPrinter,
       printerTunnelUrl: rawTunnel,
       printerIp: rawIp,
       printerPort: port,
       printerPaperSize: body.printerPaperSize || body.paperSize || 'k80',
     };
 
-    // 1. Build Standard ESC/POS binary buffer
+    // 1. Build Standard ESC/POS binary buffer (K80, 48 cols, VietQR, Cut GS V 0, Drawer DLE DC4)
     let buffer: Buffer;
     if (rawBase64) {
       buffer = Buffer.from(rawBase64, 'base64');
@@ -157,66 +211,81 @@ export async function POST(request: NextRequest) {
       buffer = generateOrderReceiptEscpos(order, customSettings, docType);
     }
 
-    // 2. Parse Host / Cloudflare Tunnel
-    let targetHost = rawIp;
-    let isTunnelUrl = false;
+    const base64Data = buffer.toString('base64');
 
-    if (rawTunnel) {
-      try {
-        const parsed = new URL(rawTunnel.startsWith('http') ? rawTunnel : `https://${rawTunnel}`);
-        targetHost = parsed.hostname;
-        isTunnelUrl = true;
-      } catch (e) {
-        targetHost = rawTunnel;
+    // 2. Mode: QZ TRAY PRINT SERVER (MacBook M2 USB Xprinter XP-A160H)
+    if (connectionMode === 'qz-tray') {
+      const qzBridge = new QzTrayServerBridge({
+        host: qzHost,
+        port: qzPort,
+        secure: qzSecure,
+      });
+
+      const qzResult = await qzBridge.printRaw(base64Data, targetPrinter);
+
+      if (qzResult.success) {
+        return NextResponse.json({
+          success: true,
+          message: qzResult.message,
+          mode: 'qz-tray',
+          printer: qzResult.printer,
+        });
       }
+
+      // If QZ Tray failed, return informative error
+      return NextResponse.json(
+        {
+          success: false,
+          error: qzResult.error || qzResult.message,
+          mode: 'qz-tray',
+          printer: targetPrinter,
+        },
+        { status: 502 }
+      );
     }
 
-    // 3. Deliver via Cloudflare Tunnel Gateway or RAW TCP Socket
+    // 3. Mode: Cloudflare Tunnel Gateway
     if (connectionMode === 'tunnel' && rawTunnel) {
       try {
         await sendTunnelPayload(rawTunnel, buffer, order?.code);
         return NextResponse.json({
           success: true,
-          message: '🟢 Đã gửi lệnh in tới Xprinter thành công',
+          message: '🟢 Đã gửi lệnh in tới Xprinter thành công qua Cloudflare Tunnel',
           mode: 'tunnel',
-          host: targetHost,
-          port,
         });
       } catch (tunnelErr: any) {
-        console.warn('Tunnel HTTP failed, attempting direct RAW TCP socket to host:', tunnelErr.message);
-        
-        // Attempt RAW TCP Socket to parsed tunnel host / LAN IP
+        console.warn('Tunnel HTTP failed, attempting fallback to local QZ Tray:', tunnelErr.message);
+
+        // Auto fallback to local QZ Tray
         try {
-          await sendRawSocket(targetHost, port, buffer, 3000);
-          return NextResponse.json({
-            success: true,
-            message: '🟢 Đã gửi lệnh in tới Xprinter thành công',
-            mode: 'socket',
-            host: targetHost,
-            port,
-          });
-        } catch (socketErr: any) {
-          // If socket also unreachable, return friendly message
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Không thể kết nối máy in: ${tunnelErr.message || socketErr.message}`,
-              mode: 'tunnel',
-              host: targetHost,
-              port,
-            },
-            { status: 502 }
-          );
-        }
+          const qzBridge = new QzTrayServerBridge({ host: '127.0.0.1', port: 8181, secure: false });
+          const qzResult = await qzBridge.printRaw(base64Data, targetPrinter);
+          if (qzResult.success) {
+            return NextResponse.json({
+              success: true,
+              message: `🟢 Đã in tự động qua QZ Tray dự phòng (${qzResult.printer})`,
+              mode: 'qz-tray-fallback',
+            });
+          }
+        } catch (e) {}
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Không thể kết nối máy in qua Tunnel: ${tunnelErr.message}`,
+            mode: 'tunnel',
+          },
+          { status: 502 }
+        );
       }
     }
 
-    // Direct RAW TCP Socket delivery
+    // 4. Mode: Direct RAW TCP Socket delivery (LAN IP:9100)
     try {
       await sendRawSocket(rawIp, port, buffer, 3500);
       return NextResponse.json({
         success: true,
-        message: '🟢 Đã gửi lệnh in tới Xprinter thành công',
+        message: `🟢 Đã gửi lệnh in tới Xprinter thành công (Socket ${rawIp}:${port})`,
         mode: 'socket',
         host: rawIp,
         port,

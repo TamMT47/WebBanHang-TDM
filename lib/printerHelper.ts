@@ -4,6 +4,8 @@ export interface PrintResult {
   success: boolean;
   message?: string;
   error?: string;
+  printer?: string;
+  mode?: string;
 }
 
 export interface PrinterPingResult {
@@ -11,43 +13,90 @@ export interface PrinterPingResult {
   message: string;
   latencyMs?: number;
   mode?: string;
+  printers?: string[];
   error?: string;
 }
 
 const DEFAULT_TUNNEL_URL = 'https://cet-step-perfectly-joseph.trycloudflare.com';
 
 /**
- * Check/Ping Printer connection status via Cloudflare Tunnel Gateway
+ * Check/Ping Printer connection status (QZ Tray / Cloudflare Tunnel / LAN Socket)
  */
 export async function pingPrinterStatus(customSettings?: Partial<InvoiceSettings>): Promise<PrinterPingResult> {
   const settings = getInvoiceSettings();
   const merged = { ...settings, ...customSettings };
-  const tunnelUrl = merged.printerTunnelUrl || DEFAULT_TUNNEL_URL;
-  const ip = merged.printerIp || '192.168.1.133';
-  const port = merged.printerPort || 9100;
+  const mode = merged.printerConnectionMode || 'qz-tray';
   const startTime = Date.now();
 
-  try {
-    const res = await fetch(`/api/print-relay?check=ping&mode=tunnel&tunnelUrl=${encodeURIComponent(tunnelUrl)}&ip=${encodeURIComponent(ip)}&port=${port}`);
-    const data = await res.json();
-    return {
-      online: Boolean(data.online),
-      message: data.message || (data.online ? 'Máy in Xprinter sẵn sàng qua Cloudflare Tunnel' : 'Chưa kết nối Cloudflare Tunnel'),
-      latencyMs: data.latencyMs || (Date.now() - startTime),
-      mode: 'tunnel',
-      error: data.error,
-    };
-  } catch (err: any) {
-    return {
-      online: false,
-      message: 'Không thể kết nối Cloudflare Tunnel',
-      error: err.message,
-    };
+  // 1. QZ Tray Status Check
+  if (mode === 'qz-tray') {
+    const qzHost = merged.qzHost || '127.0.0.1';
+    const qzPort = merged.qzPort || 8182;
+    const qzSecure = merged.qzSecure ?? true;
+
+    try {
+      const res = await fetch(
+        `/api/print?mode=qz-tray&qzHost=${encodeURIComponent(qzHost)}&qzPort=${qzPort}&qzSecure=${qzSecure}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      return {
+        online: Boolean(data.online),
+        message: data.message || (data.online ? '🟢 QZ Tray sẵn sàng trên MacBook M2' : '🔴 Chưa kết nối QZ Tray'),
+        latencyMs: data.latencyMs || (Date.now() - startTime),
+        mode: 'qz-tray',
+        printers: data.printers || [],
+        error: data.error,
+      };
+    } catch (err: any) {
+      return {
+        online: false,
+        message: `🔴 Không kết nối được QZ Tray Print Server: ${err.message}`,
+        mode: 'qz-tray',
+        error: err.message,
+      };
+    }
   }
+
+  // 2. Cloudflare Tunnel Status Check
+  if (mode === 'tunnel') {
+    const tunnelUrl = merged.printerTunnelUrl || DEFAULT_TUNNEL_URL;
+    const ip = merged.printerIp || '192.168.1.133';
+    const port = merged.printerPort || 9100;
+
+    try {
+      const res = await fetch(
+        `/api/print?mode=tunnel&tunnelUrl=${encodeURIComponent(tunnelUrl)}&ip=${encodeURIComponent(ip)}&port=${port}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      return {
+        online: Boolean(data.online),
+        message: data.message || (data.online ? '🟢 Máy in sẵn sàng qua Cloudflare Tunnel' : '🔴 Chưa kết nối Cloudflare Tunnel'),
+        latencyMs: data.latencyMs || (Date.now() - startTime),
+        mode: 'tunnel',
+        error: data.error,
+      };
+    } catch (err: any) {
+      return {
+        online: false,
+        message: '🔴 Không thể kết nối Cloudflare Tunnel',
+        mode: 'tunnel',
+        error: err.message,
+      };
+    }
+  }
+
+  // 3. Direct LAN Socket
+  return {
+    online: true,
+    message: `🟢 Cấu hình in LAN Socket (${merged.printerIp}:${merged.printerPort})`,
+    mode: 'lan',
+  };
 }
 
 /**
- * Send Test Print (K80 bill) directly via /api/print (Cloudflare Tunnel & RAW TCP Socket)
+ * Send Test Print (K80 bill) directly via /api/print (QZ Tray / Cloudflare Tunnel / RAW TCP Socket)
  * Completely silent, no AirPrint / window.print()
  */
 export async function testLanPrinter(
@@ -57,6 +106,7 @@ export async function testLanPrinter(
 ): Promise<PrintResult> {
   const settings = getInvoiceSettings();
   const merged = { ...settings, ...customSettings };
+  const connectionMode = merged.printerConnectionMode || 'qz-tray';
   const targetIp = (ip || merged.printerIp || '192.168.1.133').trim();
   const targetPort = port || merged.printerPort || 9100;
   const tunnelUrl = (merged.printerTunnelUrl || DEFAULT_TUNNEL_URL).trim();
@@ -67,12 +117,17 @@ export async function testLanPrinter(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'test',
-        connectionMode: merged.printerConnectionMode || 'tunnel',
+        connectionMode,
+        qzHost: merged.qzHost || '127.0.0.1',
+        qzPort: merged.qzPort || 8182,
+        qzSecure: merged.qzSecure ?? true,
+        qzPrinterName: merged.qzPrinterName || 'XP-A160H',
         tunnelUrl,
         ip: targetIp,
         port: targetPort,
         settings: {
           ...merged,
+          printerConnectionMode: connectionMode,
           printerTunnelUrl: tunnelUrl,
           printerIp: targetIp,
           printerPort: targetPort,
@@ -87,12 +142,14 @@ export async function testLanPrinter(
 
     return {
       success: true,
-      message: '🟢 Đã gửi lệnh in tới Xprinter thành công',
+      message: data.message || '🟢 Đã gửi lệnh in thử nghiệm thành công',
+      printer: data.printer,
+      mode: data.mode,
     };
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới máy in qua Socket/Tunnel'}`,
+      error: `🔴 ${err.message || 'Không thể gửi lệnh in qua Print Server'}`,
     };
   }
 }
@@ -110,6 +167,7 @@ export async function printToLanPrinter(
 ): Promise<PrintResult> {
   const settings = getInvoiceSettings();
   const merged = { ...settings, ...options?.customSettings };
+  const connectionMode = merged.printerConnectionMode || 'qz-tray';
   const targetIp = (options?.customSettings?.printerIp || merged.printerIp || '192.168.1.133').trim();
   const targetPort = options?.customSettings?.printerPort || merged.printerPort || 9100;
   const tunnelUrl = (merged.printerTunnelUrl || DEFAULT_TUNNEL_URL).trim();
@@ -120,7 +178,11 @@ export async function printToLanPrinter(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'print',
-        connectionMode: merged.printerConnectionMode || 'tunnel',
+        connectionMode,
+        qzHost: merged.qzHost || '127.0.0.1',
+        qzPort: merged.qzPort || 8182,
+        qzSecure: merged.qzSecure ?? true,
+        qzPrinterName: merged.qzPrinterName || 'XP-A160H',
         tunnelUrl,
         ip: targetIp,
         port: targetPort,
@@ -128,6 +190,7 @@ export async function printToLanPrinter(
         docType,
         settings: {
           ...merged,
+          printerConnectionMode: connectionMode,
           printerTunnelUrl: tunnelUrl,
           printerIp: targetIp,
           printerPort: targetPort,
@@ -142,14 +205,14 @@ export async function printToLanPrinter(
 
     return {
       success: true,
-      message: '🟢 Đã gửi lệnh in tới Xprinter thành công',
+      message: data.message || '🟢 Đã in hóa đơn thành công',
+      printer: data.printer,
+      mode: data.mode,
     };
   } catch (err: any) {
     return {
       success: false,
-      error: `🔴 ${err.message || 'Không thể kết nối máy in qua Socket/Tunnel'}`,
+      error: `🔴 ${err.message || 'Không thể gửi lệnh in tới máy in'}`,
     };
   }
 }
-
-
