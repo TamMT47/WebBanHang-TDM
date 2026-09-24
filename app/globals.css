@@ -199,48 +199,61 @@ body {
   background: #475569;
 }
 
-/* Print styles for Receipts (KiotViet K80 Native Browser Print) */
+/* Print styles for Receipts (KiotViet K80 Native Browser Print - Single Page Fixed) */
 @media print {
   @page {
     size: 80mm auto;
-    margin: 0;
+    margin: 0mm;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
   }
   html, body {
     width: 80mm !important;
     min-width: 80mm !important;
     max-width: 80mm !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
   #invoice-print-area, #invoice-print-area *,
   #printable-receipt, #printable-receipt * {
-    visibility: visible;
+    visibility: visible !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   #invoice-print-area,
   #printable-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 80mm !important;
     max-width: 80mm !important;
     min-width: 80mm !important;
-    margin: 0 auto !important;
-    padding: 4px !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
     box-sizing: border-box !important;
     box-shadow: none !important;
-    border: none !important;
     background: #ffffff !important;
     color: #000000 !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    font-family: 'Courier New', Courier, monospace, sans-serif !important;
     font-size: 12px !important;
-    line-height: 1.2 !important;
+    line-height: 1.25 !important;
+    font-weight: 600 !important;
+    border: none !important;
   }
   .no-print {
     display: none !important;

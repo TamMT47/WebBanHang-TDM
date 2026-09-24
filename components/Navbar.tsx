@@ -93,9 +93,9 @@ export default function Navbar({
   );
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 shadow-2xl shadow-black/40">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 shadow-2xl shadow-black/40 w-full min-w-full">
+      <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-3 flex-nowrap min-w-full">
           
           {/* Logo & Brand (1 Single Line + Larger Zoomed Logo) */}
           <div className="flex items-center space-x-2.5 cursor-pointer group flex-shrink-0" onClick={() => setActiveTab('pos')}>
@@ -111,7 +111,7 @@ export default function Navbar({
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center space-x-1">
+          <nav className="hidden lg:flex items-center space-x-1 overflow-x-auto no-scrollbar">
             {filteredNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -119,7 +119,7 @@ export default function Navbar({
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                  className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 flex-shrink-0 ${
                     isActive
                       ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                       : 'text-slate-300 hover:bg-slate-900/80 hover:text-white hover:border hover:border-slate-800'
@@ -133,13 +133,13 @@ export default function Navbar({
           </nav>
 
           {/* User Profile & Actions (Desktop & Mobile) */}
-          <div className="flex items-center space-x-2 sm:space-x-2.5">
+          <div className="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0 flex-nowrap">
             {/* Light / Dark Mode Toggle */}
             <button
               type="button"
               onClick={handleToggleColorMode}
               title={colorMode === 'dark' ? 'Chuyển sang Chế độ Sáng (Light Mode)' : 'Chuyển sang Chế độ Tối (Dark Mode)'}
-              className="p-2 text-slate-300 hover:text-amber-400 bg-slate-900/90 hover:bg-slate-800 rounded-xl border border-slate-700/80 transition flex items-center justify-center shadow-xs"
+              className="p-2 text-slate-300 hover:text-amber-400 bg-slate-900/90 hover:bg-slate-800 rounded-xl border border-slate-700/80 transition flex items-center justify-center shadow-xs flex-shrink-0"
             >
               {colorMode === 'dark' ? (
                 <Sun className="w-4 h-4 text-amber-400 animate-in spin-in-180 duration-300" />
@@ -152,24 +152,24 @@ export default function Navbar({
               <button
                 onClick={onOpenWarrantyLookup}
                 title="Tra cứu bảo hành nhanh"
-                className="hidden xl:flex items-center space-x-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800 text-cyan-300 text-xs font-bold rounded-xl border border-slate-700/80 hover:border-cyan-500/50 shadow-sm transition"
+                className="hidden xl:flex items-center space-x-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800 text-cyan-300 text-xs font-bold rounded-xl border border-slate-700/80 hover:border-cyan-500/50 shadow-sm transition flex-shrink-0"
               >
                 <Search className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="badge-nowrap">Tra Bảo Hành</span>
               </button>
             )}
 
-            {/* Chi nhánh (Desktop) */}
-            <div className="hidden 2xl:flex items-center space-x-1 px-2.5 py-1.5 bg-slate-900/80 rounded-xl border border-slate-800 text-[11px] text-slate-300 font-bold">
+            {/* Chi nhánh (Desktop >= lg) */}
+            <div className="hidden lg:flex items-center space-x-1 px-2.5 py-1.5 bg-slate-900/80 rounded-xl border border-slate-800 text-[11px] text-slate-300 font-bold flex-shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-glow-emerald mr-1"></span>
-              <span>CN Chính</span>
+              <span className="badge-nowrap">CN Chính</span>
             </div>
 
             {/* Thông tin tài khoản / Tên nhân viên (Desktop >= lg) */}
             {user && (
-              <div className="hidden lg:flex items-center space-x-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner">
+              <div className="hidden lg:flex items-center space-x-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 shadow-inner flex-shrink-0">
                 <div className="text-right">
-                  <div className="text-xs font-black text-slate-100">{user.full_name}</div>
+                  <div className="text-xs font-black text-slate-100 badge-nowrap">{user.full_name}</div>
                   <div className="text-[10px] text-slate-400 flex items-center justify-end space-x-1">
                     <span>{getRoleBadge(user.role)}</span>
                   </div>
@@ -177,11 +177,11 @@ export default function Navbar({
               </div>
             )}
 
-            {/* Nút Cài Đặt (Desktop) */}
+            {/* Nút Cài Đặt (Desktop >= lg) */}
             <button
               onClick={() => setActiveTab('settings')}
               title="Cài Đặt Hệ Thống"
-              className={`hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition ${
+              className={`hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition flex-shrink-0 ${
                 activeTab === 'settings'
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-glow-cyan'
                   : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border-slate-700/80 hover:text-white'
@@ -195,7 +195,7 @@ export default function Navbar({
             <button
               onClick={onLogout}
               title="Đăng xuất khỏi hệ thống"
-              className="flex items-center space-x-1.5 px-3 py-2 text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-500/25 rounded-xl transition border border-rose-500/30 text-xs font-bold shadow-xs active:scale-95"
+              className="flex items-center space-x-1.5 px-3 py-2 text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-500/25 rounded-xl transition border border-rose-500/30 text-xs font-bold shadow-xs active:scale-95 flex-shrink-0"
             >
               <LogOut className="w-4 h-4 text-rose-400" />
               <span className="hidden lg:inline badge-nowrap font-black">ĐĂNG XUẤT</span>
@@ -204,7 +204,7 @@ export default function Navbar({
             {/* Mobile menu toggle (Mobile only < lg) */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-900 border border-slate-800"
+              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-900 border border-slate-800 flex-shrink-0"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
