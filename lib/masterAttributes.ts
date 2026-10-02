@@ -61,6 +61,32 @@ export const DEFAULT_MASTER_CATEGORIES = [
   'Airpods',
   'AppleWatch',
   'PhuKien',
+  'DichVu',
+];
+
+export interface MasterServiceItem {
+  id: string;
+  name: string;
+  defaultPrice: number;
+  defaultWarrantyMonths: number;
+  category: string;
+}
+
+export const DEFAULT_MASTER_SERVICES: MasterServiceItem[] = [
+  { id: 'thay_pin', name: 'Thay Pin (Pin Zin / EU / Pisen / Deji)', defaultPrice: 450000, defaultWarrantyMonths: 12, category: 'DichVu' },
+  { id: 'thay_man_hinh', name: 'Thay Màn Hình (Màn Zin bóc máy / OLED GX / JK)', defaultPrice: 1500000, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'ep_kinh', name: 'Ép Kính Màn Hình / Ép Cảm Ứng', defaultPrice: 400000, defaultWarrantyMonths: 12, category: 'DichVu' },
+  { id: 'ep_kinh_lung', name: 'Thay Kính Lưng / Thay Nắp Lưng', defaultPrice: 350000, defaultWarrantyMonths: 12, category: 'DichVu' },
+  { id: 'sua_nguon', name: 'Sửa Nguồn / Chết Nguồn / Hao Pin Nóng Máy', defaultPrice: 600000, defaultWarrantyMonths: 3, category: 'DichVu' },
+  { id: 'sua_faceid', name: 'Sửa Face ID / Touch ID / Cảm biến', defaultPrice: 500000, defaultWarrantyMonths: 3, category: 'DichVu' },
+  { id: 'thay_camera', name: 'Thay Camera Trước / Sau / Rung / Kính Cam', defaultPrice: 500000, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'thay_chan_sac', name: 'Thay Cụm Chân Sạc / Cáp Sạc / Mic', defaultPrice: 350000, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'thay_loa', name: 'Thay Loa Trong / Loa Ngoài / Rè Loa', defaultPrice: 250000, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'thay_vo_suon', name: 'Thay Vỏ / Độ Vỏ / Thay Sườn Máy', defaultPrice: 800000, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 've_sinh_may', name: 'Vệ Sinh Máy / Tra Keo Tản Nhiệt / Kháng Nước', defaultPrice: 100000, defaultWarrantyMonths: 0, category: 'DichVu' },
+  { id: 'chay_phan_mem', name: 'Chạy Lại Phần Mềm / Khôi Phục / Cứu Dữ Liệu', defaultPrice: 150000, defaultWarrantyMonths: 0, category: 'DichVu' },
+  { id: 'dan_cuong_luc_ppf', name: 'Dán Cường Lực / Dán PPF Full Body', defaultPrice: 100000, defaultWarrantyMonths: 0, category: 'DichVu' },
+  { id: 'sua_chua_khac', name: 'Dịch Vụ Sửa Chữa Khác (Theo Báo Giá)', defaultPrice: 300000, defaultWarrantyMonths: 3, category: 'DichVu' },
 ];
 
 /**

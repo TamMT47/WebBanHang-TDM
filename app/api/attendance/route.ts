@@ -87,19 +87,46 @@ export async function GET(request: NextRequest) {
     const vnDate = new Date(vnTimeStr);
     const todayStr = vnDate.toISOString().split('T')[0];
 
-    // Weekly Shift Rotation:
-    // Calculate ISO Week and rotate staff shifts automatically
+    const dateFrom = searchParams.get('dateFrom') || '';
+    const dateTo = searchParams.get('dateTo') || '';
+    const shiftFilter = searchParams.get('shift') || '';
+    const sessionFilter = searchParams.get('session') || '';
+    const statusFilter = searchParams.get('status') || '';
+    const searchQuery = searchParams.get('search') || '';
+
+    // Weekly Shift Rotation / Assigned Shift calculation:
     const weekNumber = getISOWeekNumber(vnDate);
-    const staffRes = await query(`SELECT id, full_name, created_at FROM users WHERE role = 'staff' ORDER BY created_at ASC`);
-    const staffUsers = staffRes.rows;
-    const staffIndex = staffUsers.findIndex((s) => s.id === user.id);
+    
+    // Check if user has explicit assignment in user_shift_assignments
+    const assignRes = await query(
+      `SELECT assigned_shift, rotation_type FROM user_shift_assignments WHERE user_id = $1`,
+      [user.id]
+    );
 
     let assignedShift = 'shift1';
-    if (user.role === 'staff') {
-      const idx = staffIndex >= 0 ? staffIndex : 0;
-      assignedShift = (weekNumber + idx) % 2 === 0 ? 'shift1' : 'shift2';
+    if (assignRes.rows.length > 0) {
+      const { assigned_shift: baseShift, rotation_type: rotType } = assignRes.rows[0];
+      if (rotType === 'fixed') {
+        assignedShift = baseShift || 'shift1';
+      } else {
+        // Auto weekly rotation
+        const baseIsShift1 = (baseShift || 'shift1') === 'shift1';
+        assignedShift = weekNumber % 2 === 0
+          ? (baseIsShift1 ? 'shift1' : 'shift2')
+          : (baseIsShift1 ? 'shift2' : 'shift1');
+      }
     } else {
-      assignedShift = 'manager';
+      // Default fallback
+      const staffRes = await query(`SELECT id, full_name, created_at FROM users WHERE role = 'staff' ORDER BY created_at ASC`);
+      const staffUsers = staffRes.rows;
+      const staffIndex = staffUsers.findIndex((s) => s.id === user.id);
+
+      if (user.role === 'staff') {
+        const idx = staffIndex >= 0 ? staffIndex : 0;
+        assignedShift = (weekNumber + idx) % 2 === 0 ? 'shift1' : 'shift2';
+      } else {
+        assignedShift = 'manager';
+      }
     }
 
     const todayRecordsRes = await query(
@@ -130,7 +157,7 @@ export async function GET(request: NextRequest) {
     `;
     const params: any[] = [];
 
-    if (targetUserId) {
+    if (targetUserId && targetUserId !== 'all') {
       params.push(targetUserId);
       historySql += ` AND a.user_id = $${params.length}`;
     } else if (!isManagerOrAbove) {
@@ -141,16 +168,59 @@ export async function GET(request: NextRequest) {
     if (dateParam) {
       params.push(dateParam);
       historySql += ` AND a.date = $${params.length}`;
+    } else if (dateFrom && dateTo) {
+      params.push(dateFrom);
+      historySql += ` AND a.date >= $${params.length}`;
+      params.push(dateTo);
+      historySql += ` AND a.date <= $${params.length}`;
+    } else if (dateFrom) {
+      params.push(dateFrom);
+      historySql += ` AND a.date >= $${params.length}`;
+    } else if (dateTo) {
+      params.push(dateTo);
+      historySql += ` AND a.date <= $${params.length}`;
     } else if (monthParam) {
       params.push(`${monthParam}%`);
       historySql += ` AND TO_CHAR(a.date, 'YYYY-MM') LIKE $${params.length}`;
     }
 
-    historySql += ` ORDER BY a.date DESC, a.check_in DESC LIMIT 250`;
+    if (shiftFilter && shiftFilter !== 'all') {
+      params.push(shiftFilter);
+      historySql += ` AND a.shift = $${params.length}`;
+    }
+
+    if (sessionFilter && sessionFilter !== 'all') {
+      params.push(sessionFilter);
+      historySql += ` AND a.session = $${params.length}`;
+    }
+
+    if (statusFilter && statusFilter !== 'all') {
+      if (statusFilter === 'completed') {
+        historySql += ` AND a.status = 'completed'`;
+      } else if (statusFilter === 'working') {
+        historySql += ` AND a.status = 'working'`;
+      } else if (statusFilter === 'late') {
+        historySql += ` AND a.late_minutes > 0`;
+      } else if (statusFilter === 'early') {
+        historySql += ` AND a.early_minutes > 0`;
+      } else if (statusFilter === 'ot') {
+        historySql += ` AND a.ot_hours > 0`;
+      } else if (statusFilter === 'off_day') {
+        historySql += ` AND a.is_off_day = true`;
+      }
+    }
+
+    if (searchQuery.trim()) {
+      params.push(`%${searchQuery.trim()}%`);
+      historySql += ` AND (u.full_name ILIKE $${params.length} OR a.note ILIKE $${params.length})`;
+    }
+
+    historySql += ` ORDER BY a.date DESC, a.check_in DESC LIMIT 500`;
     const historyRes = await query(historySql, params);
 
-    // Monthly summary for user
+    // Monthly summary for user or filtered user
     const curMonth = monthParam || todayStr.slice(0, 7);
+    const summaryTargetUser = targetUserId && targetUserId !== 'all' ? targetUserId : user.id;
     const summaryRes = await query(
       `SELECT 
         COUNT(DISTINCT a.date) AS active_days,
@@ -160,7 +230,7 @@ export async function GET(request: NextRequest) {
         COUNT(CASE WHEN a.is_off_day = true THEN 1 END) AS off_days_worked
        FROM attendance a
        WHERE a.user_id = $1 AND TO_CHAR(a.date, 'YYYY-MM') = $2 AND a.check_out IS NOT NULL`,
-      [user.id, curMonth]
+      [summaryTargetUser, curMonth]
     );
 
     const summary = summaryRes.rows[0] || {

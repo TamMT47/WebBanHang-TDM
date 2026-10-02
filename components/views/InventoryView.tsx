@@ -324,8 +324,22 @@ export default function InventoryView({ user }: InventoryViewProps) {
     });
   }, [inventory, search]);
 
-  const totalInStock = inventory.filter((i) => i.status === 'in_stock').length;
-  const totalSold = inventory.filter((i) => i.status === 'sold').length;
+  const inStockItems = useMemo(() => inventory.filter((i) => i.status === 'in_stock'), [inventory]);
+  const totalInStock = inStockItems.length;
+  const totalSold = useMemo(() => inventory.filter((i) => i.status === 'sold').length, [inventory]);
+
+  // Inventory Valuation (Giá vốn theo giá nhập & Giá trị niêm yết theo giá bán)
+  const [showCostValues, setShowCostValues] = useState(true);
+  const totalCostValue = useMemo(() => {
+    return inStockItems.reduce((sum, item) => sum + (parseFloat(item.cost_price as any) || 0), 0);
+  }, [inStockItems]);
+
+  const totalSellingValue = useMemo(() => {
+    return inStockItems.reduce((sum, item) => sum + (parseFloat(item.selling_price as any) || 0), 0);
+  }, [inStockItems]);
+
+  const expectedGrossProfit = Math.max(0, totalSellingValue - totalCostValue);
+  const profitMargin = totalSellingValue > 0 ? ((expectedGrossProfit / totalSellingValue) * 100).toFixed(1) : '0';
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-16">
@@ -338,10 +352,10 @@ export default function InventoryView({ user }: InventoryViewProps) {
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
-              Quản Lý Kho Hàng & Tồn Kho IMEI
+              Quản Lý Kho Hàng & Định Giá Vốn Hàng Tồn
             </h2>
             <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5">
-              <span className="text-emerald-400 font-bold badge-nowrap">● Còn hàng: {totalInStock} máy</span>
+              <span className="text-emerald-400 font-bold badge-nowrap">● Tồn kho: {totalInStock} sản phẩm</span>
               <span>•</span>
               <span className="text-slate-400 font-bold badge-nowrap">Đã bán: {totalSold} máy</span>
             </div>
@@ -350,6 +364,18 @@ export default function InventoryView({ user }: InventoryViewProps) {
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {canSeeCost && (
+            <button
+              type="button"
+              onClick={() => setShowCostValues(!showCostValues)}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
+              title={showCostValues ? 'Ẩn giá trị vốn kho' : 'Hiện giá trị vốn kho'}
+            >
+              {showCostValues ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5 text-slate-400" />}
+              <span>{showCostValues ? 'Ẩn Vốn Kho' : 'Xem Vốn Kho'}</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsAddProductOpen(true)}
             className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 badge-nowrap"
@@ -366,6 +392,102 @@ export default function InventoryView({ user }: InventoryViewProps) {
             <span>+ Nhập Lẻ 1 Máy</span>
           </button>
         </div>
+      </div>
+
+      {/* KPI CARDS: ĐỊNH GIÁ TÀI SẢN KHO HÀNG (GIÁ NHẬP & GIÁ BÁN) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        
+        {/* Card 1: Tổng Số Lượng Tồn Kho */}
+        <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden group">
+          <div className="absolute -right-3 -top-3 w-16 h-16 bg-cyan-500/10 rounded-full blur-xl group-hover:bg-cyan-500/20 transition" />
+          <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
+            <span>Tổng Sản Phẩm Tồn Kho</span>
+            <div className="p-1.5 bg-cyan-500/15 text-cyan-400 rounded-xl">
+              <Smartphone className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-white font-sans flex items-baseline space-x-1.5">
+            <span>{totalInStock}</span>
+            <span className="text-xs font-bold text-emerald-400 font-sans">sản phẩm</span>
+          </div>
+          <div className="mt-1 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Sẵn sàng xuất bán</span>
+            <span className="text-slate-500 font-mono font-bold">Đã bán: {totalSold}</span>
+          </div>
+        </div>
+
+        {/* Card 2: Tổng Giá Trị Vốn Kho (Tính Theo Giá Nhập) */}
+        {canSeeCost ? (
+          <div className="bg-gradient-to-br from-slate-900/90 to-amber-950/30 backdrop-blur-xl p-4 rounded-3xl border border-amber-500/30 shadow-xl relative overflow-hidden group">
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-amber-500/10 rounded-full blur-xl group-hover:bg-amber-500/20 transition" />
+            <div className="flex items-center justify-between text-amber-300 text-xs font-black uppercase tracking-wider">
+              <span>Giá Trị Vốn Kho (Giá Nhập)</span>
+              <div className="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl">
+                <DollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-2xl font-black text-amber-400 font-sans tracking-tight">
+              {showCostValues ? formatVND(totalCostValue) : '••••••••• đ'}
+            </div>
+            <div className="mt-1 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Tổng vốn tài sản trong kho</span>
+              <span className="text-amber-300/80 font-mono font-bold">Vốn / máy: {totalInStock > 0 ? formatVND(Math.round(totalCostValue / totalInStock)) : '0đ'}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl">
+            <div className="text-xs font-bold text-slate-400">Trạng Thái Tồn Kho</div>
+            <div className="mt-2 text-xl font-black text-emerald-400">Hoạt động bình thường</div>
+            <div className="mt-1 text-[11px] text-slate-500">Xem chi tiết bên dưới</div>
+          </div>
+        )}
+
+        {/* Card 3: Tổng Giá Trị Niêm Yết (Giá Bán) */}
+        <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden group">
+          <div className="absolute -right-3 -top-3 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition" />
+          <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
+            <span>Tổng Giá Trị Niêm Yết (Bán)</span>
+            <div className="p-1.5 bg-emerald-500/15 text-emerald-400 rounded-xl">
+              <Sparkles className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-emerald-400 font-sans tracking-tight">
+            {formatVND(totalSellingValue)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Doanh thu kỳ vọng khi bán hết</span>
+            <span className="text-emerald-400/80 font-mono font-bold">TB: {totalInStock > 0 ? formatVND(Math.round(totalSellingValue / totalInStock)) : '0đ'}</span>
+          </div>
+        </div>
+
+        {/* Card 4: Lợi Nhuận Gộp Dự Kiến */}
+        {canSeeCost ? (
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden group">
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-indigo-500/10 rounded-full blur-xl group-hover:bg-indigo-500/20 transition" />
+            <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
+              <span>Lợi Nhuận Gộp Dự Kiến</span>
+              <div className="p-1.5 bg-indigo-500/15 text-indigo-400 rounded-xl">
+                <Tag className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-2xl font-black text-indigo-300 font-sans tracking-tight">
+              {showCostValues ? formatVND(expectedGrossProfit) : '••••••••• đ'}
+            </div>
+            <div className="mt-1 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Tỷ suất lợi nhuận kỳ vọng</span>
+              <span className="text-indigo-400 font-bold bg-indigo-500/15 px-1.5 py-0.5 rounded-md font-sans">
+                +{profitMargin}%
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-slate-900/80 backdrop-blur-xl p-4 rounded-3xl border border-slate-800 shadow-xl">
+            <div className="text-xs font-bold text-slate-400">Danh Mục Sản Phẩm</div>
+            <div className="mt-2 text-xl font-black text-cyan-400">Đầy đủ chủng loại</div>
+            <div className="mt-1 text-[11px] text-slate-500">iPhone, iPad, Mac, Phụ kiện, Dịch vụ</div>
+          </div>
+        )}
+
       </div>
 
       {/* Alert Banner */}
@@ -418,6 +540,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
               <option value="Airpods">Airpods</option>
               <option value="AppleWatch">Apple Watch</option>
               <option value="PhuKien">Phụ Kiện</option>
+              <option value="DichVu">Dịch Vụ Sửa Chữa</option>
             </select>
           </div>
 

@@ -45,6 +45,10 @@ interface InvoiceModalProps {
       name?: string;
       imei?: string;
       price: number;
+      quantity?: number;
+      item_type?: string;
+      is_gift?: boolean;
+      note?: string;
       warranty_months?: number;
       warranty_until?: string;
       battery_health?: number;
@@ -387,36 +391,48 @@ export default function InvoiceModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {order.items?.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50/50">
-                          <td className="py-3 px-2 text-center text-gray-500">{idx + 1}</td>
-                          <td className="py-3 px-2">
-                            <div className="font-bold text-gray-950">{item.product_name || item.name}</div>
-                            <div className="text-[10px] text-gray-500 space-x-2">
-                              {item.storage && <span>Dung lượng: {item.storage}</span>}
-                              {item.color && <span>• Màu: {item.color}</span>}
-                              {item.condition && <span>• Tình trạng: {item.condition}</span>}
-                              {settings.showBatteryHealth && item.battery_health && (
-                                <span className="text-emerald-700 font-bold">• Pin: {item.battery_health}%</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 font-mono font-bold text-gray-900 text-[11px]">
-                            {settings.showImei && item.imei ? item.imei : '---'}
-                          </td>
-                          <td className="py-3 px-2 text-center">
-                            <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md font-bold text-[10px]">
-                              {item.warranty_months || 12} Tháng
-                            </span>
-                          </td>
-                          <td className="py-3 px-2 text-right font-sans font-bold text-gray-900">
-                            {formatVND(item.price)}
-                          </td>
-                          <td className="py-3 px-2 text-right font-sans font-black text-gray-950">
-                            {formatVND(item.price)}
-                          </td>
-                        </tr>
-                      ))}
+                      {order.items?.map((item, idx) => {
+                        const qty = item.quantity || 1;
+                        const lineTotal = item.price * qty;
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50/50">
+                            <td className="py-3 px-2 text-center text-gray-500">{idx + 1}</td>
+                            <td className="py-3 px-2">
+                              <div className="font-bold text-gray-950 flex items-center space-x-1.5 flex-wrap">
+                                <span>{item.product_name || item.name}</span>
+                                {item.is_gift && (
+                                  <span className="text-[10px] px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 rounded font-bold">
+                                    Quà tặng (0đ)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-gray-500 space-x-2">
+                                {item.storage && <span>Dung lượng: {item.storage}</span>}
+                                {item.color && <span>• Màu: {item.color}</span>}
+                                {item.condition && <span>• Tình trạng: {item.condition}</span>}
+                                {settings.showBatteryHealth && item.battery_health && (
+                                  <span className="text-emerald-700 font-bold">• Pin: {item.battery_health}%</span>
+                                )}
+                                {item.note && <span className="text-gray-600 font-medium">• Ghi chú: {item.note}</span>}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 font-mono font-bold text-gray-900 text-[11px]">
+                              {settings.showImei && item.imei ? item.imei : '---'}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md font-bold text-[10px]">
+                                {item.warranty_months ? `${item.warranty_months} Tháng` : 'Bao test'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-right font-sans font-bold text-gray-900">
+                              {qty > 1 ? `${qty} x ${formatVND(item.price)}` : formatVND(item.price)}
+                            </td>
+                            <td className="py-3 px-2 text-right font-sans font-black text-gray-950">
+                              {formatVND(lineTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
 
                       {/* Trade in item */}
                       {order.trade_in_item && (
@@ -597,20 +613,29 @@ export default function InvoiceModal({
                   <span>Mặt Hàng</span>
                   <span>Thành Tiền</span>
                 </div>
-                {order.items?.map((item, idx) => (
-                  <div key={idx} className="space-y-0.5">
-                    <div className="font-bold text-black flex justify-between items-start gap-2">
-                      <span className="leading-snug">{idx + 1}. {item.product_name || item.name}</span>
-                      <span className="font-bold whitespace-nowrap">{formatVND(item.price)}</span>
+                {order.items?.map((item, idx) => {
+                  const qty = item.quantity || 1;
+                  const lineTotal = item.price * qty;
+                  return (
+                    <div key={idx} className="space-y-0.5">
+                      <div className="font-bold text-black flex justify-between items-start gap-2">
+                        <span className="leading-snug">
+                          {idx + 1}. {item.product_name || item.name}
+                          {qty > 1 ? ` (SL: ${qty})` : ''}
+                          {item.is_gift ? ' [Quà tặng 0đ]' : ''}
+                        </span>
+                        <span className="font-bold whitespace-nowrap">{formatVND(lineTotal)}</span>
+                      </div>
+                      <div className="text-[10px] text-black pl-3 leading-snug">
+                        {[item.storage, item.color, item.condition].filter(Boolean).join(' | ')}
+                        {settings.showImei && item.imei ? ` • IMEI: ${item.imei}` : ''}
+                        {settings.showBatteryHealth && item.battery_health ? ` • Pin ${item.battery_health}%` : ''}
+                        {item.warranty_months ? ` • BH: ${item.warranty_months}T` : ' • BH: Bao test'}
+                        {item.note ? ` • ${item.note}` : ''}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-black pl-3 leading-snug">
-                      {[item.storage, item.color, item.condition].filter(Boolean).join(' | ')}
-                      {settings.showImei && item.imei ? ` • IMEI: ${item.imei}` : ''}
-                      {settings.showBatteryHealth && item.battery_health ? ` • Pin ${item.battery_health}%` : ''}
-                      {` • BH: ${item.warranty_months || 12}T`}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {order.trade_in_item && (
                   <div className="pt-1.5 border-t border-dashed border-black">

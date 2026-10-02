@@ -122,13 +122,16 @@ export async function GET(request: NextRequest) {
           oi.order_id,
           oi.inventory_id,
           oi.price,
+          COALESCE(oi.quantity, 1) AS quantity,
           oi.warranty_months,
           oi.warranty_until,
-          i.imei,
-          ${hasFinancialAccess ? 'i.cost_price,' : '0 AS cost_price,'}
-          i.battery_health,
-          p.name AS product_name,
-          p.category,
+          COALESCE(oi.item_type, CASE WHEN oi.category = 'DichVu' THEN 'service' WHEN oi.category = 'PhuKien' THEN 'accessory' ELSE 'phone' END) AS item_type,
+          oi.note,
+          COALESCE(oi.imei, i.imei) AS imei,
+          ${hasFinancialAccess ? 'COALESCE(i.cost_price, 0) AS cost_price,' : '0 AS cost_price,'}
+          COALESCE(i.battery_health, 0) AS battery_health,
+          COALESCE(oi.product_name, p.name) AS product_name,
+          COALESCE(oi.category, p.category) AS category,
           p.condition,
           p.color,
           p.storage
@@ -229,12 +232,14 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 2. Calculate totals
+      // 2. Calculate totals (supporting quantity for accessories/services)
       let totalAmount = 0;
       const telegramItems: Array<{ name: string; imei: string; price: number; warranty: number }> = [];
 
       for (const item of items) {
-        totalAmount += parseFloat(item.price as any) || 0;
+        const itemQty = parseInt(item.quantity as any, 10) || 1;
+        const itemPrice = parseFloat(item.price as any) || 0;
+        totalAmount += itemPrice * itemQty;
       }
 
       // Parse trade-in object
@@ -296,40 +301,87 @@ export async function POST(request: NextRequest) {
       );
       const newOrder = orderInsertRes.rows[0];
 
-      // 4. Process sold inventory items
+      // 4. Process sold inventory items / services / accessories
       for (const item of items) {
-        // Fetch inventory info
-        const invRes = await client.query(
-          `SELECT i.id, i.imei, p.name AS product_name
-           FROM inventory i
-           JOIN products p ON i.product_id = p.id
-           WHERE i.id = $1 FOR UPDATE`,
-          [item.inventory_id]
-        );
+        const itemQty = parseInt(item.quantity as any, 10) || 1;
+        const itemPrice = parseFloat(item.price as any) || 0;
+        const itemWarranty = parseInt(item.warranty_months as any, 10) || 0;
+        const itemType = item.item_type || (item.category === 'DichVu' ? 'service' : item.category === 'PhuKien' ? 'accessory' : (item.inventory_id ? 'phone' : 'service'));
+        const isGift = Boolean(item.is_gift || itemPrice === 0);
 
-        if (invRes.rows.length === 0) {
-          await client.query('ROLLBACK');
-          return NextResponse.json({ error: `Không tìm thấy sản phẩm tồn kho ID: ${item.inventory_id}` }, { status: 400 });
+        if (item.inventory_id) {
+          // A. Inventory Item (e.g. Phone with IMEI in stock)
+          const invRes = await client.query(
+            `SELECT i.id, i.imei, p.name AS product_name, p.category
+             FROM inventory i
+             JOIN products p ON i.product_id = p.id
+             WHERE i.id = $1 FOR UPDATE`,
+            [item.inventory_id]
+          );
+
+          if (invRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ error: `Không tìm thấy sản phẩm tồn kho ID: ${item.inventory_id}` }, { status: 400 });
+          }
+
+          const invItem = invRes.rows[0];
+          telegramItems.push({
+            name: `${invItem.product_name}${isGift ? ' [Hàng tặng 0đ]' : ''}`,
+            imei: invItem.imei,
+            price: itemPrice,
+            warranty: itemWarranty || 12,
+          });
+
+          // Insert order_item
+          await client.query(
+            `INSERT INTO order_items (order_id, inventory_id, price, quantity, warranty_months, warranty_until, item_type, product_name, imei, category, note)
+             VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 > 0 THEN NOW() + ($5 || ' months')::INTERVAL ELSE NULL END, $6, $7, $8, $9, $10)`,
+            [
+              newOrder.id,
+              item.inventory_id,
+              itemPrice,
+              itemQty,
+              itemWarranty || 12,
+              itemType,
+              invItem.product_name,
+              invItem.imei,
+              invItem.category || 'iPhone',
+              item.note || null,
+            ]
+          );
+
+          // Mark inventory as SOLD
+          await client.query(`UPDATE inventory SET status = 'sold' WHERE id = $1`, [item.inventory_id]);
+        } else {
+          // B. Service or Custom/Accessory Item (No stock requirement, doesn't need prior import)
+          const prodName = item.product_name || item.name || (itemType === 'service' ? 'Dịch vụ sửa chữa' : 'Phụ kiện');
+          const imeiVal = (item.imei || '').trim();
+          const catVal = item.category || (itemType === 'service' ? 'DichVu' : 'PhuKien');
+
+          telegramItems.push({
+            name: `${prodName}${item.service_device_model ? ` [${item.service_device_model}]` : ''}${isGift ? ' [Tặng 0đ]' : ''}`,
+            imei: imeiVal || (itemType === 'service' ? 'Dịch vụ' : 'Phụ kiện'),
+            price: itemPrice * itemQty,
+            warranty: itemWarranty,
+          });
+
+          // Insert order_item with inventory_id = NULL
+          await client.query(
+            `INSERT INTO order_items (order_id, inventory_id, price, quantity, warranty_months, warranty_until, item_type, product_name, imei, category, note)
+             VALUES ($1, NULL, $2, $3, $4, CASE WHEN $4 > 0 THEN NOW() + ($4 || ' months')::INTERVAL ELSE NULL END, $5, $6, $7, $8, $9)`,
+            [
+              newOrder.id,
+              itemPrice,
+              itemQty,
+              itemWarranty,
+              itemType,
+              prodName,
+              imeiVal || null,
+              catVal,
+              item.note || null,
+            ]
+          );
         }
-
-        const invItem = invRes.rows[0];
-        telegramItems.push({
-          name: invItem.product_name,
-          imei: invItem.imei,
-          price: item.price,
-          warranty: item.warranty_months || 12,
-        });
-
-        // Insert order_item
-        const warrantyMonths = item.warranty_months || 12;
-        await client.query(
-          `INSERT INTO order_items (order_id, inventory_id, price, warranty_months, warranty_until)
-           VALUES ($1, $2, $3, $4, NOW() + INTERVAL '${warrantyMonths} months')`,
-          [newOrder.id, item.inventory_id, item.price, warrantyMonths]
-        );
-
-        // Mark inventory as SOLD
-        await client.query(`UPDATE inventory SET status = 'sold' WHERE id = $1`, [item.inventory_id]);
       }
 
       // 5. Process Trade-in Machine if available

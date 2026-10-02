@@ -92,8 +92,11 @@ export interface OrderItem {
   order_id: string;
   inventory_id?: string | null;
   price: number;
+  quantity?: number;
   warranty_months: number;
   warranty_until?: string | null;
+  item_type?: 'phone' | 'accessory' | 'service';
+  note?: string;
   // Joined fields
   imei?: string;
   product_name?: string;
@@ -103,6 +106,32 @@ export interface OrderItem {
   storage?: string;
   battery_health?: number;
   cost_price?: number;
+}
+
+export interface POSCartItem {
+  cart_id: string;
+  item_type: 'phone' | 'accessory' | 'service';
+  inventory_id?: string | null;
+  product_id?: string | null;
+  product_name: string;
+  category?: string;
+  condition?: string;
+  color?: string;
+  storage?: string;
+  imei?: string;
+  price: number;
+  original_price?: number;
+  quantity: number;
+  warranty_months: number;
+  note?: string;
+  is_gift?: boolean;
+  battery_health?: number;
+  // Service specific
+  service_device_model?: string;
+  service_imei?: string;
+  service_type_name?: string;
+  // Inventory object reference for phone items
+  inventory?: InventoryItem;
 }
 
 export interface CashFlow {
@@ -142,9 +171,17 @@ export interface POSSalePayload {
     cccd?: string;
   };
   items: {
-    inventory_id: string;
+    inventory_id?: string | null;
+    product_id?: string | null;
+    product_name?: string;
+    imei?: string;
+    category?: string;
+    item_type?: 'phone' | 'accessory' | 'service';
     price: number;
+    quantity?: number;
     warranty_months: number;
+    note?: string;
+    is_gift?: boolean;
   }[];
   discount: number;
   trade_in?: TradeInItemInput | null;
@@ -179,6 +216,17 @@ export interface ImportOrderPayload {
 
 // Attendance & Wifi IP Types
 export type ShiftType = 'shift1' | 'shift2' | 'manager' | 'morning' | 'afternoon' | 'evening';
+
+export interface UserShiftAssignment {
+  id?: string;
+  user_id: string;
+  user_name?: string;
+  user_role?: UserRole;
+  assigned_shift: ShiftType;
+  rotation_type: 'auto_weekly' | 'fixed';
+  note?: string;
+  updated_at?: string;
+}
 
 export interface ShiftConfig {
   id: ShiftType;

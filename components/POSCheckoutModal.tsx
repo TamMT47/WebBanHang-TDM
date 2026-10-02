@@ -65,11 +65,7 @@ const DEFAULT_MASTER_COLORS = [
 interface POSCheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  cart: Array<{
-    inventory: InventoryItem;
-    price: number;
-    warranty_months: number;
-  }>;
+  cart: Array<any>;
   onCompleteOrder: (payload: any) => Promise<void>;
   submitting: boolean;
   initialCustomer?: {
@@ -154,7 +150,11 @@ export default function POSCheckoutModal({
 
   // Financial Calculations
   const totalAmount = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.price, 0);
+    return cart.reduce((sum: number, item: any) => {
+      const qty = parseInt(item.quantity as any, 10) || 1;
+      const price = parseFloat(item.price as any) || 0;
+      return sum + (price * qty);
+    }, 0);
   }, [cart]);
 
   const tradeInVal = hasTradeIn ? tiValue : 0;
@@ -388,18 +388,32 @@ export default function POSCheckoutModal({
       payment_method: paymentMethod,
       overpaid_action: isOverpaid ? overpaidAction : undefined,
       note: note.trim() || undefined,
-      items: cart.map((item) => ({
-        inventory_id: item.inventory.id,
-        product_name: item.inventory.product_name,
-        imei: item.inventory.imei,
-        price: item.price,
-        cost_price: item.inventory.cost_price,
-        warranty_months: item.warranty_months,
-        color: item.inventory.color,
-        storage: item.inventory.storage,
-        condition: item.inventory.condition,
-        battery_health: item.inventory.battery_health,
-      })),
+      items: cart.map((item: any) => {
+        const itemQty = parseInt(item.quantity as any, 10) || 1;
+        const itemPrice = parseFloat(item.price as any) || 0;
+        const invId = item.inventory_id || item.inventory?.id || null;
+        const prodName = item.product_name || item.inventory?.product_name || item.name || '';
+        const imeiVal = item.imei || item.inventory?.imei || item.service_imei || '';
+        const itemType = item.item_type || (item.category === 'DichVu' ? 'service' : invId ? 'phone' : 'accessory');
+
+        return {
+          inventory_id: invId,
+          product_name: prodName,
+          imei: imeiVal,
+          price: itemPrice,
+          quantity: itemQty,
+          cost_price: item.inventory?.cost_price || 0,
+          warranty_months: item.warranty_months,
+          color: item.color || item.inventory?.color,
+          storage: item.storage || item.inventory?.storage,
+          condition: item.condition || item.inventory?.condition,
+          battery_health: item.battery_health || item.inventory?.battery_health,
+          category: item.category || item.inventory?.category || (itemType === 'service' ? 'DichVu' : 'PhuKien'),
+          item_type: itemType,
+          note: item.note,
+          is_gift: Boolean(item.is_gift || itemPrice === 0),
+        };
+      }),
       trade_in_item: hasTradeIn
         ? {
             name: `${tiModelName} ${tiStorage} (${tiCondition})`,
@@ -1085,18 +1099,50 @@ export default function POSCheckoutModal({
 
                 {/* Sold Items */}
                 <div className="space-y-1.5 pt-2 border-t border-slate-700/60">
-                  <div className="text-slate-400 font-bold">Danh sách máy bán ({cart.length}):</div>
-                  {cart.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-xs bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-                      <div>
-                        <div className="font-bold text-white">{item.inventory.product_name}</div>
-                        <div className="text-[10px] text-slate-400 font-bold">
-                          IMEI: {item.inventory.imei} • {item.inventory.color} • BH {item.warranty_months}T
+                  <div className="text-slate-400 font-bold">Danh sách sản phẩm & dịch vụ ({cart.length}):</div>
+                  {cart.map((item: any, idx: number) => {
+                    const prodName = item.product_name || item.inventory?.product_name || item.name;
+                    const itemQty = parseInt(item.quantity as any, 10) || 1;
+                    const itemPrice = parseFloat(item.price as any) || 0;
+                    const isGift = Boolean(item.is_gift || itemPrice === 0);
+                    const itemType = item.item_type || (item.category === 'DichVu' ? 'service' : item.inventory_id ? 'phone' : 'accessory');
+
+                    return (
+                      <div key={idx} className="flex justify-between items-center text-xs bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                        <div>
+                          <div className="font-bold text-white flex items-center space-x-1.5">
+                            <span>{prodName}</span>
+                            {isGift && (
+                              <span className="px-1.5 py-0.2 rounded bg-pink-500/20 text-pink-300 text-[9px] font-black border border-pink-500/40">
+                                🎁 Quà Tặng 0đ
+                              </span>
+                            )}
+                            {itemType === 'service' && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-black border border-amber-500/40">
+                                🔧 Dịch Vụ
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                            {item.imei || item.inventory?.imei ? `IMEI: ${item.imei || item.inventory?.imei} • ` : ''}
+                            {itemQty > 1 ? `SL: ${itemQty} • ` : ''}
+                            {item.warranty_months ? `BH ${item.warranty_months}T` : 'Không BH'}
+                            {item.note ? ` • Ghi chú: ${item.note}` : ''}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`font-black font-sans tracking-tight badge-nowrap ${isGift ? 'text-pink-400' : 'text-cyan-300'}`}>
+                            {isGift ? '0đ' : formatVND(itemPrice * itemQty)}
+                          </div>
+                          {itemQty > 1 && !isGift && (
+                            <div className="text-[9px] text-slate-500 font-mono">
+                              ({formatVND(itemPrice)}/cái)
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="font-black text-cyan-300 font-sans tracking-tight badge-nowrap">{formatVND(item.price)}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Trade-in */}

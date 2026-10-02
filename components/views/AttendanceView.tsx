@@ -26,7 +26,10 @@ import {
   Edit2,
   Smartphone,
   Key,
-  Trash2
+  Trash2,
+  Search,
+  Filter,
+  ArrowRightLeft
 } from 'lucide-react';
 import { ShiftType } from '@/types/database';
 import ManualAttendanceModal from '@/components/ManualAttendanceModal';
@@ -64,6 +67,13 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
   const [newWifiIpInput, setNewWifiIpInput] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
 
+  // Shifts Management State (Quản lý ca & Xoay ca)
+  const [shiftsData, setShiftsData] = useState<any[]>([]);
+  const [loadingShifts, setLoadingShifts] = useState(false);
+  const [swapUser1, setSwapUser1] = useState<string>('');
+  const [swapUser2, setSwapUser2] = useState<string>('');
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+
   // Manual Attendance Modal State (Bù công & Sửa giờ làm cho Quản lý)
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [selectedManualRecord, setSelectedManualRecord] = useState<any>(null);
@@ -86,6 +96,16 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     total_ot_hours: 0,
     actual_days: 0,
   });
+
+  // Filters for Attendance History
+  const [filterUserId, setFilterUserId] = useState<string>('all');
+  const [filterPreset, setFilterPreset] = useState<string>('this_month');
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+  const [filterDateTo, setFilterDateTo] = useState<string>('');
+  const [filterShift, setFilterShift] = useState<string>('all');
+  const [filterSession, setFilterSession] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterSearch, setFilterSearch] = useState<string>('');
 
   // Off-days State
   const [offDaysData, setOffDaysData] = useState<{
@@ -165,6 +185,34 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       if (activeToken) params.append('device_token', activeToken);
       if (detectedIp) params.append('client_public_ip', detectedIp);
 
+      // Add filter params
+      if (filterUserId && filterUserId !== 'all') params.append('user_id', filterUserId);
+      if (filterShift && filterShift !== 'all') params.append('shift', filterShift);
+      if (filterSession && filterSession !== 'all') params.append('session', filterSession);
+      if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
+      if (filterSearch.trim()) params.append('search', filterSearch.trim());
+
+      // Date preset handling
+      const now = new Date();
+      const todayIso = now.toISOString().slice(0, 10);
+      const thisMonthIso = now.toISOString().slice(0, 7);
+
+      if (filterPreset === 'today') {
+        params.append('date', todayIso);
+      } else if (filterPreset === '7days') {
+        const d7 = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+        params.append('dateFrom', d7);
+        params.append('dateTo', todayIso);
+      } else if (filterPreset === 'this_month') {
+        params.append('month', thisMonthIso);
+      } else if (filterPreset === 'last_month') {
+        const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+        params.append('month', lastM);
+      } else if (filterPreset === 'custom') {
+        if (filterDateFrom) params.append('dateFrom', filterDateFrom);
+        if (filterDateTo) params.append('dateTo', filterDateTo);
+      }
+
       const res = await fetch(`/api/attendance?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi tải dữ liệu chấm công');
@@ -192,6 +240,22 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchShiftsData = async () => {
+    if (!isManagerOrAbove) return;
+    try {
+      setLoadingShifts(true);
+      const res = await fetch('/api/attendance/shifts');
+      const data = await res.json();
+      if (res.ok && data.users) {
+        setShiftsData(data.users);
+      }
+    } catch (err) {
+      console.error('Error fetching shifts:', err);
+    } finally {
+      setLoadingShifts(false);
     }
   };
 
@@ -227,7 +291,76 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     fetchAttendanceData();
     fetchOffDaysData();
     fetchUsersList();
-  }, []);
+    fetchShiftsData();
+  }, [filterUserId, filterPreset, filterDateFrom, filterDateTo, filterShift, filterSession, filterStatus, filterSearch]);
+
+  // Handle Shift Management actions
+  const handleAssignUserShift = async (targetUserId: string, shift: string, rotationType: string = 'auto_weekly') => {
+    try {
+      const res = await fetch('/api/attendance/shifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assign_single',
+          user_id: targetUserId,
+          assigned_shift: shift,
+          rotation_type: rotationType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi cập nhật ca làm');
+      setMessage({ type: 'success', text: data.message || 'Đã phân ca cho nhân viên thành công!' });
+      fetchShiftsData();
+      fetchAttendanceData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleSwapEmployeesShifts = async () => {
+    if (!swapUser1 || !swapUser2 || swapUser1 === swapUser2) {
+      setMessage({ type: 'error', text: 'Vui lòng chọn 2 nhân viên khác nhau để hoán đổi ca!' });
+      return;
+    }
+    try {
+      const res = await fetch('/api/attendance/shifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'swap_shifts',
+          user1_id: swapUser1,
+          user2_id: swapUser2,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi đổi ca');
+      setMessage({ type: 'success', text: data.message });
+      setSwapUser1('');
+      setSwapUser2('');
+      fetchShiftsData();
+      fetchAttendanceData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleRotateAllStaff = async () => {
+    if (!confirm('Bạn có chắc muốn đảo ca (xoay ca) toàn bộ nhân viên staff ngay lập tức?')) return;
+    try {
+      const res = await fetch('/api/attendance/shifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rotate_all' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi xoay ca toàn bộ');
+      setMessage({ type: 'success', text: data.message });
+      fetchShiftsData();
+      fetchAttendanceData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
 
   // Save updated IP Whitelist
   const handleSaveStoreWifiIpsList = async (updatedIps: string[]) => {
@@ -1041,18 +1174,195 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
             </div>
           </div>
 
+          {/* Card Quản Lý Phân Ca & Xoay Ca Nhân Viên */}
+          <div className="lg:col-span-12 bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-xl">
+                  <RotateCw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider">
+                    Quản Lý Phân Ca & Xoay Ca Nhân Viên (Tuần ISO #{weekNumber})
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Tùy chỉnh ca làm việc hoặc hoán đổi ca (Swap) giữa các nhân viên
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRotateAllStaff}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition shadow-md flex items-center space-x-1.5 active:scale-95"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>⚡ Xoay Ca Toàn Bộ NV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Swap Shifts Bar */}
+            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2 text-xs font-bold text-slate-300">
+                <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span>Đổi Ca Trực Tiếp Giữa 2 Nhân Viên:</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={swapUser1}
+                  onChange={(e) => setSwapUser1(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">-- Chọn NV 1 --</option>
+                  {shiftsData.map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.current_effective_shift === 'shift1' ? 'Ca 1' : u.current_effective_shift === 'shift2' ? 'Ca 2' : 'QL'})
+                    </option>
+                  ))}
+                </select>
+
+                <span className="text-xs font-bold text-slate-400">⇄</span>
+
+                <select
+                  value={swapUser2}
+                  onChange={(e) => setSwapUser2(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">-- Chọn NV 2 --</option>
+                  {shiftsData.map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.current_effective_shift === 'shift1' ? 'Ca 1' : u.current_effective_shift === 'shift2' ? 'Ca 2' : 'QL'})
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleSwapEmployeesShifts}
+                  disabled={!swapUser1 || !swapUser2 || swapUser1 === swapUser2}
+                  className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold rounded-xl text-xs transition shadow-md active:scale-95 disabled:opacity-40 flex items-center space-x-1"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>Hoán Đổi Ca</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Shifts Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="text-[10px] text-slate-400 uppercase border-b border-slate-800">
+                    <th className="pb-2 font-bold">Nhân Viên</th>
+                    <th className="pb-2 font-bold">Chức Vụ</th>
+                    <th className="pb-2 font-bold">Ca Đang Áp Dụng (Tuần #{weekNumber})</th>
+                    <th className="pb-2 font-bold">Quy Tắc Xoay Ca</th>
+                    <th className="pb-2 font-bold text-right">Thao Tác Gán Ca</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-[11px]">
+                  {shiftsData.map((u: any) => {
+                    const isShift1 = u.current_effective_shift === 'shift1';
+                    const isShift2 = u.current_effective_shift === 'shift2';
+
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-800/40 transition">
+                        <td className="py-2.5 font-bold text-white flex items-center space-x-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-300">
+                            {u.full_name?.charAt(0) || 'U'}
+                          </div>
+                          <span>{u.full_name}</span>
+                        </td>
+                        <td className="py-2.5 text-slate-400">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            u.role === 'staff' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30' : 'bg-purple-500/10 text-purple-300 border border-purple-500/30'
+                          }`}>
+                            {u.role === 'staff' ? 'Nhân Viên' : u.role === 'manager' ? 'Quản Lý' : 'Chủ / Admin'}
+                          </span>
+                        </td>
+                        <td className="py-2.5">
+                          <span className={`px-2.5 py-1 rounded-xl text-xs font-bold font-mono inline-flex items-center space-x-1 border ${
+                            isShift1
+                              ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
+                              : isShift2
+                              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                              : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                          }`}>
+                            <span>{isShift1 ? '☀️ Ca 1 (Nghỉ 12-13h)' : isShift2 ? '⛅ Ca 2 (Nghỉ 13-14h)' : '👑 Ca Quản Lý'}</span>
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-slate-300">
+                          <select
+                            value={u.rotation_type || 'auto_weekly'}
+                            onChange={(e) => handleAssignUserShift(u.id, u.assigned_shift || 'shift1', e.target.value)}
+                            className="bg-slate-950 border border-slate-700 text-[10px] font-bold text-slate-300 rounded-lg px-2 py-1 focus:outline-none"
+                          >
+                            <option value="auto_weekly">🔄 Tự động xoay ca hàng tuần</option>
+                            <option value="fixed">🔒 Cố định ca này</option>
+                          </select>
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <div className="inline-flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAssignUserShift(u.id, 'shift1', u.rotation_type || 'auto_weekly')}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition border ${
+                                u.assigned_shift === 'shift1'
+                                  ? 'bg-blue-600 text-white border-blue-500'
+                                  : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white hover:border-blue-500'
+                              }`}
+                            >
+                              Ca 1
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAssignUserShift(u.id, 'shift2', u.rotation_type || 'auto_weekly')}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition border ${
+                                u.assigned_shift === 'shift2'
+                                  ? 'bg-amber-600 text-white border-amber-500'
+                                  : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white hover:border-amber-500'
+                              }`}
+                            >
+                              Ca 2
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAssignUserShift(u.id, 'manager', 'fixed')}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition border ${
+                                u.assigned_shift === 'manager'
+                                  ? 'bg-emerald-600 text-white border-emerald-500'
+                                  : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white hover:border-emerald-500'
+                              }`}
+                            >
+                              QL
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       )}
 
       {/* ======================================================== */}
       {/* 3. LỊCH SỬ CHẤM CÔNG (BẢNG DẠNG DÒNG NẰM NGANG) */}
       {/* ======================================================== */}
-      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl p-4 sm:p-5 space-y-3">
+      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl p-4 sm:p-5 space-y-4">
+        
+        {/* Header bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
           <div className="flex items-center space-x-2">
             <Clock className="w-4 h-4 text-cyan-400" />
             <h3 className="text-xs font-black text-white uppercase">
-              {isManagerOrAbove ? 'Lịch Sử Chấm Công Toàn Cửa Hàng' : 'Lịch Sử Chấm Công Của Bạn'}
+              {isManagerOrAbove ? 'Lịch Sử Chấm Công & Bộ Lọc Toàn Cửa Hàng' : 'Lịch Sử Chấm Công Của Bạn'}
             </h3>
           </div>
           <div className="flex items-center space-x-3">
@@ -1074,6 +1384,179 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
               </button>
             )}
           </div>
+        </div>
+
+        {/* BỘ LỌC CHẤM CÔNG NÂNG CAO */}
+        <div className="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-2xl space-y-3">
+          
+          {/* Row 1: Quick Presets & Staff Dropdown */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            
+            {/* Quick Presets */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center space-x-1">
+                <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Thời gian:</span>
+              </span>
+              {[
+                { id: 'today', label: 'Hôm Nay' },
+                { id: '7days', label: '7 Ngày Qua' },
+                { id: 'this_month', label: 'Tháng Này' },
+                { id: 'last_month', label: 'Tháng Trước' },
+                { id: 'custom', label: 'Tùy Chọn Ngày' },
+                { id: 'all', label: 'Tất Cả' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setFilterPreset(p.id)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${
+                    filterPreset === p.id
+                      ? 'bg-cyan-500 text-slate-950 shadow-sm shadow-cyan-500/30'
+                      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/60'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Staff Selector (for Managers) */}
+            {isManagerOrAbove && (
+              <div className="flex items-center space-x-1.5">
+                <User className="w-3.5 h-3.5 text-purple-400" />
+                <select
+                  value={filterUserId}
+                  onChange={(e) => setFilterUserId(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="all">-- Tất Cả Nhân Viên --</option>
+                  {(usersList.length > 0 ? usersList : offDaysData?.users || []).map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name || u.name} ({u.role === 'staff' ? 'NV' : 'QL'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Row 2: Custom Date Range & Filters: Shift, Session, Status, Search */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 pt-1 border-t border-slate-800/60">
+            
+            {/* Custom Date Range if preset is custom */}
+            {filterPreset === 'custom' && (
+              <div className="col-span-1 sm:col-span-2 flex items-center space-x-1.5">
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  placeholder="Từ ngày"
+                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                />
+                <span className="text-xs text-slate-500">đến</span>
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  placeholder="Đến ngày"
+                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            )}
+
+            {/* Shift Filter */}
+            <div>
+              <select
+                value={filterShift}
+                onChange={(e) => setFilterShift(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+              >
+                <option value="all">-- Tất cả ca làm --</option>
+                <option value="shift1">Ca 1 (09:00 - 21:00, nghỉ 12h-13h)</option>
+                <option value="shift2">Ca 2 (09:00 - 21:00, nghỉ 13h-14h)</option>
+                <option value="manager">Ca Quản Lý</option>
+              </select>
+            </div>
+
+            {/* Session Filter */}
+            <div>
+              <select
+                value={filterSession}
+                onChange={(e) => setFilterSession(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+              >
+                <option value="all">-- Tất cả buổi --</option>
+                <option value="morning">Buổi Sáng</option>
+                <option value="afternoon">Buổi Chiều</option>
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+              >
+                <option value="all">-- Tất cả trạng thái --</option>
+                <option value="completed">Đã Hoàn Thành</option>
+                <option value="working">Đang Làm Việc</option>
+                <option value="late">Vào Muộn (&gt;0p)</option>
+                <option value="early">Về Sớm (&gt;0p)</option>
+                <option value="ot">Có Tăng Ca OT (&gt;0h)</option>
+                <option value="off_day">Làm Vào Ngày Off (+1)</option>
+              </select>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative">
+              <input
+                type="text"
+                value={filterSearch}
+                onChange={(e) => setFilterSearch(e.target.value)}
+                placeholder="Tìm tên NV, ghi chú..."
+                className="w-full pl-7 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+            </div>
+
+            {/* Reset Button */}
+            {(filterUserId !== 'all' || filterPreset !== 'this_month' || filterShift !== 'all' || filterSession !== 'all' || filterStatus !== 'all' || filterSearch) && (
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterUserId('all');
+                    setFilterPreset('this_month');
+                    setFilterDateFrom('');
+                    setFilterDateTo('');
+                    setFilterShift('all');
+                    setFilterSession('all');
+                    setFilterStatus('all');
+                    setFilterSearch('');
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-rose-400 font-bold rounded-xl text-xs transition flex items-center space-x-1"
+                >
+                  <RotateCw className="w-3 h-3" />
+                  <span>Đặt lại lọc</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Filter Result Summary */}
+          <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/40">
+            <div>
+              Hiển thị <strong className="text-cyan-400">{history.length}</strong> lượt chấm công khớp bộ lọc
+            </div>
+            <div className="flex items-center space-x-3">
+              <span>Tổng giờ làm: <strong className="text-emerald-400">{history.reduce((s, r) => s + (parseFloat(r.work_hours) || 0), 0).toFixed(1)}h</strong></span>
+              <span>Tổng OT: <strong className="text-amber-400">+{history.reduce((s, r) => s + (parseFloat(r.ot_hours) || 0), 0).toFixed(1)}h</strong></span>
+              <span>Đi muộn: <strong className="text-rose-400">{history.filter((r) => parseInt(r.late_minutes || '0', 10) > 0).length}</strong></span>
+            </div>
+          </div>
+
         </div>
 
         {loading ? (
