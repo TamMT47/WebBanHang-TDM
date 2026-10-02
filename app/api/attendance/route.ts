@@ -93,40 +93,19 @@ export async function GET(request: NextRequest) {
     const sessionFilter = searchParams.get('session') || '';
     const statusFilter = searchParams.get('status') || '';
     const searchQuery = searchParams.get('search') || '';
-
-    // Weekly Shift Rotation / Assigned Shift calculation:
     const weekNumber = getISOWeekNumber(vnDate);
-    
-    // Check if user has explicit assignment in user_shift_assignments
+
+    // Monthly Fixed Assigned Shift calculation (Không xoay ca)
     const assignRes = await query(
-      `SELECT assigned_shift, rotation_type FROM user_shift_assignments WHERE user_id = $1`,
+      `SELECT assigned_shift FROM user_shift_assignments WHERE user_id = $1`,
       [user.id]
     );
 
     let assignedShift = 'shift1';
-    if (assignRes.rows.length > 0) {
-      const { assigned_shift: baseShift, rotation_type: rotType } = assignRes.rows[0];
-      if (rotType === 'fixed') {
-        assignedShift = baseShift || 'shift1';
-      } else {
-        // Auto weekly rotation
-        const baseIsShift1 = (baseShift || 'shift1') === 'shift1';
-        assignedShift = weekNumber % 2 === 0
-          ? (baseIsShift1 ? 'shift1' : 'shift2')
-          : (baseIsShift1 ? 'shift2' : 'shift1');
-      }
+    if (assignRes.rows.length > 0 && assignRes.rows[0].assigned_shift) {
+      assignedShift = assignRes.rows[0].assigned_shift;
     } else {
-      // Default fallback
-      const staffRes = await query(`SELECT id, full_name, created_at FROM users WHERE role = 'staff' ORDER BY created_at ASC`);
-      const staffUsers = staffRes.rows;
-      const staffIndex = staffUsers.findIndex((s) => s.id === user.id);
-
-      if (user.role === 'staff') {
-        const idx = staffIndex >= 0 ? staffIndex : 0;
-        assignedShift = (weekNumber + idx) % 2 === 0 ? 'shift1' : 'shift2';
-      } else {
-        assignedShift = 'manager';
-      }
+      assignedShift = user.role === 'staff' ? 'shift1' : 'manager';
     }
 
     const todayRecordsRes = await query(

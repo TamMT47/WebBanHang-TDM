@@ -73,21 +73,117 @@ export interface MasterServiceItem {
 }
 
 export const DEFAULT_MASTER_SERVICES: MasterServiceItem[] = [
-  { id: 'thay_pin', name: 'Thay Pin (Pin Zin / EU / Pisen / Deji)', defaultPrice: 450000, defaultWarrantyMonths: 12, category: 'DichVu' },
-  { id: 'thay_man_hinh', name: 'Thay Màn Hình (Màn Zin bóc máy / OLED GX / JK)', defaultPrice: 1500000, defaultWarrantyMonths: 6, category: 'DichVu' },
-  { id: 'ep_kinh', name: 'Ép Kính Màn Hình / Ép Cảm Ứng', defaultPrice: 400000, defaultWarrantyMonths: 12, category: 'DichVu' },
-  { id: 'ep_kinh_lung', name: 'Thay Kính Lưng / Thay Nắp Lưng', defaultPrice: 350000, defaultWarrantyMonths: 12, category: 'DichVu' },
-  { id: 'sua_nguon', name: 'Sửa Nguồn / Chết Nguồn / Hao Pin Nóng Máy', defaultPrice: 600000, defaultWarrantyMonths: 3, category: 'DichVu' },
-  { id: 'sua_faceid', name: 'Sửa Face ID / Touch ID / Cảm biến', defaultPrice: 500000, defaultWarrantyMonths: 3, category: 'DichVu' },
-  { id: 'thay_camera', name: 'Thay Camera Trước / Sau / Rung / Kính Cam', defaultPrice: 500000, defaultWarrantyMonths: 6, category: 'DichVu' },
-  { id: 'thay_chan_sac', name: 'Thay Cụm Chân Sạc / Cáp Sạc / Mic', defaultPrice: 350000, defaultWarrantyMonths: 6, category: 'DichVu' },
-  { id: 'thay_loa', name: 'Thay Loa Trong / Loa Ngoài / Rè Loa', defaultPrice: 250000, defaultWarrantyMonths: 6, category: 'DichVu' },
-  { id: 'thay_vo_suon', name: 'Thay Vỏ / Độ Vỏ / Thay Sườn Máy', defaultPrice: 800000, defaultWarrantyMonths: 6, category: 'DichVu' },
-  { id: 've_sinh_may', name: 'Vệ Sinh Máy / Tra Keo Tản Nhiệt / Kháng Nước', defaultPrice: 100000, defaultWarrantyMonths: 0, category: 'DichVu' },
-  { id: 'chay_phan_mem', name: 'Chạy Lại Phần Mềm / Khôi Phục / Cứu Dữ Liệu', defaultPrice: 150000, defaultWarrantyMonths: 0, category: 'DichVu' },
-  { id: 'dan_cuong_luc_ppf', name: 'Dán Cường Lực / Dán PPF Full Body', defaultPrice: 100000, defaultWarrantyMonths: 0, category: 'DichVu' },
-  { id: 'sua_chua_khac', name: 'Dịch Vụ Sửa Chữa Khác (Theo Báo Giá)', defaultPrice: 300000, defaultWarrantyMonths: 3, category: 'DichVu' },
+  { id: 'thay_pin', name: 'Thay Pin (Pin Zin / EU / Pisen / Deji)', defaultPrice: 0, defaultWarrantyMonths: 12, category: 'DichVu' },
+  { id: 'thay_man_hinh', name: 'Thay Màn Hình (Màn Zin / OLED GX / JK)', defaultPrice: 0, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'ep_kinh', name: 'Ép Kính Màn Hình / Ép Cảm Ứng', defaultPrice: 0, defaultWarrantyMonths: 12, category: 'DichVu' },
+  { id: 'ep_kinh_lung', name: 'Thay Kính Lưng / Thay Nắp Lưng', defaultPrice: 0, defaultWarrantyMonths: 12, category: 'DichVu' },
+  { id: 'sua_faceid', name: 'Sửa Face ID / Touch ID / Cảm biến', defaultPrice: 0, defaultWarrantyMonths: 3, category: 'DichVu' },
+  { id: 'sua_nguon', name: 'Sửa Nguồn / Hao Pin / Nóng Máy', defaultPrice: 0, defaultWarrantyMonths: 3, category: 'DichVu' },
+  { id: 'thay_camera', name: 'Thay Camera Trước / Sau / Kính Cam', defaultPrice: 0, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'thay_chan_sac', name: 'Thay Cụm Chân Sạc / Cáp Sạc / Mic', defaultPrice: 0, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'thay_loa', name: 'Thay Loa Trong / Loa Ngoài / Rè Loa', defaultPrice: 0, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 'thay_vo_suon', name: 'Thay Vỏ / Độ Vỏ / Thay Sườn Máy', defaultPrice: 0, defaultWarrantyMonths: 6, category: 'DichVu' },
+  { id: 've_sinh_may', name: 'Vệ Sinh Máy / Tra Keo / Kháng Nước', defaultPrice: 0, defaultWarrantyMonths: 0, category: 'DichVu' },
+  { id: 'chay_phan_mem', name: 'Chạy Lại Phần Mềm / Cứu Dữ Liệu', defaultPrice: 0, defaultWarrantyMonths: 0, category: 'DichVu' },
+  { id: 'dan_cuong_luc_ppf', name: 'Dán Cường Lực / Dán PPF Full Body', defaultPrice: 0, defaultWarrantyMonths: 0, category: 'DichVu' },
+  { id: 'sua_chua_khac', name: 'Dịch Vụ Sửa Chữa Khác (Theo Báo Giá)', defaultPrice: 0, defaultWarrantyMonths: 3, category: 'DichVu' },
 ];
+
+/**
+ * Get custom saved services from LocalStorage
+ */
+export function getSavedCustomServices(): MasterServiceItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('tdm_custom_services');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Save new custom service
+ */
+export function saveCustomService(serviceName: string, warrantyMonths: number = 12): MasterServiceItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const existing = getSavedCustomServices();
+    const clean = serviceName.trim();
+    if (!clean) return existing;
+    const newId = `srv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newItem: MasterServiceItem = {
+      id: newId,
+      name: clean,
+      defaultPrice: 0,
+      defaultWarrantyMonths: warrantyMonths,
+      category: 'DichVu',
+    };
+    const updated = [...existing, newItem];
+    localStorage.setItem('tdm_custom_services', JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Update custom service
+ */
+export function updateCustomService(id: string, newName: string, warrantyMonths: number = 12): MasterServiceItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const existing = getSavedCustomServices();
+    const clean = newName.trim();
+    const updated = existing.map((item) =>
+      item.id === id ? { ...item, name: clean || item.name, defaultWarrantyMonths: warrantyMonths } : item
+    );
+    localStorage.setItem('tdm_custom_services', JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Delete custom service
+ */
+export function deleteCustomService(id: string): MasterServiceItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const existing = getSavedCustomServices();
+    const updated = existing.filter((item) => item.id !== id);
+    localStorage.setItem('tdm_custom_services', JSON.stringify(updated));
+    
+    // Save hidden default service IDs
+    const hiddenRaw = localStorage.getItem('tdm_hidden_default_services');
+    const hiddenList: string[] = hiddenRaw ? JSON.parse(hiddenRaw) : [];
+    if (!hiddenList.includes(id) && DEFAULT_MASTER_SERVICES.some((s) => s.id === id)) {
+      hiddenList.push(id);
+      localStorage.setItem('tdm_hidden_default_services', JSON.stringify(hiddenList));
+    }
+
+    return updated;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Get all available services combined
+ */
+export function getAllMasterServices(): MasterServiceItem[] {
+  const custom = getSavedCustomServices();
+  let hiddenList: string[] = [];
+  if (typeof window !== 'undefined') {
+    try {
+      const hiddenRaw = localStorage.getItem('tdm_hidden_default_services');
+      hiddenList = hiddenRaw ? JSON.parse(hiddenRaw) : [];
+    } catch (e) {}
+  }
+  const filteredDefaults = DEFAULT_MASTER_SERVICES.filter((s) => !hiddenList.includes(s.id));
+  return [...filteredDefaults, ...custom];
+}
 
 /**
  * Standardized Clean Master Models (Tên dòng máy độc lập)

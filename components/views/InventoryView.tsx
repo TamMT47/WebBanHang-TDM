@@ -324,19 +324,28 @@ export default function InventoryView({ user }: InventoryViewProps) {
     });
   }, [inventory, search]);
 
-  const inStockItems = useMemo(() => inventory.filter((i) => i.status === 'in_stock'), [inventory]);
-  const totalInStock = inStockItems.length;
-  const totalSold = useMemo(() => inventory.filter((i) => i.status === 'sold').length, [inventory]);
+  // CHỈ TÍNH tổng vốn và tổng giá bán của các sản phẩm ĐANG CÓ SẴN TRONG KHO (Chưa bán)
+  const availableItems = useMemo(() => {
+    return inventory.filter((p) => {
+      const st = String(p.status || '').toLowerCase();
+      return st === 'in_stock' || st === 'available';
+    });
+  }, [inventory]);
+
+  const totalInStock = availableItems.length;
+  const totalSold = useMemo(() => {
+    return inventory.filter((p) => (p.status || '').toLowerCase() === 'sold').length;
+  }, [inventory]);
 
   // Inventory Valuation (Giá vốn theo giá nhập & Giá trị niêm yết theo giá bán)
   const [showCostValues, setShowCostValues] = useState(true);
   const totalCostValue = useMemo(() => {
-    return inStockItems.reduce((sum, item) => sum + (parseFloat(item.cost_price as any) || 0), 0);
-  }, [inStockItems]);
+    return availableItems.reduce((sum, p) => sum + (parseFloat(p.cost_price as any) || (p as any).importPrice || 0), 0);
+  }, [availableItems]);
 
   const totalSellingValue = useMemo(() => {
-    return inStockItems.reduce((sum, item) => sum + (parseFloat(item.selling_price as any) || 0), 0);
-  }, [inStockItems]);
+    return availableItems.reduce((sum, p) => sum + (parseFloat(p.selling_price as any) || (p as any).sellingPrice || 0), 0);
+  }, [availableItems]);
 
   const expectedGrossProfit = Math.max(0, totalSellingValue - totalCostValue);
   const profitMargin = totalSellingValue > 0 ? ((expectedGrossProfit / totalSellingValue) * 100).toFixed(1) : '0';

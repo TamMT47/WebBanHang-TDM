@@ -95,15 +95,15 @@ export default function Navbar({
   return (
     <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 shadow-2xl shadow-black/40 w-full min-w-full">
       <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-3 flex-nowrap min-w-full">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-3 flex-nowrap min-w-full w-full box-border">
           
-          {/* Logo & Brand (1 Single Line + Larger Zoomed Logo) */}
-          <div className="flex items-center space-x-2.5 cursor-pointer group flex-shrink-0" onClick={() => setActiveTab('pos')}>
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white flex items-center justify-center p-1 border border-slate-700 shadow-glow-cyan group-hover:scale-105 transition duration-200 overflow-hidden flex-shrink-0">
+          {/* Logo & Brand (Optimized for iPhone / Mobile) */}
+          <div className="flex items-center space-x-2 sm:space-x-2.5 cursor-pointer group min-w-0 flex-shrink" onClick={() => setActiveTab('pos')}>
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-white flex items-center justify-center p-1 border border-slate-700 shadow-glow-cyan group-hover:scale-105 transition duration-200 overflow-hidden flex-shrink-0">
               <img src="/logo.png" alt="TD Mobile Store" className="w-full h-full object-contain scale-110" />
             </div>
-            <div className="flex items-center space-x-1.5 whitespace-nowrap">
-              <span className="text-sm sm:text-base font-black tracking-tight text-white group-hover:text-cyan-400 transition whitespace-nowrap">
+            <div className="flex items-center space-x-1 sm:space-x-1.5 min-w-0">
+              <span className="text-xs sm:text-base font-black tracking-tight text-white group-hover:text-cyan-400 transition truncate">
                 TD MOBILE STORE
               </span>
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-glow-emerald flex-shrink-0"></span>

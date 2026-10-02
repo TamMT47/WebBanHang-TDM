@@ -67,12 +67,9 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
   const [newWifiIpInput, setNewWifiIpInput] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Shifts Management State (Quản lý ca & Xoay ca)
+  // Shifts Management State (Quản lý ca cố định cả tháng)
   const [shiftsData, setShiftsData] = useState<any[]>([]);
   const [loadingShifts, setLoadingShifts] = useState(false);
-  const [swapUser1, setSwapUser1] = useState<string>('');
-  const [swapUser2, setSwapUser2] = useState<string>('');
-  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
 
   // Manual Attendance Modal State (Bù công & Sửa giờ làm cho Quản lý)
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -294,67 +291,20 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
     fetchShiftsData();
   }, [filterUserId, filterPreset, filterDateFrom, filterDateTo, filterShift, filterSession, filterStatus, filterSearch]);
 
-  // Handle Shift Management actions
-  const handleAssignUserShift = async (targetUserId: string, shift: string, rotationType: string = 'auto_weekly') => {
+  // Handle Shift Management action (Gán ca cố định cả tháng)
+  const handleAssignUserShift = async (targetUserId: string, shift: string) => {
     try {
       const res = await fetch('/api/attendance/shifts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'assign_single',
           user_id: targetUserId,
           assigned_shift: shift,
-          rotation_type: rotationType,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi cập nhật ca làm');
-      setMessage({ type: 'success', text: data.message || 'Đã phân ca cho nhân viên thành công!' });
-      fetchShiftsData();
-      fetchAttendanceData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
-  };
-
-  const handleSwapEmployeesShifts = async () => {
-    if (!swapUser1 || !swapUser2 || swapUser1 === swapUser2) {
-      setMessage({ type: 'error', text: 'Vui lòng chọn 2 nhân viên khác nhau để hoán đổi ca!' });
-      return;
-    }
-    try {
-      const res = await fetch('/api/attendance/shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'swap_shifts',
-          user1_id: swapUser1,
-          user2_id: swapUser2,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi đổi ca');
-      setMessage({ type: 'success', text: data.message });
-      setSwapUser1('');
-      setSwapUser2('');
-      fetchShiftsData();
-      fetchAttendanceData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
-  };
-
-  const handleRotateAllStaff = async () => {
-    if (!confirm('Bạn có chắc muốn đảo ca (xoay ca) toàn bộ nhân viên staff ngay lập tức?')) return;
-    try {
-      const res = await fetch('/api/attendance/shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'rotate_all' }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi xoay ca toàn bộ');
-      setMessage({ type: 'success', text: data.message });
+      setMessage({ type: 'success', text: 'Đã phân ca làm việc cố định cho nhân viên thành công!' });
       fetchShiftsData();
       fetchAttendanceData();
     } catch (err: any) {
@@ -1174,107 +1124,55 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
             </div>
           </div>
 
-          {/* Card Quản Lý Phân Ca & Xoay Ca Nhân Viên */}
-          <div className="lg:col-span-12 bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+          {/* Card Quản Lý Phân Ca Nhân Viên (Áp Dụng Cố Định Cả Tháng) */}
+          <div className="lg:col-span-12 bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-4 w-full box-border">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-xl">
-                  <RotateCw className="w-4 h-4" />
+              <div className="flex items-center space-x-2.5 overflow-hidden">
+                <div className="p-2 bg-gradient-to-tr from-indigo-500 to-cyan-500 text-slate-950 font-black rounded-2xl flex-shrink-0">
+                  <Clock className="w-4 h-4" />
                 </div>
-                <div>
-                  <h3 className="text-xs font-black text-white uppercase tracking-wider">
-                    Quản Lý Phân Ca & Xoay Ca Nhân Viên (Tuần ISO #{weekNumber})
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider truncate">
+                    Quản Lý Phân Ca Nhân Viên (Cố Định Cả Tháng)
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Tùy chỉnh ca làm việc hoặc hoán đổi ca (Swap) giữa các nhân viên
+                  <p className="text-[11px] text-slate-400 truncate">
+                    Chọn trực tiếp ca làm việc cho từng nhân viên • Không tự động xoay ca
                   </p>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleRotateAllStaff}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition shadow-md flex items-center space-x-1.5 active:scale-95"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>⚡ Xoay Ca Toàn Bộ NV</span>
-                </button>
+              <div className="flex items-center space-x-2 self-start sm:self-auto">
+                <span className="text-[11px] px-2.5 py-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-bold rounded-xl flex-shrink-0">
+                  {shiftsData.length} Nhân sự
+                </span>
               </div>
             </div>
 
-            {/* Swap Shifts Bar */}
-            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center space-x-2 text-xs font-bold text-slate-300">
-                <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span>Đổi Ca Trực Tiếp Giữa 2 Nhân Viên:</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={swapUser1}
-                  onChange={(e) => setSwapUser1(e.target.value)}
-                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">-- Chọn NV 1 --</option>
-                  {shiftsData.map((u: any) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name} ({u.current_effective_shift === 'shift1' ? 'Ca 1' : u.current_effective_shift === 'shift2' ? 'Ca 2' : 'QL'})
-                    </option>
-                  ))}
-                </select>
-
-                <span className="text-xs font-bold text-slate-400">⇄</span>
-
-                <select
-                  value={swapUser2}
-                  onChange={(e) => setSwapUser2(e.target.value)}
-                  className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">-- Chọn NV 2 --</option>
-                  {shiftsData.map((u: any) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name} ({u.current_effective_shift === 'shift1' ? 'Ca 1' : u.current_effective_shift === 'shift2' ? 'Ca 2' : 'QL'})
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={handleSwapEmployeesShifts}
-                  disabled={!swapUser1 || !swapUser2 || swapUser1 === swapUser2}
-                  className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold rounded-xl text-xs transition shadow-md active:scale-95 disabled:opacity-40 flex items-center space-x-1"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>Hoán Đổi Ca</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Shifts Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            {/* 1. Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-x-auto w-full box-border">
+              <table className="w-full text-left text-xs box-border">
                 <thead>
                   <tr className="text-[10px] text-slate-400 uppercase border-b border-slate-800">
                     <th className="pb-2 font-bold">Nhân Viên</th>
                     <th className="pb-2 font-bold">Chức Vụ</th>
-                    <th className="pb-2 font-bold">Ca Đang Áp Dụng (Tuần #{weekNumber})</th>
-                    <th className="pb-2 font-bold">Quy Tắc Xoay Ca</th>
-                    <th className="pb-2 font-bold text-right">Thao Tác Gán Ca</th>
+                    <th className="pb-2 font-bold">Ca Làm Việc Cố Định (Chọn Dropdown)</th>
+                    <th className="pb-2 font-bold text-right">Khung Giờ Chi Tiết</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-[11px]">
                   {shiftsData.map((u: any) => {
-                    const isShift1 = u.current_effective_shift === 'shift1';
-                    const isShift2 = u.current_effective_shift === 'shift2';
+                    const curShift = u.assigned_shift || (u.role === 'staff' ? 'shift1' : 'manager');
 
                     return (
                       <tr key={u.id} className="hover:bg-slate-800/40 transition">
-                        <td className="py-2.5 font-bold text-white flex items-center space-x-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-300">
+                        <td className="py-2.5 font-bold text-white flex items-center space-x-2.5">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-600 flex items-center justify-center text-xs font-black text-white flex-shrink-0">
                             {u.full_name?.charAt(0) || 'U'}
                           </div>
-                          <span>{u.full_name}</span>
+                          <div className="min-w-0">
+                            <span className="block font-bold truncate">{u.full_name}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">@{u.username || 'user'}</span>
+                          </div>
                         </td>
                         <td className="py-2.5 text-slate-400">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -1284,68 +1182,84 @@ export default function AttendanceView({ user }: AttendanceViewProps) {
                           </span>
                         </td>
                         <td className="py-2.5">
-                          <span className={`px-2.5 py-1 rounded-xl text-xs font-bold font-mono inline-flex items-center space-x-1 border ${
-                            isShift1
-                              ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
-                              : isShift2
-                              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-                              : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                          }`}>
-                            <span>{isShift1 ? '☀️ Ca 1 (Nghỉ 12-13h)' : isShift2 ? '⛅ Ca 2 (Nghỉ 13-14h)' : '👑 Ca Quản Lý'}</span>
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-slate-300">
                           <select
-                            value={u.rotation_type || 'auto_weekly'}
-                            onChange={(e) => handleAssignUserShift(u.id, u.assigned_shift || 'shift1', e.target.value)}
-                            className="bg-slate-950 border border-slate-700 text-[10px] font-bold text-slate-300 rounded-lg px-2 py-1 focus:outline-none"
+                            value={curShift}
+                            onChange={(e) => handleAssignUserShift(u.id, e.target.value)}
+                            className="bg-slate-950 border border-slate-700 text-xs font-bold text-amber-300 rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500 shadow-sm cursor-pointer"
                           >
-                            <option value="auto_weekly">🔄 Tự động xoay ca hàng tuần</option>
-                            <option value="fixed">🔒 Cố định ca này</option>
+                            <option value="shift1">☀️ Ca 1 (09:00 - 21:00 • Nghỉ 12:00-13:00)</option>
+                            <option value="shift2">⛅ Ca 2 (09:00 - 21:00 • Nghỉ 13:00-14:00)</option>
+                            <option value="hanh_chinh">🏢 Ca Hành Chính (08:30 - 17:30)</option>
+                            <option value="manager">👑 Ca Quản Lý (09:00 - 21:00)</option>
+                            <option value="part_time_sang">🌅 Ca Part-time Sáng (08:30 - 13:00)</option>
+                            <option value="part_time_toi">🌃 Ca Part-time Tối (17:00 - 21:30)</option>
                           </select>
                         </td>
-                        <td className="py-2.5 text-right">
-                          <div className="inline-flex items-center space-x-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleAssignUserShift(u.id, 'shift1', u.rotation_type || 'auto_weekly')}
-                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition border ${
-                                u.assigned_shift === 'shift1'
-                                  ? 'bg-blue-600 text-white border-blue-500'
-                                  : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white hover:border-blue-500'
-                              }`}
-                            >
-                              Ca 1
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleAssignUserShift(u.id, 'shift2', u.rotation_type || 'auto_weekly')}
-                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition border ${
-                                u.assigned_shift === 'shift2'
-                                  ? 'bg-amber-600 text-white border-amber-500'
-                                  : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white hover:border-amber-500'
-                              }`}
-                            >
-                              Ca 2
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleAssignUserShift(u.id, 'manager', 'fixed')}
-                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition border ${
-                                u.assigned_shift === 'manager'
-                                  ? 'bg-emerald-600 text-white border-emerald-500'
-                                  : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white hover:border-emerald-500'
-                              }`}
-                            >
-                              QL
-                            </button>
-                          </div>
+                        <td className="py-2.5 text-right font-mono text-[11px] text-slate-400">
+                          {curShift === 'shift1' && '09:00-12:00 & 13:00-21:00 (11h)'}
+                          {curShift === 'shift2' && '09:00-13:00 & 14:00-21:00 (11h)'}
+                          {curShift === 'hanh_chinh' && '08:30-17:30 (Nghỉ trưa 1h)'}
+                          {curShift === 'manager' && '09:00-21:00 (Linh hoạt)'}
+                          {curShift === 'part_time_sang' && '08:30-13:00 (4.5h)'}
+                          {curShift === 'part_time_toi' && '17:00-21:30 (4.5h)'}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* 2. Mobile Card List View (< md) - có padding-bottom: 80px để không bị Navigation bar che */}
+            <div className="block md:hidden space-y-3 pb-[80px] w-full box-border">
+              {shiftsData.map((u: any) => {
+                const curShift = u.assigned_shift || (u.role === 'staff' ? 'shift1' : 'manager');
+
+                return (
+                  <div
+                    key={u.id}
+                    className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-2.5 shadow-md w-full box-border"
+                  >
+                    {/* Top row: Avatar + Name + Role */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-600 flex items-center justify-center text-xs font-black text-white flex-shrink-0">
+                          {u.full_name?.charAt(0) || 'U'}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-white truncate">{u.full_name}</h4>
+                          <span className="text-[10px] text-slate-500 font-mono">@{u.username || 'user'}</span>
+                        </div>
+                      </div>
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${
+                        u.role === 'staff' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30' : 'bg-purple-500/10 text-purple-300 border border-purple-500/30'
+                      }`}>
+                        {u.role === 'staff' ? 'Nhân Viên' : u.role === 'manager' ? 'Quản Lý' : 'Admin'}
+                      </span>
+                    </div>
+
+                    {/* Bottom row: Dropdown Select Ca làm việc */}
+                    <div className="space-y-1 w-full box-border">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Phân Ca Cố Định Cả Tháng:
+                      </label>
+                      <select
+                        value={curShift}
+                        onChange={(e) => handleAssignUserShift(u.id, e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 text-xs font-bold text-amber-300 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 shadow-sm box-border"
+                      >
+                        <option value="shift1">☀️ Ca 1 (09:00 - 21:00 • Nghỉ 12:00-13:00)</option>
+                        <option value="shift2">⛅ Ca 2 (09:00 - 21:00 • Nghỉ 13:00-14:00)</option>
+                        <option value="hanh_chinh">🏢 Ca Hành Chính (08:30 - 17:30)</option>
+                        <option value="manager">👑 Ca Quản Lý (09:00 - 21:00)</option>
+                        <option value="part_time_sang">🌅 Part-time Sáng (08:30 - 13:00)</option>
+                        <option value="part_time_toi">🌃 Part-time Tối (17:00 - 21:30)</option>
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
