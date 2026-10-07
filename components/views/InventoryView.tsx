@@ -62,7 +62,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('in_stock');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
   // Modals
@@ -110,7 +110,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
   const fetchData = async () => {
     try {
       const cached = getCachedInventory();
-      if (cached && cached.length > 0 && statusFilter === 'all' && categoryFilter === 'all') {
+      if (cached && cached.length > 0 && statusFilter === 'in_stock' && categoryFilter === 'all') {
         setInventory(cached);
         setLoading(false);
       }
@@ -139,7 +139,7 @@ export default function InventoryView({ user }: InventoryViewProps) {
       setInventory(sortedInv);
       setProducts(sortedProds);
 
-      if (statusFilter === 'all' && categoryFilter === 'all') {
+      if (statusFilter === 'in_stock' && categoryFilter === 'all') {
         setCachedInventory(sortedInv);
       }
 
@@ -506,9 +506,9 @@ export default function InventoryView({ user }: InventoryViewProps) {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs font-bold text-slate-200 focus:outline-none focus:border-cyan-500"
             >
-              <option value="all">Tất cả Trạng thái máy</option>
-              <option value="in_stock">🟢 Còn hàng (Sẵn sàng bán)</option>
+              <option value="in_stock">🟢 Còn hàng / Tồn kho (Mặc định)</option>
               <option value="sold">⚪ Đã bán</option>
+              <option value="all">🏢 Tất cả (Cả tồn kho & đã bán)</option>
               <option value="warranty">🟡 Đang bảo hành</option>
               <option value="trade_in_pending">🟠 Thu cũ chờ duyệt</option>
             </select>

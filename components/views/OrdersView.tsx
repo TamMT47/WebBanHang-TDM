@@ -39,7 +39,8 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scopeFilter, setScopeFilter] = useState<'all' | 'personal'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'sell' | 'import'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'sell' | 'import'>('sell');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [search, setSearch] = useState(initialSearch);
 
   // Time Range Filter (Tháng này mặc định cho tab cá nhân hoặc All)
@@ -72,6 +73,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
       const params = new URLSearchParams();
       if (scopeFilter === 'personal') params.append('only_mine', 'true');
       if (typeFilter !== 'all') params.append('type', typeFilter);
+      if (categoryFilter !== 'all') params.append('category', categoryFilter);
       if (search.trim()) params.append('search', search.trim());
 
       const now = new Date();
@@ -105,7 +107,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
 
   useEffect(() => {
     fetchOrders();
-  }, [scopeFilter, typeFilter, search, timeRange, dateFrom, dateTo]);
+  }, [scopeFilter, typeFilter, categoryFilter, search, timeRange, dateFrom, dateTo]);
 
   // Personal metrics calculation
   const personalOrdersCount = orders.length;
@@ -163,7 +165,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
             <p className="text-xs text-slate-400">
               {scopeFilter === 'personal'
                 ? `Danh sách các hóa đơn do bạn (${user?.full_name}) tạo hoặc được Quản lý gán hoa hồng bán hàng.`
-                : 'Tra cứu toàn bộ hóa đơn bán lẻ (#HD), phiếu nhập (#NH), bảo hành & in phiếu.'}
+                : 'Tra cứu danh sách hóa đơn bán lẻ (#HD - Mặc định), phiếu nhập (#NH), phân loại theo nhóm hàng hoá & in phiếu.'}
             </p>
           </div>
         </div>
@@ -249,18 +251,18 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
         </div>
       )}
 
-      {/* Filter Bar with Time Range */}
+      {/* Filter Bar with Time Range & Category Groups */}
       <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
           
-          {/* Search Box (5 cols) */}
-          <div className="relative sm:col-span-5">
+          {/* Search Box (4 cols) */}
+          <div className="relative sm:col-span-4">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo Mã #HD..., tên khách, SĐT, IMEI..."
+              placeholder="Tìm theo Mã #HD, khách, SĐT, IMEI..."
               className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
             />
             {search && (
@@ -280,14 +282,33 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
               onChange={(e) => setTypeFilter(e.target.value as any)}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
             >
-              <option value="all">Tất cả Loại đơn</option>
-              <option value="sell">🛒 Hóa đơn Bán hàng</option>
+              <option value="sell">🛒 Hóa đơn Bán hàng (Mặc định)</option>
               <option value="import">📥 Phiếu Nhập hàng</option>
+              <option value="all">🏢 Tất cả (Cả bán & nhập)</option>
             </select>
           </div>
 
-          {/* Time Range Preset (4 cols) */}
-          <div className="sm:col-span-4">
+          {/* Category / Product Group Filter (3 cols) */}
+          <div className="sm:col-span-3">
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
+            >
+              <option value="all">📦 Tất Cả Nhóm Hàng</option>
+              <option value="main_devices">📱 Máy Chính (iPhone/iPad/Mac...)</option>
+              <option value="iPhone">🍎 iPhone</option>
+              <option value="iPad">📱 iPad</option>
+              <option value="Macbook">💻 MacBook</option>
+              <option value="AppleWatch">⌚ Apple Watch</option>
+              <option value="Airpods">🎧 AirPods</option>
+              <option value="PhuKien">🔌 Phụ Kiện</option>
+              <option value="DichVu">🛠️ Dịch Vụ Sửa Chữa</option>
+            </select>
+          </div>
+
+          {/* Time Range Preset (2 cols) */}
+          <div className="sm:col-span-2">
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
@@ -296,8 +317,8 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
               <option value="this_month">📅 Tháng này (Mặc định)</option>
               <option value="today">📅 Hôm nay</option>
               <option value="7days">📅 7 ngày qua</option>
-              <option value="all">📅 Toàn bộ thời gian</option>
-              <option value="custom">📅 Tùy chọn khoảng ngày...</option>
+              <option value="all">📅 Toàn thời gian</option>
+              <option value="custom">📅 Tùy chọn ngày...</option>
             </select>
           </div>
         </div>

@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || ''; // 'sell', 'import', 'all'
+    const categoryParam = searchParams.get('category') || '';
     const search = searchParams.get('search') || '';
     const partnerIdParam = searchParams.get('partner_id') || '';
     const dateFrom = searchParams.get('dateFrom') || '';
@@ -72,6 +73,44 @@ export async function GET(request: NextRequest) {
     if (type && type !== 'all') {
       params.push(type);
       sql += ` AND o.type = $${params.length}`;
+    }
+
+    if (categoryParam && categoryParam !== 'all') {
+      if (categoryParam === 'main_devices') {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND COALESCE(oi2.category, p2.category, '') NOT IN ('PhuKien', 'DichVu')
+            AND COALESCE(oi2.item_type, '') NOT IN ('accessory', 'service')
+        )`;
+      } else if (categoryParam === 'PhuKien') {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND (COALESCE(oi2.category, p2.category, '') = 'PhuKien' OR oi2.item_type = 'accessory')
+        )`;
+      } else if (categoryParam === 'DichVu') {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND (COALESCE(oi2.category, p2.category, '') = 'DichVu' OR oi2.item_type = 'service')
+        )`;
+      } else {
+        params.push(`%${categoryParam}%`);
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND (COALESCE(oi2.category, p2.category, '') ILIKE $${params.length} OR COALESCE(oi2.product_name, p2.name, '') ILIKE $${params.length})
+        )`;
+      }
     }
 
     if (partnerIdParam) {

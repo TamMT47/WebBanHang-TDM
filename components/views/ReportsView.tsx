@@ -27,6 +27,7 @@ interface ReportsViewProps {
 
 export default function ReportsView({ user }: ReportsViewProps) {
   const [range, setRange] = useState('today');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [reportData, setReportData] = useState<any>(null);
@@ -37,6 +38,9 @@ export default function ReportsView({ user }: ReportsViewProps) {
       setLoading(true);
       const params = new URLSearchParams();
       params.append('range', range);
+      if (categoryFilter !== 'all') {
+        params.append('category', categoryFilter);
+      }
       if (range === 'custom' && dateFrom && dateTo) {
         params.append('dateFrom', dateFrom);
         params.append('dateTo', dateTo);
@@ -54,15 +58,27 @@ export default function ReportsView({ user }: ReportsViewProps) {
 
   useEffect(() => {
     fetchReports();
-  }, [range, dateFrom, dateTo]);
+  }, [range, categoryFilter, dateFrom, dateTo]);
 
   const ranges = [
     { id: 'today', label: 'Hôm Nay' },
     { id: 'yesterday', label: 'Hôm Qua' },
     { id: 'this_week', label: '7 Ngày Qua' },
     { id: 'this_month', label: 'Tháng Này' },
-    { id: 'all', label: 'Toàn Bộ Thời Gian' },
+    { id: 'all', label: 'Toàn Thời Gian' },
     { id: 'custom', label: 'Tùy Chọn Ngày' },
+  ];
+
+  const categories = [
+    { id: 'all', label: '📦 Tất Cả Nhóm Hàng' },
+    { id: 'main_devices', label: '📱 Máy Chính (iPhone/iPad/Mac...)' },
+    { id: 'iPhone', label: '🍎 iPhone' },
+    { id: 'iPad', label: '📱 iPad' },
+    { id: 'Macbook', label: '💻 MacBook' },
+    { id: 'AppleWatch', label: '⌚ Apple Watch' },
+    { id: 'Airpods', label: '🎧 AirPods' },
+    { id: 'PhuKien', label: '🔌 Phụ Kiện' },
+    { id: 'DichVu', label: '🛠️ Dịch Vụ Sửa Chữa' },
   ];
 
   const totalUnitsSold = useMemo(() => {
@@ -74,7 +90,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
     <div className="space-y-5 max-w-7xl mx-auto pb-16">
       
       {/* 1. TOP HEADER CARD */}
-      <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
           <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan">
             <BarChart3 className="w-5 h-5" />
@@ -84,66 +100,93 @@ export default function ReportsView({ user }: ReportsViewProps) {
               Báo Cáo Thống Kê & Phân Tích Doanh Thu
             </h2>
             <p className="text-xs text-slate-400">
-              Phân tích số lượng máy bán ra theo dòng máy, danh sách Top bán chạy, lợi nhuận gộp và dòng tiền.
+              Phân tích doanh thu & lợi nhuận gộp theo từng nhóm hàng hoá (Máy chính, dịch vụ, phụ kiện) và dòng máy bán chạy.
             </p>
           </div>
         </div>
 
-        {/* Range Selector */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {ranges.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition badge-nowrap ${
-                range === r.id
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+        {/* Action / Refresh */}
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
           <button
             onClick={fetchReports}
             title="Làm mới dữ liệu"
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl transition shadow-sm"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
           >
             <RefreshCw className="w-3.5 h-3.5" />
+            <span>Làm Mới</span>
           </button>
         </div>
       </div>
 
-      {/* Custom Date Picker */}
-      {range === 'custom' && (
-        <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 rounded-3xl border border-slate-800 shadow-xl flex flex-wrap items-center gap-3 animate-in fade-in">
-          <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700">
-            <span className="text-xs font-bold text-slate-400 badge-nowrap">Từ ngày:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none"
-            />
+      {/* 2. FILTER CONTROLS (CATEGORY & TIME RANGE) */}
+      <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          
+          {/* Category / Nhóm hàng filter */}
+          <div className="flex items-center space-x-2 min-w-[260px]">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider badge-nowrap">Nhóm Hàng:</span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id} className="bg-slate-950 text-white">
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700">
-            <span className="text-xs font-bold text-slate-400 badge-nowrap">Đến ngày:</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none"
-            />
+
+          {/* Time Range Selector */}
+          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {ranges.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition badge-nowrap ${
+                  range === r.id
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
+                    : 'bg-slate-950 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={fetchReports}
-            className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan badge-nowrap"
-          >
-            Lọc Dữ Liệu
-          </button>
         </div>
-      )}
+
+        {/* Custom Date Range Picker */}
+        {range === 'custom' && (
+          <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center gap-3 animate-in fade-in text-xs">
+            <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700">
+              <span className="font-bold text-slate-400 badge-nowrap">Từ ngày:</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700">
+              <span className="font-bold text-slate-400 badge-nowrap">Đến ngày:</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={fetchReports}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 rounded-xl text-xs font-black shadow-glow-cyan badge-nowrap"
+            >
+              Lọc Dữ Liệu
+            </button>
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div className="text-center py-20 bg-slate-900/60 rounded-3xl border border-slate-800 text-xs text-slate-400 animate-pulse">
