@@ -19,7 +19,8 @@ import {
   RotateCcw,
   Edit3,
   CheckCircle2,
-  Clock
+  Clock,
+  BarChart3
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import { Order } from '@/types/database';
@@ -41,6 +42,8 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
   const [scopeFilter, setScopeFilter] = useState<'all' | 'personal'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'sell' | 'import'>('sell');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [staffFilter, setStaffFilter] = useState<string>('all');
+  const [staffList, setStaffList] = useState<any[]>([]);
   const [search, setSearch] = useState(initialSearch);
 
   // Time Range Filter (Tháng này mặc định cho tab cá nhân hoặc All)
@@ -67,6 +70,22 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
     }
   }, [initialSearch]);
 
+  // Fetch users for staff filter
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        if (data.users) {
+          setStaffList(data.users);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchUsers();
+  }, []);
+
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -74,6 +93,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
       if (scopeFilter === 'personal') params.append('only_mine', 'true');
       if (typeFilter !== 'all') params.append('type', typeFilter);
       if (categoryFilter !== 'all') params.append('category', categoryFilter);
+      if (staffFilter !== 'all') params.append('staff_id', staffFilter);
       if (search.trim()) params.append('search', search.trim());
 
       const now = new Date();
@@ -107,7 +127,48 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
 
   useEffect(() => {
     fetchOrders();
-  }, [scopeFilter, typeFilter, categoryFilter, search, timeRange, dateFrom, dateTo]);
+  }, [scopeFilter, typeFilter, categoryFilter, staffFilter, search, timeRange, dateFrom, dateTo]);
+
+  // Categories definition
+  const categories = [
+    { id: 'all', label: '📦 Tất Cả Danh Mục' },
+    { id: 'iPhone', label: '🍎 iPhone' },
+    { id: 'iPad', label: '📱 iPad' },
+    { id: 'MacBook', label: '💻 MacBook' },
+    { id: 'AirPods_Watch', label: '🎧 AirPods / ⌚ Apple Watch' },
+    { id: 'PhuKien', label: '🔌 Linh Kiện & Phụ Kiện' },
+    { id: 'DichVu', label: '🛠️ Dịch Vụ Sửa Chữa & Thay Thế' },
+  ];
+
+  // Helper to test if an order item matches the current category filter
+  const isItemMatchingCategory = (item: any) => {
+    if (categoryFilter === 'all') return true;
+    const cat = (item.category || '').toLowerCase();
+    const name = (item.product_name || '').toLowerCase();
+    const itemType = (item.item_type || '').toLowerCase();
+
+    if (categoryFilter === 'iPhone') return cat.includes('iphone') || name.includes('iphone');
+    if (categoryFilter === 'iPad') return cat.includes('ipad') || name.includes('ipad');
+    if (categoryFilter === 'MacBook') return cat.includes('mac') || name.includes('mac');
+    if (categoryFilter === 'AirPods_Watch') return cat.includes('airpod') || cat.includes('watch') || name.includes('airpod') || name.includes('watch');
+    if (categoryFilter === 'PhuKien') return cat.includes('phukien') || cat.includes('linhkien') || itemType === 'accessory' || name.includes('phụ kiện') || name.includes('linh kiện');
+    if (categoryFilter === 'DichVu') return cat.includes('dichvu') || itemType === 'service' || name.includes('dịch vụ') || name.includes('sửa chữa') || name.includes('thay thế');
+    return true;
+  };
+
+  // KPI filtered statistics
+  const totalFilteredSales = orders.reduce((sum, o) => sum + parseFloat(o.final_payment || 0), 0);
+  const totalFilteredUnitsCount = orders.reduce((sum, o) => {
+    if (!o.items) return sum;
+    const matchingItems = o.items.filter(isItemMatchingCategory);
+    const orderUnits = matchingItems.reduce((s: number, it: any) => s + (parseInt(it.quantity, 10) || 1), 0);
+    return sum + orderUnits;
+  }, 0);
+  const totalFilteredCommission = orders.reduce((sum, o) => sum + parseFloat(o.commission_amount || 0), 0);
+
+  const selectedCategoryLabel = categories.find((c) => c.id === categoryFilter)?.label || 'Tất Cả Danh Mục';
+  const selectedStaffObj = staffList.find((s) => s.id === staffFilter);
+  const selectedStaffName = selectedStaffObj ? selectedStaffObj.full_name : 'Tất Cả Nhân Viên';
 
   // Personal metrics calculation
   const personalOrdersCount = orders.length;
@@ -160,12 +221,12 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
-              {scopeFilter === 'personal' ? 'Hóa Đơn & Hoa Hồng Cá Nhân' : 'Lịch Sử Hóa Đơn & Giao Dịch'}
+              {scopeFilter === 'personal' ? 'Hóa Đơn & Hoa Hồng Cá Nhân' : 'Lịch Sử Hóa Đơn & Doanh Số KPI'}
             </h2>
             <p className="text-xs text-slate-400">
               {scopeFilter === 'personal'
                 ? `Danh sách các hóa đơn do bạn (${user?.full_name}) tạo hoặc được Quản lý gán hoa hồng bán hàng.`
-                : 'Tra cứu danh sách hóa đơn bán lẻ (#HD - Mặc định), phiếu nhập (#NH), phân loại theo nhóm hàng hoá & in phiếu.'}
+                : 'Tra cứu danh sách hóa đơn bán lẻ (#HD), lọc theo Danh mục, Nhân viên bán hàng & thống kê tổng số máy bán ra.'}
             </p>
           </div>
         </div>
@@ -174,7 +235,10 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
         <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs">
           <button
             type="button"
-            onClick={() => setScopeFilter('all')}
+            onClick={() => {
+              setScopeFilter('all');
+              setStaffFilter('all');
+            }}
             className={`px-3.5 py-1.5 rounded-xl font-bold transition badge-nowrap ${
               scopeFilter === 'all'
                 ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
@@ -251,18 +315,79 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
         </div>
       )}
 
+      {/* KPI Sales Summary Banner for Filtered View (Category + Staff) */}
+      {scopeFilter === 'all' && (
+        <div className="bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-slate-950 p-4 rounded-3xl border border-cyan-500/30 shadow-xl space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+            <div className="flex items-center space-x-2">
+              <span className="p-1.5 bg-cyan-500/20 text-cyan-300 rounded-xl">
+                <BarChart3 className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">
+                  Thống Kê Doanh Số & KPI Bán Hàng
+                </h3>
+                <div className="text-[11px] text-slate-400">
+                  Lọc: <b className="text-cyan-300">{selectedCategoryLabel}</b> • Nhân viên: <b className="text-emerald-400">{selectedStaffName}</b>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <span className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-xl text-[11px] font-bold text-slate-300 badge-nowrap">
+                {orders.length} hóa đơn tìm thấy
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-0.5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Tổng Số Máy / Sản Phẩm</div>
+              <div className="text-xl sm:text-2xl font-black text-cyan-300 font-mono">
+                {totalFilteredUnitsCount} <span className="text-xs text-slate-400 font-normal">máy/SP</span>
+              </div>
+              <div className="text-[10px] text-slate-500">Đã bán ra trong kỳ</div>
+            </div>
+
+            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-0.5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Tổng Doanh Thu Đơn</div>
+              <div className="text-xl sm:text-2xl font-black text-white font-sans">
+                {formatVND(totalFilteredSales)}
+              </div>
+              <div className="text-[10px] text-slate-500">Đã trừ chiết khấu & trade-in</div>
+            </div>
+
+            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-0.5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Tổng Số Hóa Đơn</div>
+              <div className="text-xl sm:text-2xl font-black text-slate-200 font-sans">
+                {orders.length} <span className="text-xs text-slate-400 font-normal">đơn</span>
+              </div>
+              <div className="text-[10px] text-slate-500">{typeFilter === 'sell' ? 'Đơn bán hàng' : 'Đơn giao dịch'}</div>
+            </div>
+
+            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-0.5">
+              <div className="text-[10px] font-bold text-emerald-400 uppercase">Hoa Hồng Phát Sinh</div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-400 font-sans">
+                +{formatVND(totalFilteredCommission)}
+              </div>
+              <div className="text-[10px] text-emerald-400/80">Tính theo máy bán ra</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filter Bar with Time Range & Category Groups */}
       <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
           
-          {/* Search Box (4 cols) */}
-          <div className="relative sm:col-span-4">
+          {/* Search Box (3 cols) */}
+          <div className="relative sm:col-span-3">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo Mã #HD, khách, SĐT, IMEI..."
+              placeholder="Mã #HD, khách, SĐT, IMEI..."
               className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
             />
             {search && (
@@ -275,16 +400,16 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
             )}
           </div>
 
-          {/* Type Filter (3 cols) */}
-          <div className="sm:col-span-3">
+          {/* Type Filter (2 cols) */}
+          <div className="sm:col-span-2">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as any)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
+              className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
             >
-              <option value="sell">🛒 Hóa đơn Bán hàng (Mặc định)</option>
-              <option value="import">📥 Phiếu Nhập hàng</option>
-              <option value="all">🏢 Tất cả (Cả bán & nhập)</option>
+              <option value="sell">🛒 Bán lẻ (Mặc định)</option>
+              <option value="import">📥 Nhập hàng</option>
+              <option value="all">🏢 Cả bán & nhập</option>
             </select>
           </div>
 
@@ -293,17 +418,29 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
+              className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
             >
-              <option value="all">📦 Tất Cả Nhóm Hàng</option>
-              <option value="main_devices">📱 Máy Chính (iPhone/iPad/Mac...)</option>
-              <option value="iPhone">🍎 iPhone</option>
-              <option value="iPad">📱 iPad</option>
-              <option value="Macbook">💻 MacBook</option>
-              <option value="AppleWatch">⌚ Apple Watch</option>
-              <option value="Airpods">🎧 AirPods</option>
-              <option value="PhuKien">🔌 Phụ Kiện</option>
-              <option value="DichVu">🛠️ Dịch Vụ Sửa Chữa</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id} className="bg-slate-950 text-white">
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Staff Filter (2 cols) */}
+          <div className="sm:col-span-2">
+            <select
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-emerald-300 focus:outline-none focus:border-emerald-500"
+            >
+              <option value="all">👥 Tất Cả NV</option>
+              {staffList.map((st) => (
+                <option key={st.id} value={st.id} className="bg-slate-950 text-white">
+                  👤 {st.full_name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -312,7 +449,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
+              className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none"
             >
               <option value="this_month">📅 Tháng này (Mặc định)</option>
               <option value="today">📅 Hôm nay</option>

@@ -151,7 +151,7 @@ export default function PayslipModal({ isOpen, onClose, record, month }: Payslip
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">
-                  • Lương ngày công làm việc ({actualDays} ngày thực tế):
+                  • Ngày công & Giờ làm việc ({actualDays} công • {record.total_work_hours || Math.round(actualDays * 11 * 10) / 10}h • {record.shifts_count || Math.round(actualDays)} ca trực):
                 </span>
                 <span className="font-sans font-bold text-white">{formatVND(salaryByDays)}</span>
               </div>
@@ -167,6 +167,11 @@ export default function PayslipModal({ isOpen, onClose, record, month }: Payslip
                 </span>
                 <span className="font-sans font-bold text-amber-300">+{formatVND(otSalary)}</span>
               </div>
+              {(record.note || record.adjustment_reason) && (
+                <div className="border-t border-slate-800/80 pt-1.5 text-[11px] text-amber-300/90 italic">
+                  <b>* Ghi chú điều chỉnh:</b> {record.note || record.adjustment_reason}
+                </div>
+              )}
             </div>
           </div>
 

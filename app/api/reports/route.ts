@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const range = searchParams.get('range') || 'today';
     const category = searchParams.get('category') || 'all';
+    const staffId = searchParams.get('staff_id') || searchParams.get('user_id') || 'all';
     const customFrom = searchParams.get('dateFrom');
     const customTo = searchParams.get('dateTo');
 
@@ -50,23 +51,37 @@ export async function GET(request: NextRequest) {
       dateCondition = `1=1`;
     }
 
+    // Staff Filter Condition
+    let staffCondition = '1=1';
+    if (staffId && staffId !== 'all') {
+      params.push(staffId);
+      staffCondition = `(o.seller_id = $${params.length} OR o.created_by = $${params.length})`;
+    }
+
     // Build Item Category Condition
     let itemCatCondition = '1=1';
-    if (category === 'main_devices') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') NOT IN ('PhuKien', 'DichVu') AND COALESCE(oi.item_type, '') NOT IN ('accessory', 'service'))`;
+    if (category === 'iPhone') {
+      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%iPhone%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%iPhone%')`;
+    } else if (category === 'iPad') {
+      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%iPad%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%iPad%')`;
+    } else if (category === 'MacBook' || category === 'Macbook') {
+      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%Mac%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Mac%')`;
+    } else if (category === 'AirPods_Watch' || category === 'Airpods' || category === 'AppleWatch') {
+      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%Airpod%' OR COALESCE(oi.category, p.category, '') ILIKE '%Watch%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Airpod%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Watch%')`;
     } else if (category === 'PhuKien') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') = 'PhuKien' OR COALESCE(oi.item_type, '') = 'accessory')`;
+      itemCatCondition = `(COALESCE(oi.category, p.category, '') IN ('PhuKien', 'LinhKien') OR COALESCE(oi.item_type, '') = 'accessory' OR COALESCE(oi.product_name, p.name, '') ILIKE '%phụ kiện%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%linh kiện%')`;
     } else if (category === 'DichVu') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') = 'DichVu' OR COALESCE(oi.item_type, '') = 'service')`;
+      itemCatCondition = `(COALESCE(oi.category, p.category, '') = 'DichVu' OR COALESCE(oi.item_type, '') = 'service' OR COALESCE(oi.product_name, p.name, '') ILIKE '%dịch vụ%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%sửa chữa%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%thay thế%')`;
     } else if (category && category !== 'all') {
       const cleanCat = category.replace(/'/g, "''");
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') = '${cleanCat}' OR COALESCE(oi.product_name, p.name, '') ILIKE '%${cleanCat}%')`;
+      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%${cleanCat}%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%${cleanCat}%')`;
     }
 
     let metrics: any;
     let grossProfit = 0;
+    let totalUnits = 0;
 
-    if (category === 'all') {
+    if (category === 'all' && staffId === 'all') {
       // 1. Overall Sell Metrics (Store Level)
       const metricsSql = `
         SELECT 
@@ -84,6 +99,16 @@ export async function GET(request: NextRequest) {
       const metricsRes = await query(metricsSql, params);
       metrics = metricsRes.rows[0];
 
+      // Total units sold across all orders
+      const unitsSql = `
+        SELECT COALESCE(SUM(COALESCE(oi.quantity, 1)), 0) AS total_units
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.order_id
+        WHERE o.type = 'sell' AND ${dateCondition}
+      `;
+      const unitsRes = await query(unitsSql, params);
+      totalUnits = parseInt(unitsRes.rows[0]?.total_units || 0, 10);
+
       // 2. Calculate Gross Profit
       const profitSql = `
         SELECT 
@@ -97,10 +122,11 @@ export async function GET(request: NextRequest) {
       const grossItemsProfit = parseFloat(profitRes.rows[0].gross_items_profit || 0);
       grossProfit = Math.max(0, grossItemsProfit - parseFloat(metrics.total_discount || 0));
     } else {
-      // Category Specific Metrics
+      // Category and/or Staff Specific Metrics
       const metricsSql = `
         SELECT 
           COUNT(DISTINCT o.id) AS total_orders,
+          COALESCE(SUM(COALESCE(oi.quantity, 1)), 0) AS total_units,
           COALESCE(SUM(oi.price * COALESCE(oi.quantity, 1)), 0) AS total_revenue,
           COALESCE(SUM(oi.price * COALESCE(oi.quantity, 1)), 0) AS total_collected,
           0 AS total_debt_created,
@@ -113,11 +139,12 @@ export async function GET(request: NextRequest) {
         JOIN order_items oi ON o.id = oi.order_id
         LEFT JOIN inventory i ON oi.inventory_id = i.id
         LEFT JOIN products p ON i.product_id = p.id
-        WHERE o.type = 'sell' AND ${dateCondition} AND ${itemCatCondition}
+        WHERE o.type = 'sell' AND ${dateCondition} AND ${staffCondition} AND ${itemCatCondition}
       `;
       const metricsRes = await query(metricsSql, params);
       metrics = metricsRes.rows[0];
       grossProfit = parseFloat(metrics.gross_profit || 0);
+      totalUnits = parseInt(metrics.total_units || 0, 10);
     }
 
     // 3. Breakdown by Device Series / Category Group
@@ -147,7 +174,7 @@ export async function GET(request: NextRequest) {
       JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN inventory i ON oi.inventory_id = i.id
       LEFT JOIN products p ON i.product_id = p.id
-      WHERE o.type = 'sell' AND ${dateCondition} AND ${itemCatCondition}
+      WHERE o.type = 'sell' AND ${dateCondition} AND ${staffCondition} AND ${itemCatCondition}
       GROUP BY 1
       ORDER BY quantity_sold DESC, total_revenue DESC
     `;
@@ -166,7 +193,7 @@ export async function GET(request: NextRequest) {
       JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN inventory i ON oi.inventory_id = i.id
       LEFT JOIN products p ON i.product_id = p.id
-      WHERE o.type = 'sell' AND ${dateCondition} AND ${itemCatCondition}
+      WHERE o.type = 'sell' AND ${dateCondition} AND ${staffCondition} AND ${itemCatCondition}
       GROUP BY COALESCE(oi.product_name, p.name, 'Sản phẩm khác'), COALESCE(oi.category, p.category, 'iPhone'), p.storage, p.condition
       ORDER BY quantity_sold DESC, total_sales DESC
       LIMIT 12
@@ -184,17 +211,46 @@ export async function GET(request: NextRequest) {
       JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN inventory i ON oi.inventory_id = i.id
       LEFT JOIN products p ON i.product_id = p.id
-      WHERE o.type = 'sell' AND ${dateCondition} AND ${itemCatCondition}
+      WHERE o.type = 'sell' AND ${dateCondition} AND ${staffCondition} AND ${itemCatCondition}
       GROUP BY TO_CHAR(o.created_at, 'YYYY-MM-DD')
       ORDER BY sale_date DESC
     `;
     const dailyChartRes = await query(dailyChartSql, params);
 
+    // 6. Staff List & Staff KPI Breakdown
+    const staffListRes = await query(
+      `SELECT id, username, full_name, role FROM users ORDER BY role = 'admin' DESC, role = 'owner' DESC, role = 'manager' DESC, full_name ASC`
+    );
+
+    const staffKpiSql = `
+      SELECT 
+        u.id AS staff_id,
+        u.full_name AS staff_name,
+        u.role,
+        COUNT(DISTINCT o.id) AS order_count,
+        COALESCE(SUM(COALESCE(oi.quantity, 1)), 0) AS units_sold,
+        COALESCE(SUM(oi.price * COALESCE(oi.quantity, 1)), 0) AS total_revenue,
+        COALESCE(SUM((oi.price - COALESCE(i.cost_price, 0)) * COALESCE(oi.quantity, 1)), 0) AS gross_profit
+      FROM users u
+      LEFT JOIN orders o ON (o.seller_id = u.id OR (o.seller_id IS NULL AND o.created_by = u.id)) 
+        AND o.type = 'sell' 
+        AND ${dateCondition}
+      LEFT JOIN order_items oi ON o.id = oi.order_id AND ${itemCatCondition}
+      LEFT JOIN inventory i ON oi.inventory_id = i.id
+      LEFT JOIN products p ON i.product_id = p.id
+      GROUP BY u.id, u.full_name, u.role
+      ORDER BY units_sold DESC, total_revenue DESC
+    `;
+    const staffKpiRes = await query(staffKpiSql, params.slice(0, (staffId && staffId !== 'all') ? params.length - 1 : params.length));
+
     return NextResponse.json({
       category,
+      staff_id: staffId,
+      staff_list: staffListRes.rows,
       kpis: {
         total_revenue: parseFloat(metrics.total_revenue || 0),
         gross_profit: grossProfit,
+        total_units: totalUnits,
         total_orders: parseInt(metrics.total_orders || 0, 10),
         total_trade_in: parseFloat(metrics.total_trade_in || 0),
         total_discount: parseFloat(metrics.total_discount || 0),
@@ -202,6 +258,15 @@ export async function GET(request: NextRequest) {
         cash_revenue: parseFloat(metrics.cash_revenue || 0),
         transfer_revenue: parseFloat(metrics.transfer_revenue || 0),
       },
+      staff_kpis: staffKpiRes.rows.map((row) => ({
+        staff_id: row.staff_id,
+        staff_name: row.staff_name,
+        role: row.role,
+        order_count: parseInt(row.order_count || 0, 10),
+        units_sold: parseInt(row.units_sold || 0, 10),
+        total_revenue: parseFloat(row.total_revenue || 0),
+        gross_profit: parseFloat(row.gross_profit || 0),
+      })),
       model_series: modelSeriesRes.rows.map((row) => ({
         series_name: row.series_name,
         quantity_sold: parseInt(row.quantity_sold || 0, 10),

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo = searchParams.get('dateTo') || '';
     const onlyMine = searchParams.get('only_mine') === 'true' || searchParams.get('my_orders') === 'true';
-    const userIdParam = searchParams.get('user_id') || '';
+    const userIdParam = searchParams.get('user_id') || searchParams.get('staff_id') || searchParams.get('seller_id') || '';
     const targetUserId = onlyMine ? (user?.id || '') : userIdParam;
     const limit = parseInt(searchParams.get('limit') || '100', 10);
 
@@ -76,14 +76,37 @@ export async function GET(request: NextRequest) {
     }
 
     if (categoryParam && categoryParam !== 'all') {
-      if (categoryParam === 'main_devices') {
+      if (categoryParam === 'iPhone') {
         sql += ` AND EXISTS (
           SELECT 1 FROM order_items oi2 
           LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
           LEFT JOIN products p2 ON inv2.product_id = p2.id
           WHERE oi2.order_id = o.id 
-            AND COALESCE(oi2.category, p2.category, '') NOT IN ('PhuKien', 'DichVu')
-            AND COALESCE(oi2.item_type, '') NOT IN ('accessory', 'service')
+            AND (COALESCE(oi2.category, p2.category, '') ILIKE '%iPhone%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%iPhone%')
+        )`;
+      } else if (categoryParam === 'iPad') {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND (COALESCE(oi2.category, p2.category, '') ILIKE '%iPad%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%iPad%')
+        )`;
+      } else if (categoryParam === 'MacBook' || categoryParam === 'Macbook') {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND (COALESCE(oi2.category, p2.category, '') ILIKE '%Mac%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%Mac%')
+        )`;
+      } else if (categoryParam === 'AirPods_Watch' || categoryParam === 'Airpods' || categoryParam === 'AppleWatch') {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND (COALESCE(oi2.category, p2.category, '') ILIKE '%Airpod%' OR COALESCE(oi2.category, p2.category, '') ILIKE '%Watch%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%Airpod%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%Watch%')
         )`;
       } else if (categoryParam === 'PhuKien') {
         sql += ` AND EXISTS (
@@ -91,7 +114,7 @@ export async function GET(request: NextRequest) {
           LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
           LEFT JOIN products p2 ON inv2.product_id = p2.id
           WHERE oi2.order_id = o.id 
-            AND (COALESCE(oi2.category, p2.category, '') = 'PhuKien' OR oi2.item_type = 'accessory')
+            AND (COALESCE(oi2.category, p2.category, '') IN ('PhuKien', 'LinhKien') OR oi2.item_type = 'accessory' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%phụ kiện%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%linh kiện%')
         )`;
       } else if (categoryParam === 'DichVu') {
         sql += ` AND EXISTS (
@@ -99,7 +122,16 @@ export async function GET(request: NextRequest) {
           LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
           LEFT JOIN products p2 ON inv2.product_id = p2.id
           WHERE oi2.order_id = o.id 
-            AND (COALESCE(oi2.category, p2.category, '') = 'DichVu' OR oi2.item_type = 'service')
+            AND (COALESCE(oi2.category, p2.category, '') = 'DichVu' OR oi2.item_type = 'service' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%dịch vụ%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%sửa chữa%' OR COALESCE(oi2.product_name, p2.name, '') ILIKE '%thay thế%')
+        )`;
+      } else if (categoryParam === 'main_devices') {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM order_items oi2 
+          LEFT JOIN inventory inv2 ON oi2.inventory_id = inv2.id
+          LEFT JOIN products p2 ON inv2.product_id = p2.id
+          WHERE oi2.order_id = o.id 
+            AND COALESCE(oi2.category, p2.category, '') NOT IN ('PhuKien', 'DichVu')
+            AND COALESCE(oi2.item_type, '') NOT IN ('accessory', 'service')
         )`;
       } else {
         params.push(`%${categoryParam}%`);

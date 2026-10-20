@@ -27,12 +27,15 @@ import {
   AlertCircle,
   Briefcase,
   TrendingUp,
-  Award
+  Award,
+  Sliders,
+  Hourglass
 } from 'lucide-react';
 import { formatVND } from '@/lib/format';
 import { MonthlyPayrollItem, SalaryHistoryRecord } from '@/types/database';
 import PayslipModal from '@/components/PayslipModal';
 import ManualAttendanceModal from '@/components/ManualAttendanceModal';
+import ProvisionalSalaryModal from '@/components/ProvisionalSalaryModal';
 import { exportPayrollToCSV } from '@/lib/exportHelper';
 import { calculateSalary } from '@/lib/attendanceHelper';
 
@@ -78,6 +81,10 @@ export default function PayrollView({ user }: PayrollViewProps) {
   // Payslip Modal State
   const [selectedPayslipRecord, setSelectedPayslipRecord] = useState<any>(null);
   const [isPayslipOpen, setIsPayslipOpen] = useState(false);
+
+  // Provisional Salary Edit Modal State (Quản lý điều chỉnh công / lương tạm tính trước khi chốt)
+  const [isProvisionalModalOpen, setIsProvisionalModalOpen] = useState(false);
+  const [selectedProvisionalItem, setSelectedProvisionalItem] = useState<MonthlyPayrollItem | null>(null);
 
   // Edit Base Salary Modal State
   const [isBaseSalaryModalOpen, setIsBaseSalaryModalOpen] = useState(false);
@@ -412,6 +419,63 @@ export default function PayrollView({ user }: PayrollViewProps) {
     }
   };
 
+  // Unlock / Re-open a single employee's locked payroll to Provisional
+  const handleUnlockPayrollItem = async (item: MonthlyPayrollItem) => {
+    if (!confirm(`MỞ KHÓA BẢNG LƯƠNG:\nBạn có chắc chắn muốn mở khóa bảng lương tháng ${selectedMonth} của nhân viên ${item.user_name} để chuyển về trạng thái TẠM TÍNH cho phép chỉnh sửa không?`)) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'unlock_payroll',
+          user_id: item.user_id,
+          month: selectedMonth,
+          salary_id: item.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi mở khóa');
+      setMessage({ type: 'success', text: data.message });
+      fetchLivePayroll();
+      fetchArchiveHistory();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  // Lock Single Employee Payroll and generate official payslip
+  const handleLockSinglePayrollFromTable = async (item: MonthlyPayrollItem) => {
+    if (
+      !confirm(
+        `XÁC NHẬN & TẠO PHIẾU LƯƠNG CHÍNH THỨC:\n\nBạn có chắc chắn muốn chốt lương tháng ${selectedMonth} cho nhân viên ${item.user_name} với số tiền thực lĩnh ${formatVND(
+          item.final_salary
+        )}?\n\nTrạng thái sẽ chuyển sang "ĐÃ CHỐT LƯƠNG" và tạo phiếu lương chính thức gửi cho nhân viên.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          month: selectedMonth,
+          singleItem: item,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi chốt lương');
+      setMessage({ type: 'success', text: data.message });
+      fetchLivePayroll();
+      fetchArchiveHistory();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
   // Delete / Re-open an Archived Month
   const handleDeleteArchiveMonth = async (month: string) => {
     if (!confirm(`Bạn có chắc chắn muốn XÓA BẢNG LƯƠNG LƯU TRỮ tháng ${month} để mở lại cho phép chỉnh sửa không?`)) {
@@ -550,10 +614,10 @@ export default function PayrollView({ user }: PayrollViewProps) {
       )}
 
       {/* ======================================================== */}
-      {/* SECTION 1: BẢNG LƯƠNG NHÂN VIÊN DẠNG 1 DÒNG NẰM NGANG */}
+      {/* SECTION 1: BẢNG CÔNG & LƯƠNG TẠM TÍNH THÁNG */}
       {/* ======================================================== */}
       {isStaff ? (
-        /* MÀN HÌNH NHÂN VIÊN: THẺ BẢNG LƯƠNG TỐI GIẢN, GỌN GÀNG, ẨN HOÀN TOÀN ĐƠN GIÁ & CÔNG THỨC */
+        /* MÀN HÌNH NHÂN VIÊN: BẢNG CÔNG & LƯƠNG TẠM TÍNH CỦA BẠN */
         <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-4 sm:p-5">
           {loading ? (
             <div className="text-center py-6 text-xs text-slate-400 animate-pulse">
@@ -561,19 +625,30 @@ export default function PayrollView({ user }: PayrollViewProps) {
             </div>
           ) : !myPayrollItem ? (
             <div className="text-center py-6 text-xs text-slate-400">
-              Không tìm thấy dữ liệu lương của bạn trong tháng {selectedMonth}.
+              Không tìm thấy dữ liệu chấm công và lương của bạn trong tháng {selectedMonth}.
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-glow-cyan">
                     {myPayrollItem.user_name?.slice(0, 1) || 'NV'}
                   </div>
                   <div>
-                    <div className="text-xs sm:text-sm font-black text-white">{myPayrollItem.user_name}</div>
-                    <div className="text-[10px] text-amber-300 font-bold">
-                      {myPayrollItem.contract_type === 'probation' ? 'Thử việc (85%)' : 'Nhân viên chính thức'}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm sm:text-base font-black text-white">{myPayrollItem.user_name}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                          myPayrollItem.is_locked
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        }`}
+                      >
+                        {myPayrollItem.is_locked ? '🔒 ĐÃ CHỐT LƯƠNG' : '⏳ TẠM TÍNH (Chờ duyệt)'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-medium">
+                      Bảng công & lương tháng {selectedMonth} • {myPayrollItem.contract_type === 'probation' ? 'Hợp đồng Thử việc (85%)' : 'Nhân viên chính thức'}
                     </div>
                   </div>
                 </div>
@@ -587,14 +662,14 @@ export default function PayrollView({ user }: PayrollViewProps) {
                     });
                     setIsPayslipOpen(true);
                   }}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                  className="px-3.5 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-md self-start sm:self-auto"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>Xem Phiếu Lương</span>
+                  <span>Xem Chi Tiết Phiếu Lương</span>
                 </button>
               </div>
 
-              {/* Grid các chỉ số lương cơ bản & thực lĩnh */}
+              {/* Grid các chỉ số công & lương */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                 <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
                   <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CƠ BẢN</span>
@@ -602,12 +677,26 @@ export default function PayrollView({ user }: PayrollViewProps) {
                 </div>
 
                 <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-bold">NGÀY CÔNG</span>
+                  <span className="text-[10px] text-cyan-400 block font-bold">TỔNG SỐ NGÀY CÔNG</span>
                   <span className="font-sans font-bold text-white text-xs">{myPayrollItem.actual_days} / {myPayrollItem.standard_days} công</span>
                 </div>
 
                 <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG CÔNG</span>
+                  <span className="text-[10px] text-cyan-400 block font-bold">TỔNG SỐ GIỜ LÀM</span>
+                  <span className="font-sans font-bold text-cyan-300 text-xs">
+                    {myPayrollItem.total_work_hours || Math.round(myPayrollItem.actual_days * 11 * 10) / 10} giờ
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-amber-400 block font-bold">SỐ CA ĐÃ TRỰC</span>
+                  <span className="font-sans font-bold text-amber-300 text-xs">
+                    {myPayrollItem.shifts_count || Math.round(myPayrollItem.actual_days)} ca
+                  </span>
+                </div>
+
+                <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block font-bold">LƯƠNG NGÀY CÔNG</span>
                   <span className="font-sans font-bold text-white text-xs">{formatVND(myPayrollItem.salary_by_days)}</span>
                 </div>
 
@@ -619,14 +708,14 @@ export default function PayrollView({ user }: PayrollViewProps) {
                 </div>
 
                 <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-emerald-400 block font-bold">HOA HỒNG</span>
+                  <span className="text-[10px] text-emerald-400 block font-bold">HOA HỒNG & THƯỞNG KPI</span>
                   <span className="font-sans font-bold text-emerald-400 text-xs">
                     +{formatVND((myPayrollItem.shared_commission || 0) + (myPayrollItem.personal_commission || 0))}
                   </span>
                 </div>
 
                 <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-bold">THƯỞNG / TRỪ</span>
+                  <span className="text-[10px] text-slate-400 block font-bold">PHỤ CẤP / TRỪ PHẠT</span>
                   <span className="font-sans font-bold text-emerald-400 text-xs">
                     +{formatVND((myPayrollItem.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}
                   </span>
@@ -634,50 +723,92 @@ export default function PayrollView({ user }: PayrollViewProps) {
                   <span className="font-sans font-bold text-rose-400 text-xs">-{formatVND(myPayrollItem.total_deduction)}</span>
                 </div>
 
-                <div className="col-span-2 sm:col-span-2 p-2.5 bg-gradient-to-r from-cyan-950/40 to-blue-950/40 rounded-xl border border-cyan-500/40 flex items-center justify-between">
+                <div className="col-span-2 sm:col-span-4 p-3 bg-gradient-to-r from-cyan-950/60 via-blue-950/60 to-slate-950 rounded-xl border border-cyan-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <span className="text-[10px] text-cyan-300 block font-black uppercase">TỔNG THỰC LĨNH THÁNG {selectedMonth}</span>
-                    <span className="font-sans font-black text-base text-cyan-300">{formatVND(myPayrollItem.final_salary)}</span>
+                    <span className="text-[10px] text-cyan-300 block font-black uppercase tracking-wider">
+                      {myPayrollItem.is_locked ? 'TỔNG THỰC LĨNH CHÍNH THỨC' : 'TỔNG LƯƠNG TẠM TÍNH THÁNG'} {selectedMonth}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {myPayrollItem.is_locked
+                        ? 'Dữ liệu đã được Quản lý chốt và lưu trữ phiếu lương chính thức.'
+                        : 'Dữ liệu tạm tính dựa trên máy chấm công & doanh số thực tế, chờ Quản lý duyệt chốt.'}
+                    </span>
                   </div>
-                  <div className="px-2.5 py-1 bg-cyan-500/20 text-cyan-300 rounded-lg text-xs font-bold border border-cyan-500/30">
-                    Đã tính
+                  <div className="text-right">
+                    <span className="text-xl sm:text-2xl font-black text-cyan-300 font-sans tracking-tight">
+                      {formatVND(myPayrollItem.final_salary)}
+                    </span>
                   </div>
                 </div>
               </div>
+
+              {myPayrollItem.note && (
+                <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300">
+                  <b className="text-cyan-400">Ghi chú điều chỉnh:</b> {myPayrollItem.note}
+                </div>
+              )}
             </div>
           )}
         </div>
       ) : (
-        /* MÀN HÌNH ADMIN / QUẢN LÝ: BẢNG CHI TIẾT TẤT CẢ NHÂN SỰ */
-        <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3.5 sm:p-4 overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-2.5 mb-3 gap-2">
-            <div className="text-xs font-black text-white uppercase flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span>Bảng Lương Tháng {selectedMonth}</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="text-[11px] text-slate-400">
-                Tổng thực lĩnh: <b className="text-cyan-300 font-sans">{formatVND(payrollItems.reduce((s, i) => s + i.final_salary, 0))}</b> ({payrollItems.length} nhân sự)
+        /* MÀN HÌNH ADMIN / QUẢN LÝ: BẢNG CÔNG & LƯƠNG TẠM TÍNH THÁNG */
+        <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl p-3.5 sm:p-4 overflow-hidden space-y-3">
+          
+          {/* Header Bảng Công & Lương Tạm Tính */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2.5">
+            <div>
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-lg">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wide">
+                  BẢNG CÔNG & LƯƠNG TẠM TÍNH THÁNG {selectedMonth}
+                </h3>
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-[10px] font-black uppercase">
+                  ⏳ TẠM TÍNH
+                </span>
               </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Rà soát ngày công, giờ làm, ca trực, thưởng KPI và chỉnh sửa trước khi bấm chốt tạo phiếu lương.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2.5 self-start sm:self-auto flex-wrap gap-y-2">
+              <div className="text-[11px] text-slate-300 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                Tổng tạm tính: <b className="text-cyan-300 font-sans">{formatVND(payrollItems.reduce((s, i) => s + i.final_salary, 0))}</b> ({payrollItems.length} NV)
+              </div>
+
               {isManagerOrAbove && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedManualUserId(undefined);
-                    setIsManualAttendanceModalOpen(true);
-                  }}
-                  className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition flex items-center space-x-1.5 active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Bù công / Sửa giờ làm</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedManualUserId(undefined);
+                      setIsManualAttendanceModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold rounded-xl text-xs transition flex items-center space-x-1.5 active:scale-95 shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Bù công / Giờ làm</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLockMonthlyPayroll}
+                    disabled={savingPayroll}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-xs shadow-lg transition flex items-center space-x-1.5 active:scale-95 disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{savingPayroll ? 'Đang chốt...' : 'Xác Nhận & Tạo Toàn Bộ Phiếu Lương'}</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
 
           {loading ? (
             <div className="text-center py-12 text-xs text-slate-400 animate-pulse">
-              Đang tính toán bảng lương...
+              Đang tính toán bảng công & lương tạm tính tháng {selectedMonth}...
             </div>
           ) : payrollItems.length === 0 ? (
             <div className="text-center py-12 text-xs text-slate-400">
@@ -689,47 +820,58 @@ export default function PayrollView({ user }: PayrollViewProps) {
                 <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
                   <tr>
                     <th className="px-3 py-2.5">Nhân Viên</th>
-                    <th className="px-3 py-2.5">Loại Hợp Đồng</th>
-                    <th className="px-3 py-2.5">Lương Cơ Bản</th>
-                    <th className="px-3 py-2.5">Công Thực Tế</th>
-                    <th className="px-3 py-2.5">Lương Công</th>
-                    <th className="px-3 py-2.5">Tăng Ca (OT)</th>
-                    <th className="px-3 py-2.5">HH Nhóm</th>
-                    <th className="px-3 py-2.5">HH Cá Nhân</th>
+                    <th className="px-3 py-2.5">Trạng Thái</th>
+                    <th className="px-3 py-2.5">Hợp Đồng & Lương CB</th>
+                    <th className="px-3 py-2.5 text-center">Tổng Ngày Công</th>
+                    <th className="px-3 py-2.5 text-center">Số Giờ Làm</th>
+                    <th className="px-3 py-2.5 text-center">Số Ca Đã Trực</th>
+                    <th className="px-3 py-2.5">Lương Công & OT</th>
+                    <th className="px-3 py-2.5">Thưởng KPI & HH</th>
                     <th className="px-3 py-2.5">Phụ Cấp / Trừ</th>
-                    <th className="px-3 py-2.5">TỔNG THỰC LĨNH</th>
+                    <th className="px-3 py-2.5">LƯƠNG TẠM TÍNH</th>
                     <th className="px-3 py-2.5 text-right">Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/70">
                   {payrollItems.map((item, idx) => {
                     const effectiveBase = item.contract_type === 'probation' ? Math.round(item.base_salary * 0.85) : item.base_salary;
+                    const workHours = typeof item.total_work_hours === 'number' && item.total_work_hours > 0
+                      ? item.total_work_hours
+                      : Math.round(item.actual_days * 11 * 10) / 10;
+                    const shifts = typeof item.shifts_count === 'number' && item.shifts_count > 0
+                      ? item.shifts_count
+                      : Math.round(item.actual_days);
 
                     return (
                       <tr key={item.user_id} className="hover:bg-slate-800/40 transition">
+                        
+                        {/* 1. Nhân viên */}
                         <td className="px-3 py-2.5">
                           <div className="font-bold text-white text-xs">{item.user_name}</div>
                           <div className="text-[10px] text-cyan-400 uppercase font-semibold">{item.user_role}</div>
+                          {item.note && (
+                            <div className="text-[10px] text-amber-300 italic max-w-[140px] truncate" title={item.note}>
+                              * {item.note}
+                            </div>
+                          )}
                         </td>
 
+                        {/* 2. Trạng thái */}
                         <td className="px-3 py-2.5">
-                          {isManagerOrAbove ? (
-                            <select
-                              value={item.contract_type || 'sales'}
-                              onChange={(e) => handleChangeContractType(idx, e.target.value)}
-                              className="bg-slate-950 border border-slate-700 text-[11px] font-bold text-amber-300 rounded-lg px-2 py-1 focus:outline-none"
-                            >
-                              {CONTRACT_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ))}
-                            </select>
+                          {item.is_locked ? (
+                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-black uppercase flex items-center space-x-1 w-max">
+                              <Lock className="w-3 h-3" />
+                              <span>ĐÃ CHỐT</span>
+                            </span>
                           ) : (
-                            <span className="text-[11px] font-bold text-amber-300">
-                              {CONTRACT_OPTIONS.find((c) => c.value === item.contract_type)?.label || 'Bán hàng'}
+                            <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-[10px] font-black uppercase flex items-center space-x-1 w-max">
+                              <Hourglass className="w-3 h-3" />
+                              <span>TẠM TÍNH</span>
                             </span>
                           )}
                         </td>
 
+                        {/* 3. Hợp đồng & Lương CB */}
                         <td className="px-3 py-2.5">
                           <div className="flex items-center space-x-1">
                             <span className="font-sans font-bold text-slate-200">{formatVND(item.base_salary)}</span>
@@ -749,171 +891,144 @@ export default function PayrollView({ user }: PayrollViewProps) {
                               </button>
                             )}
                           </div>
-                          {item.contract_type === 'probation' && (
-                            <div className="text-[10px] text-cyan-400 font-semibold">85%: {formatVND(effectiveBase)}</div>
-                          )}
-                        </td>
-
-                        <td className="px-3 py-2.5">
                           {isManagerOrAbove ? (
-                            <div className="flex items-center space-x-1">
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={item.actual_days}
-                                onChange={(e) => handleUpdateItemValue(idx, 'actual_days', parseFloat(e.target.value) || 0)}
-                                className="w-14 px-1 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-white text-center focus:outline-none focus:border-cyan-500"
-                              />
-                              <span className="text-slate-400 text-[11px] font-bold">/ {item.standard_days}c</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedManualUserId(item.user_id);
-                                  setIsManualAttendanceModalOpen(true);
-                                }}
-                                title="Bù công / Sửa giờ làm chi tiết cho nhân viên này"
-                                className="p-1 text-slate-500 hover:text-amber-300 transition"
-                              >
-                                <Clock className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                            <select
+                              value={item.contract_type || 'sales'}
+                              onChange={(e) => handleChangeContractType(idx, e.target.value)}
+                              className="bg-slate-950 border border-slate-700 text-[10px] font-bold text-amber-300 rounded px-1.5 py-0.5 mt-0.5 focus:outline-none"
+                            >
+                              {CONTRACT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
                           ) : (
-                            <span className="font-bold text-white font-sans text-xs">
-                              {item.actual_days} / {item.standard_days} công
-                            </span>
+                            <div className="text-[10px] text-amber-300 font-semibold">
+                              {CONTRACT_OPTIONS.find((c) => c.value === item.contract_type)?.label || 'Bán hàng'}
+                            </div>
                           )}
                         </td>
 
-                        <td className="px-3 py-2.5 font-sans font-bold text-white">
-                          {formatVND(item.salary_by_days)}
-                        </td>
-
-                        <td className="px-3 py-2.5">
-                          {isManagerOrAbove ? (
-                            <div className="flex items-center space-x-1">
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={item.ot_hours}
-                                onChange={(e) => handleUpdateItemValue(idx, 'ot_hours', parseFloat(e.target.value) || 0)}
-                                className="w-12 px-1 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-amber-300 text-center focus:outline-none focus:border-amber-500"
-                              />
-                              <span className="text-amber-400 text-[10px] font-bold">h</span>
-                            </div>
-                          ) : (
-                            <span className="font-bold text-amber-400 font-sans">{item.ot_hours}h</span>
-                          )}
-                          <div className="text-[10px] font-bold text-amber-300 font-sans mt-0.5">
-                            +{formatVND(item.ot_salary)}
+                        {/* 4. Tổng số ngày công */}
+                        <td className="px-3 py-2.5 text-center">
+                          <div className="font-bold text-white font-sans text-xs">
+                            {item.actual_days} / {item.standard_days} công
                           </div>
                         </td>
 
-                        <td className="px-3 py-2.5 font-sans font-bold text-emerald-400">
-                          {(item.shared_commission || 0) > 0 ? `+${formatVND(item.shared_commission || 0)}` : '0đ'}
+                        {/* 5. Số giờ làm việc */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="font-bold text-cyan-300 font-sans text-xs bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800">
+                            {workHours} giờ
+                          </span>
                         </td>
 
-                        <td className="px-3 py-2.5 font-sans font-bold text-emerald-400">
-                          {isManagerOrAbove ? (
-                            <div className="flex items-center space-x-1">
-                              <input
-                                type="number"
-                                value={item.personal_commission || 0}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value) || 0;
-                                  handleUpdateItemValue(idx, 'personal_commission', val);
-                                }}
-                                onBlur={(e) => {
-                                  const val = parseFloat(e.target.value) || 0;
-                                  handleUpdatePersonalCommission(idx, val);
-                                }}
-                                title="Quản lý có thể nhập chỉnh sửa hoa hồng cá nhân trực tiếp"
-                                className="w-24 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs font-bold text-emerald-300 text-right focus:outline-none focus:border-emerald-500"
-                              />
+                        {/* 6. Số ca đã trực */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="font-bold text-amber-300 font-sans text-xs bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800">
+                            {shifts} ca
+                          </span>
+                        </td>
+
+                        {/* 7. Lương Công & OT */}
+                        <td className="px-3 py-2.5">
+                          <div className="font-sans font-bold text-white text-xs">{formatVND(item.salary_by_days)}</div>
+                          {item.ot_hours > 0 && (
+                            <div className="text-[10px] font-bold text-amber-300 font-sans">
+                              +OT {item.ot_hours}h: {formatVND(item.ot_salary)}
                             </div>
-                          ) : (
-                            <span>{(item.personal_commission || 0) > 0 ? `+${formatVND(item.personal_commission || 0)}` : '0đ'}</span>
                           )}
                         </td>
 
-                        <td className="px-3 py-2.5">
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-1">
-                              <span className="font-sans text-[11px] font-bold text-emerald-400">
-                                +{formatVND((item.allowances || []).reduce((s, a) => s + (a.amount || 0), 0))}
-                              </span>
-                              {isManagerOrAbove && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetUserIndex(idx);
-                                    setIsAllowanceModalOpen(true);
-                                  }}
-                                  className="p-0.5 bg-emerald-500/10 text-emerald-300 rounded"
-                                  title="+ Thêm Thưởng / Phụ cấp"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="flex items-center space-x-1">
-                              <span className="font-sans text-[11px] font-bold text-rose-400">
-                                -{formatVND(item.total_deduction)}
-                              </span>
-                              {isManagerOrAbove && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetUserIndex(idx);
-                                    setIsDeductionModalOpen(true);
-                                  }}
-                                  className="p-0.5 bg-rose-500/10 text-rose-300 rounded"
-                                  title="+ Thêm Khoản trừ / Phạt"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-
-                            {item.allowances?.map((al) => (
-                              <div key={al.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
-                                <span>{al.title}: +{formatVND(al.amount)}</span>
-                                {isManagerOrAbove && (
-                                  <button type="button" onClick={() => handleRemoveAllowance(idx, al.id)} className="text-slate-500 hover:text-rose-400 ml-1">✕</button>
-                                )}
-                              </div>
-                            ))}
-                            {item.deductions?.map((de) => (
-                              <div key={de.id} className="flex items-center justify-between text-[10px] bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-slate-300">
-                                <span>{de.reason}: -{formatVND(de.amount)}</span>
-                                {isManagerOrAbove && (
-                                  <button type="button" onClick={() => handleRemoveDeduction(idx, de.id)} className="text-slate-500 hover:text-rose-400 ml-1">✕</button>
-                                )}
-                              </div>
-                            ))}
+                        {/* 8. Thưởng KPI & Hoa hồng */}
+                        <td className="px-3 py-2.5 font-sans">
+                          <div className="text-emerald-400 font-bold text-xs">
+                            {formatVND((item.shared_commission || 0) + (item.personal_commission || 0))}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            KPI/CN: +{formatVND(item.personal_commission || 0)} ({item.main_devices_count || 0} máy)
                           </div>
                         </td>
 
+                        {/* 9. Phụ cấp & Trừ */}
+                        <td className="px-3 py-2.5 font-sans">
+                          <div className="text-emerald-400 font-bold text-[11px]">
+                            +{formatVND(item.total_allowance || 0)}
+                          </div>
+                          <div className="text-rose-400 font-bold text-[11px]">
+                            -{formatVND(item.total_deduction || 0)}
+                          </div>
+                        </td>
+
+                        {/* 10. TỔNG LƯƠNG TẠM TÍNH */}
                         <td className="px-3 py-2.5 font-sans font-black text-sm text-cyan-300">
                           {formatVND(item.final_salary)}
                         </td>
 
+                        {/* 11. Thao tác */}
                         <td className="px-3 py-2.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedPayslipRecord({
-                                ...item,
-                                month: selectedMonth,
-                              });
-                              setIsPayslipOpen(true);
-                            }}
-                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 ml-auto"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Phiếu Lương</span>
-                          </button>
+                          <div className="flex items-center justify-end space-x-1.5">
+                            
+                            {/* Nút [Chỉnh Sửa] (Mở Modal Điều Chỉnh Công / Lương Tạm Tính) */}
+                            {isManagerOrAbove && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedProvisionalItem(item);
+                                  setIsProvisionalModalOpen(true);
+                                }}
+                                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 hover:border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center space-x-1 shadow-xs"
+                                title="Chỉnh sửa ngày công, giờ làm, ca trực, KPI, phụ cấp, trừ phạt và ghi chú"
+                              >
+                                <Sliders className="w-3.5 h-3.5" />
+                                <span>Chỉnh Sửa</span>
+                              </button>
+                            )}
+
+                            {/* Nút [Xem Phiếu] */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPayslipRecord({
+                                  ...item,
+                                  month: selectedMonth,
+                                });
+                                setIsPayslipOpen(true);
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                              title="Xem chi tiết phiếu thanh toán lương"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Phiếu Lương</span>
+                            </button>
+
+                            {/* Nút [Xác Nhận & Tạo Phiếu Lương] (Nếu chưa chốt) */}
+                            {isManagerOrAbove && !item.is_locked && (
+                              <button
+                                type="button"
+                                onClick={() => handleLockSinglePayrollFromTable(item)}
+                                className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center space-x-1 shadow-sm active:scale-95"
+                                title="Chốt dữ liệu và tạo phiếu lương chính thức cho nhân viên này"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Duyệt & Tạo Phiếu</span>
+                              </button>
+                            )}
+
+                            {/* Nút [Mở Lại Tạm Tính] (Nếu đã chốt) */}
+                            {isManagerOrAbove && item.is_locked && (
+                              <button
+                                type="button"
+                                onClick={() => handleUnlockPayrollItem(item)}
+                                className="p-1.5 bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-amber-300 border border-slate-700 rounded-xl text-xs transition"
+                                title="Mở khóa để chuyển về trạng thái Tạm Tính cho phép chỉnh sửa lại"
+                              >
+                                <Unlock className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                          </div>
                         </td>
+
                       </tr>
                     );
                   })}
@@ -1288,6 +1403,22 @@ export default function PayrollView({ user }: PayrollViewProps) {
           initialUserId={selectedManualUserId}
         />
       )}
+
+      {/* 6. Provisional Salary & Timesheet Edit Modal */}
+      <ProvisionalSalaryModal
+        isOpen={isProvisionalModalOpen}
+        onClose={() => {
+          setIsProvisionalModalOpen(false);
+          setSelectedProvisionalItem(null);
+        }}
+        item={selectedProvisionalItem}
+        month={selectedMonth}
+        onSuccess={(msg) => {
+          if (msg) setMessage({ type: 'success', text: msg });
+          fetchLivePayroll();
+          fetchArchiveHistory();
+        }}
+      />
 
     </div>
   );

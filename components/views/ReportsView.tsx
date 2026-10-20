@@ -28,6 +28,8 @@ interface ReportsViewProps {
 export default function ReportsView({ user }: ReportsViewProps) {
   const [range, setRange] = useState('today');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [staffFilter, setStaffFilter] = useState('all');
+  const [staffList, setStaffList] = useState<any[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [reportData, setReportData] = useState<any>(null);
@@ -41,6 +43,9 @@ export default function ReportsView({ user }: ReportsViewProps) {
       if (categoryFilter !== 'all') {
         params.append('category', categoryFilter);
       }
+      if (staffFilter !== 'all') {
+        params.append('staff_id', staffFilter);
+      }
       if (range === 'custom' && dateFrom && dateTo) {
         params.append('dateFrom', dateFrom);
         params.append('dateTo', dateTo);
@@ -49,6 +54,9 @@ export default function ReportsView({ user }: ReportsViewProps) {
       const res = await fetch(`/api/reports?${params.toString()}`);
       const data = await res.json();
       setReportData(data);
+      if (data.staff_list) {
+        setStaffList(data.staff_list);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -58,7 +66,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
 
   useEffect(() => {
     fetchReports();
-  }, [range, categoryFilter, dateFrom, dateTo]);
+  }, [range, categoryFilter, staffFilter, dateFrom, dateTo]);
 
   const ranges = [
     { id: 'today', label: 'Hôm Nay' },
@@ -70,21 +78,32 @@ export default function ReportsView({ user }: ReportsViewProps) {
   ];
 
   const categories = [
-    { id: 'all', label: '📦 Tất Cả Nhóm Hàng' },
-    { id: 'main_devices', label: '📱 Máy Chính (iPhone/iPad/Mac...)' },
+    { id: 'all', label: '📦 Tất Cả Danh Mục' },
     { id: 'iPhone', label: '🍎 iPhone' },
     { id: 'iPad', label: '📱 iPad' },
-    { id: 'Macbook', label: '💻 MacBook' },
-    { id: 'AppleWatch', label: '⌚ Apple Watch' },
-    { id: 'Airpods', label: '🎧 AirPods' },
-    { id: 'PhuKien', label: '🔌 Phụ Kiện' },
-    { id: 'DichVu', label: '🛠️ Dịch Vụ Sửa Chữa' },
+    { id: 'MacBook', label: '💻 MacBook' },
+    { id: 'AirPods_Watch', label: '🎧 AirPods / ⌚ Apple Watch' },
+    { id: 'PhuKien', label: '🔌 Linh Kiện & Phụ Kiện' },
+    { id: 'DichVu', label: '🛠️ Dịch Vụ Sửa Chữa & Thay Thế' },
   ];
 
   const totalUnitsSold = useMemo(() => {
+    if (typeof reportData?.kpis?.total_units === 'number') {
+      return reportData.kpis.total_units;
+    }
     if (!reportData?.model_series) return 0;
     return reportData.model_series.reduce((sum: number, s: any) => sum + s.quantity_sold, 0);
   }, [reportData]);
+
+  const selectedCategoryLabel = useMemo(() => {
+    return categories.find((c) => c.id === categoryFilter)?.label || 'Tất Cả Danh Mục';
+  }, [categoryFilter]);
+
+  const selectedStaffName = useMemo(() => {
+    if (staffFilter === 'all') return 'Tất Cả Nhân Viên';
+    const found = staffList.find((s) => s.id === staffFilter);
+    return found ? found.full_name : 'Nhân Viên Đã Chọn';
+  }, [staffFilter, staffList]);
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto pb-16">
@@ -92,15 +111,15 @@ export default function ReportsView({ user }: ReportsViewProps) {
       {/* 1. TOP HEADER CARD */}
       <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan">
+          <div className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 text-white rounded-2xl shadow-glow-cyan flex-shrink-0">
             <BarChart3 className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
-              Báo Cáo Thống Kê & Phân Tích Doanh Thu
+              Báo Cáo Thống Kê & Phân Tích Doanh Thu KPI
             </h2>
             <p className="text-xs text-slate-400">
-              Phân tích doanh thu & lợi nhuận gộp theo từng nhóm hàng hoá (Máy chính, dịch vụ, phụ kiện) và dòng máy bán chạy.
+              Lọc theo Danh mục sản phẩm/dịch vụ & Nhân viên bán hàng để kiểm tra chính xác số lượng máy bán ra, doanh thu & KPI.
             </p>
           </div>
         </div>
@@ -110,7 +129,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
           <button
             onClick={fetchReports}
             title="Làm mới dữ liệu"
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm active:scale-95"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Làm Mới</span>
@@ -118,17 +137,17 @@ export default function ReportsView({ user }: ReportsViewProps) {
         </div>
       </div>
 
-      {/* 2. FILTER CONTROLS (CATEGORY & TIME RANGE) */}
+      {/* 2. FILTER CONTROLS (CATEGORY, STAFF & TIME RANGE) */}
       <div className="bg-slate-900/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-3xl border border-slate-800 shadow-xl space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
           
-          {/* Category / Nhóm hàng filter */}
-          <div className="flex items-center space-x-2 min-w-[260px]">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider badge-nowrap">Nhóm Hàng:</span>
+          {/* Category Dropdown (5 cols) */}
+          <div className="sm:col-span-4 flex items-center space-x-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider badge-nowrap">Danh Mục:</span>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shadow-inner"
             >
               {categories.map((c) => (
                 <option key={c.id} value={c.id} className="bg-slate-950 text-white">
@@ -138,13 +157,30 @@ export default function ReportsView({ user }: ReportsViewProps) {
             </select>
           </div>
 
-          {/* Time Range Selector */}
-          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {/* Staff Dropdown (4 cols) */}
+          <div className="sm:col-span-4 flex items-center space-x-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider badge-nowrap">Nhân Viên:</span>
+            <select
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-emerald-300 focus:outline-none focus:border-emerald-500 shadow-inner"
+            >
+              <option value="all" className="bg-slate-950 text-white">👥 Tất Cả Nhân Viên</option>
+              {staffList.map((st) => (
+                <option key={st.id} value={st.id} className="bg-slate-950 text-white">
+                  👤 {st.full_name} ({st.role.toUpperCase()})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Time Range Selector (4 cols) */}
+          <div className="sm:col-span-4 flex items-center space-x-1 overflow-x-auto pb-1 scrollbar-none justify-start sm:justify-end">
             {ranges.map((r) => (
               <button
                 key={r.id}
                 onClick={() => setRange(r.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition badge-nowrap ${
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition badge-nowrap ${
                   range === r.id
                     ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black shadow-glow-cyan'
                     : 'bg-slate-950 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
@@ -186,11 +222,34 @@ export default function ReportsView({ user }: ReportsViewProps) {
             </button>
           </div>
         )}
+
+        {/* Active Filter Notice Badge */}
+        {(categoryFilter !== 'all' || staffFilter !== 'all') && (
+          <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between flex-wrap gap-2 text-xs">
+            <div className="flex items-center space-x-2">
+              <span className="px-2.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full font-bold border border-cyan-500/30">
+                🎯 KPI: {selectedCategoryLabel}
+              </span>
+              <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full font-bold border border-emerald-500/30">
+                👤 {selectedStaffName}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setCategoryFilter('all');
+                setStaffFilter('all');
+              }}
+              className="text-[11px] text-slate-400 hover:text-white underline"
+            >
+              Xóa bộ lọc
+            </button>
+          </div>
+        )}
       </div>
 
       {loading ? (
         <div className="text-center py-20 bg-slate-900/60 rounded-3xl border border-slate-800 text-xs text-slate-400 animate-pulse">
-          Đang tổng hợp báo cáo kinh doanh...
+          Đang tổng hợp báo cáo kinh doanh & KPI...
         </div>
       ) : !reportData ? (
         <div className="text-center py-20 bg-slate-900/60 rounded-3xl border border-slate-800 text-xs text-slate-400">
@@ -216,7 +275,7 @@ export default function ReportsView({ user }: ReportsViewProps) {
                 {formatVND(reportData.kpis?.total_revenue || 0)}
               </div>
               <div className="text-[11px] text-slate-400">
-                Đã trừ chiết khấu giảm giá
+                {categoryFilter !== 'all' ? `Danh mục: ${selectedCategoryLabel}` : 'Đã trừ chiết khấu giảm giá'}
               </div>
             </div>
 
@@ -242,14 +301,14 @@ export default function ReportsView({ user }: ReportsViewProps) {
             <div className="bg-slate-900/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-xl space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Tổng Máy Bán Ra
+                  Tổng Số Lượng Máy/Sản Phẩm
                 </span>
                 <div className="p-2 bg-cyan-500/20 text-cyan-300 rounded-xl border border-cyan-500/30">
                   <ShoppingCart className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-2xl font-black text-white font-sans tracking-tight badge-nowrap">
-                {totalUnitsSold} <span className="text-sm font-bold text-slate-400">máy ({reportData.kpis?.total_orders || 0} đơn)</span>
+                {totalUnitsSold} <span className="text-sm font-bold text-slate-400">sản phẩm ({reportData.kpis?.total_orders || 0} đơn)</span>
               </div>
               <div className="text-[11px] text-slate-400">
                 Thực thu: <b className="text-emerald-400 font-sans font-bold badge-nowrap">{formatVND(reportData.kpis?.total_collected || 0)}</b>
@@ -274,6 +333,91 @@ export default function ReportsView({ user }: ReportsViewProps) {
               </div>
             </div>
           </div>
+
+          {/* 3. STAFF KPI LEADERBOARD TABLE */}
+          {reportData.staff_kpis && reportData.staff_kpis.length > 0 && (
+            <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-xl p-4 sm:p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wide">
+                    Thống Kê KPI Bán Hàng Từng Nhân Viên ({selectedCategoryLabel})
+                  </h3>
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Hiển thị tổng số lượng máy/sản phẩm & doanh số theo nhân viên
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950/90 text-slate-400 font-bold uppercase text-[10px] border-b border-slate-800">
+                    <tr>
+                      <th className="py-2.5 px-3">Nhân Viên</th>
+                      <th className="py-2.5 px-3">Chức Vụ</th>
+                      <th className="py-2.5 px-3 text-center">Số Máy / Sản Phẩm Đã Bán</th>
+                      <th className="py-2.5 px-3 text-right">Tổng Doanh Thu</th>
+                      <th className="py-2.5 px-3 text-right">Lợi Nhuận Gộp</th>
+                      <th className="py-2.5 px-3 text-center">Số Đơn Hàng</th>
+                      <th className="py-2.5 px-3 text-right">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/80">
+                    {reportData.staff_kpis.map((st: any, idx: number) => {
+                      const isSelected = staffFilter === st.staff_id;
+                      return (
+                        <tr
+                          key={st.staff_id || idx}
+                          className={`hover:bg-slate-800/50 transition ${
+                            isSelected ? 'bg-cyan-500/10 border-l-4 border-cyan-400' : ''
+                          }`}
+                        >
+                          <td className="py-3 px-3 font-black text-white flex items-center space-x-2">
+                            <span className="w-6 h-6 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-[10px] text-cyan-300">
+                              #{idx + 1}
+                            </span>
+                            <span>{st.staff_name}</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 bg-slate-950 text-slate-300 rounded-md text-[10px] uppercase font-bold border border-slate-800">
+                              {st.role}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span className="px-3 py-1 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 font-black rounded-xl text-xs font-mono border border-cyan-500/30 badge-nowrap">
+                              {st.units_sold} sản phẩm
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-black text-white font-sans tracking-tight badge-nowrap">
+                            {formatVND(st.total_revenue)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-cyan-300 font-sans tracking-tight badge-nowrap">
+                            {formatVND(st.gross_profit)}
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-slate-300 badge-nowrap">
+                            {st.order_count} đơn
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setStaffFilter(isSelected ? 'all' : st.staff_id)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition badge-nowrap ${
+                                isSelected
+                                  ? 'bg-cyan-500 text-slate-950'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700'
+                              }`}
+                            >
+                              {isSelected ? 'Bỏ Lọc' : 'Lọc NV Này'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* 3. TWO DETAILED BREAKDOWN TABLES */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

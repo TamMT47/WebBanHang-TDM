@@ -281,6 +281,7 @@ export interface DeductionItem {
 }
 
 export interface MonthlyPayrollItem {
+  id?: string;
   user_id: string;
   user_name: string;
   user_role: UserRole;
@@ -292,6 +293,7 @@ export interface MonthlyPayrollItem {
   unit_hourly_rate?: number; // unit_daily_salary / 11
   actual_days: number;   // Calculated from attendance (+1 if worked on registered off day)
   total_work_hours?: number; // Total worked hours in month
+  shifts_count?: number; // Total shifts worked in month
   off_days_worked?: number;
   salary_by_days: number; // unit_daily_salary * actual_days
   ot_hours: number;      // Calculated from attendance (>21:00)
@@ -308,6 +310,7 @@ export interface MonthlyPayrollItem {
   status?: 'pending' | 'paid';
   locked_at?: string;
   note?: string;
+  adjustment_reason?: string;
 }
 
 export interface SalaryHistoryRecord {
@@ -321,6 +324,7 @@ export interface SalaryHistoryRecord {
   standard_days: number;
   actual_days: number;
   total_work_hours?: number;
+  shifts_count?: number;
   ot_hours: number;
   salary_by_days: number;
   ot_salary: number;

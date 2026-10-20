@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
       `SELECT 
         user_id,
         COUNT(DISTINCT date) AS active_days_count,
+        COUNT(id) AS shifts_count,
         COALESCE(SUM(work_hours), 0) AS total_work_hours,
         COALESCE(SUM(ot_hours), 0) AS total_ot_hours,
         COUNT(CASE WHEN is_off_day = true THEN 1 END) AS off_days_worked
@@ -91,10 +92,25 @@ export async function GET(request: NextRequest) {
     for (const row of attendanceRes.rows) {
       attMap.set(row.user_id, {
         active_days_count: parseInt(row.active_days_count, 10),
+        shifts_count: parseInt(row.shifts_count, 10),
         total_work_hours: parseFloat(row.total_work_hours),
         total_ot_hours: parseFloat(row.total_ot_hours),
         off_days_worked: parseInt(row.off_days_worked || '0', 10),
       });
+    }
+
+    // Load any saved provisional adjustments for this month
+    const provRes = await query(
+      `SELECT key, value FROM store_settings WHERE key LIKE $1`,
+      [`provisional_payroll_${month}_%`]
+    );
+    const provMap = new Map<string, any>();
+    for (const row of provRes.rows) {
+      try {
+        const prefix = `provisional_payroll_${month}_`;
+        const uId = row.key.replace(prefix, '');
+        provMap.set(uId, JSON.parse(row.value));
+      } catch (e) {}
     }
 
     // 5. Query Sales & Calculate Commissions for this month
@@ -147,7 +163,6 @@ export async function GET(request: NextRequest) {
     );
     const manualCommMap = new Map<string, number>();
     for (const row of commOverrideRes.rows) {
-      // Key is personal_commission_${user_id}_${month}
       const prefix = 'personal_commission_';
       const suffix = `_${month}`;
       if (row.key.startsWith(prefix) && row.key.endsWith(suffix)) {
@@ -173,6 +188,10 @@ export async function GET(request: NextRequest) {
       const lockedRecord = lockedMap.get(u.id);
 
       if (lockedRecord) {
+        const actDays = parseFloat(lockedRecord.actual_days || '0');
+        const workHours = parseFloat(lockedRecord.total_work_hours || (actDays * 11).toString());
+        const shifts = parseInt(lockedRecord.shifts_count || Math.round(actDays).toString(), 10);
+
         return {
           id: lockedRecord.id,
           user_id: u.id,
@@ -186,8 +205,9 @@ export async function GET(request: NextRequest) {
             (parseFloat(lockedRecord.base_salary || '0') * ((lockedRecord.contract_type || u.contract_type) === 'probation' ? 0.85 : 1.0)) /
             parseInt(lockedRecord.standard_days || standardDays.toString(), 10)
           ),
-          actual_days: parseFloat(lockedRecord.actual_days || '0'),
-          total_work_hours: parseFloat(lockedRecord.total_work_hours || (parseFloat(lockedRecord.actual_days || '0') * 11).toString()),
+          actual_days: actDays,
+          total_work_hours: workHours,
+          shifts_count: shifts,
           ot_hours: parseFloat(lockedRecord.ot_hours || '0'),
           salary_by_days: parseFloat(lockedRecord.salary_by_days || '0'),
           ot_salary: parseFloat(lockedRecord.ot_salary || '0'),
@@ -206,22 +226,40 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      // Live Calculation
-      const att = attMap.get(u.id) || { active_days_count: 0, total_work_hours: 0, total_ot_hours: 0, off_days_worked: 0 };
+      // Live Calculation & Check Provisional Overrides
+      const att = attMap.get(u.id) || { active_days_count: 0, shifts_count: 0, total_work_hours: 0, total_ot_hours: 0, off_days_worked: 0 };
       const contractType = (u.contract_type || 'sales') as ContractType;
       const baseSalary = parseFloat(u.base_salary || '0');
 
       // Personal & Shared Commission (check manual override first)
       const manualComm = manualCommMap.get(u.id);
-      const personalCommission = manualComm !== undefined ? manualComm : (personalCommissionMap.get(u.id) || 0);
-      const sharedCommission = sharedCommissionPerPerson;
+      let personalCommission = manualComm !== undefined ? manualComm : (personalCommissionMap.get(u.id) || 0);
+      let sharedCommission = sharedCommissionPerPerson;
 
       // Actual workdays: derived from total_work_hours (11h/day) or active days + off days
-      const totalWorkHours = att.total_work_hours;
-      const actualDays = totalWorkHours > 0
+      let totalWorkHours = att.total_work_hours;
+      let actualDays = totalWorkHours > 0
         ? Math.round((totalWorkHours / 11.0 + att.off_days_worked) * 10) / 10
         : (att.active_days_count + att.off_days_worked);
-      const otHours = att.total_ot_hours;
+      let shiftsCount = att.shifts_count || att.active_days_count || 0;
+      let otHours = att.total_ot_hours;
+      let allowances: any[] = [];
+      let deductions: any[] = [];
+      let provNote = '';
+
+      // Apply saved provisional adjustments if present
+      const savedProv = provMap.get(u.id);
+      if (savedProv) {
+        if (typeof savedProv.actual_days === 'number') actualDays = savedProv.actual_days;
+        if (typeof savedProv.total_work_hours === 'number') totalWorkHours = savedProv.total_work_hours;
+        if (typeof savedProv.shifts_count === 'number') shiftsCount = savedProv.shifts_count;
+        if (typeof savedProv.ot_hours === 'number') otHours = savedProv.ot_hours;
+        if (typeof savedProv.personal_commission === 'number') personalCommission = savedProv.personal_commission;
+        if (typeof savedProv.shared_commission === 'number') sharedCommission = savedProv.shared_commission;
+        if (Array.isArray(savedProv.allowances)) allowances = savedProv.allowances;
+        if (Array.isArray(savedProv.deductions)) deductions = savedProv.deductions;
+        if (savedProv.note) provNote = savedProv.note;
+      }
 
       const salCalc = calculateSalary({
         baseSalary,
@@ -234,6 +272,8 @@ export async function GET(request: NextRequest) {
         offDaysWorked: att.off_days_worked,
         sharedCommission,
         personalCommission,
+        allowances,
+        deductions,
       });
 
       return {
@@ -248,6 +288,7 @@ export async function GET(request: NextRequest) {
         unit_hourly_rate: salCalc.unitHourlyRate,
         actual_days: actualDays,
         total_work_hours: totalWorkHours,
+        shifts_count: shiftsCount,
         off_days_worked: att.off_days_worked,
         ot_hours: otHours,
         salary_by_days: salCalc.salaryByDays,
@@ -255,14 +296,14 @@ export async function GET(request: NextRequest) {
         shared_commission: sharedCommission,
         personal_commission: personalCommission,
         main_devices_count: personalDevicesCountMap.get(u.id) || 0,
-        allowances: [],
-        deductions: [],
+        allowances,
+        deductions,
         total_allowance: salCalc.totalAllowance,
-        total_deduction: 0,
+        total_deduction: salCalc.totalDeduction,
         final_salary: salCalc.finalSalary,
         status: 'pending',
         is_locked: false,
-        note: '',
+        note: provNote,
       };
     });
 
@@ -285,7 +326,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Lock & Save Monthly Payroll to salary_history
+// Lock & Save Monthly Payroll to salary_history (Supports Batch or Single Employee)
 export async function POST(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
@@ -296,22 +337,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { month, payrollItems } = await request.json();
-    if (!month || !payrollItems || !Array.isArray(payrollItems)) {
-      return NextResponse.json({ error: 'Thiếu thông tin bảng lương hoặc tháng' }, { status: 400 });
+    const body = await request.json();
+    const { month, payrollItems, singleItem } = body;
+    if (!month) {
+      return NextResponse.json({ error: 'Thiếu thông tin tháng' }, { status: 400 });
     }
 
-    for (const item of payrollItems) {
+    const itemsToLock = singleItem ? [singleItem] : payrollItems;
+    if (!itemsToLock || !Array.isArray(itemsToLock) || itemsToLock.length === 0) {
+      return NextResponse.json({ error: 'Không có danh sách nhân viên để chốt lương' }, { status: 400 });
+    }
+
+    for (const item of itemsToLock) {
       const allowancesJson = JSON.stringify(item.allowances || []);
       const deductionsJson = JSON.stringify(item.deductions || []);
+      const actDays = parseFloat(item.actual_days || 0);
+      const workHours = parseFloat(item.total_work_hours || (actDays * 11));
+      const shifts = parseInt(item.shifts_count || Math.round(actDays), 10);
 
       await query(
         `INSERT INTO salary_history (
           month, user_id, user_name, user_role, contract_type, base_salary, standard_days,
-          actual_days, ot_hours, salary_by_days, ot_salary, shared_commission, personal_commission,
+          actual_days, total_work_hours, shifts_count, ot_hours, salary_by_days, ot_salary, shared_commission, personal_commission,
           allowances, deductions, total_allowance, total_deduction, final_salary, status, note, locked_at, created_by
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17, $18, $19, $20, NOW(), $21
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18, $19, $20, $21, $22, NOW(), $23
         )
         ON CONFLICT (user_id, month) DO UPDATE
         SET 
@@ -321,20 +371,22 @@ export async function POST(request: NextRequest) {
           base_salary = $6,
           standard_days = $7,
           actual_days = $8,
-          ot_hours = $9,
-          salary_by_days = $10,
-          ot_salary = $11,
-          shared_commission = $12,
-          personal_commission = $13,
-          allowances = $14::jsonb,
-          deductions = $15::jsonb,
-          total_allowance = $16,
-          total_deduction = $17,
-          final_salary = $18,
-          status = $19,
-          note = $20,
+          total_work_hours = $9,
+          shifts_count = $10,
+          ot_hours = $11,
+          salary_by_days = $12,
+          ot_salary = $13,
+          shared_commission = $14,
+          personal_commission = $15,
+          allowances = $16::jsonb,
+          deductions = $17::jsonb,
+          total_allowance = $18,
+          total_deduction = $19,
+          final_salary = $20,
+          status = $21,
+          note = $22,
           locked_at = NOW(),
-          created_by = $21`,
+          created_by = $23`,
         [
           month,
           item.user_id,
@@ -343,7 +395,9 @@ export async function POST(request: NextRequest) {
           item.contract_type || 'sales',
           parseFloat(item.base_salary || 0),
           parseInt(item.standard_days || 26, 10),
-          parseFloat(item.actual_days || 0),
+          actDays,
+          workHours,
+          shifts,
           parseFloat(item.ot_hours || 0),
           parseFloat(item.salary_by_days || 0),
           parseFloat(item.ot_salary || 0),
@@ -359,11 +413,16 @@ export async function POST(request: NextRequest) {
           user.id,
         ]
       );
+
+      // Clean up provisional draft
+      await query(`DELETE FROM store_settings WHERE key = $1`, [`provisional_payroll_${month}_${item.user_id}`]);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Đã chốt và lưu cố định bảng lương tháng ${month} thành công!`,
+      message: singleItem
+        ? `Đã chốt lương và tạo Phiếu Lương chính thức cho nhân viên ${singleItem.user_name} thành công!`
+        : `Đã chốt và tạo Phiếu Lương chính thức tháng ${month} cho toàn bộ ${itemsToLock.length} nhân viên thành công!`,
     });
   } catch (err: any) {
     console.error('Payroll POST error:', err);
@@ -371,7 +430,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Update Base Salary, Contract Type, Personal Commission or Status
+// Update Base Salary, Contract Type, Personal Commission, Provisional Adjustments or Status
 export async function PATCH(request: NextRequest) {
   try {
     const user = getUserFromRequest(request);
@@ -383,7 +442,57 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, user_id, base_salary, contract_type, salary_id, status, month: targetMonth, headcount, commission } = body;
+    const { action, user_id, base_salary, contract_type, salary_id, status, month: targetMonth, headcount, commission, adjustment } = body;
+
+    if (action === 'save_provisional_adjustment') {
+      if (!user_id || !targetMonth || !adjustment) {
+        return NextResponse.json({ error: 'Thiếu thông tin điều chỉnh tạm tính' }, { status: 400 });
+      }
+
+      const key = `provisional_payroll_${targetMonth}_${user_id}`;
+      await query(
+        `INSERT INTO store_settings (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+        [key, JSON.stringify(adjustment)]
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: 'Đã lưu điều chỉnh công & lương tạm tính thành công!',
+      });
+    }
+
+    if (action === 'reset_provisional_adjustment') {
+      if (!user_id || !targetMonth) {
+        return NextResponse.json({ error: 'Thiếu user_id hoặc month' }, { status: 400 });
+      }
+
+      const key = `provisional_payroll_${targetMonth}_${user_id}`;
+      await query(`DELETE FROM store_settings WHERE key = $1`, [key]);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Đã hoàn tác điều chỉnh, khôi phục dữ liệu chấm công gốc!',
+      });
+    }
+
+    if (action === 'unlock_payroll') {
+      if (!salary_id && (!user_id || !targetMonth)) {
+        return NextResponse.json({ error: 'Thiếu salary_id hoặc user_id/month để mở khóa' }, { status: 400 });
+      }
+
+      if (salary_id) {
+        await query(`DELETE FROM salary_history WHERE id = $1`, [salary_id]);
+      } else {
+        await query(`DELETE FROM salary_history WHERE user_id = $1 AND month = $2`, [user_id, targetMonth]);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Đã mở lại trạng thái Tạm Tính để quản lý chỉnh sửa!',
+      });
+    }
 
     if (action === 'update_personal_commission') {
       if (!user_id || !targetMonth || commission === undefined) {
