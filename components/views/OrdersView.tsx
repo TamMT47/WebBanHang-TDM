@@ -26,6 +26,13 @@ import { formatVND } from '@/lib/format';
 import { Order } from '@/types/database';
 import InvoiceModal from '@/components/InvoiceModal';
 import EditOrderModal from '@/components/EditOrderModal';
+import {
+  getCategoryTag,
+  isItemMatchingCategory,
+  doesOrderMatchCategory,
+  normalizeInvoiceData,
+  calculateCategoryFilteredMetrics
+} from '@/lib/categoryHelper';
 
 interface OrdersViewProps {
   user: any;
@@ -117,7 +124,9 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
 
       const res = await fetch(`/api/orders?${params.toString()}`);
       const data = await res.json();
-      setOrders(data.orders || []);
+      const rawOrders = data.orders || [];
+      const normalizedOrders = normalizeInvoiceData(rawOrders);
+      setOrders(normalizedOrders);
     } catch (err) {
       console.error(err);
     } finally {
@@ -140,44 +149,37 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
     { id: 'DichVu', label: '🛠️ Dịch Vụ Sửa Chữa & Thay Thế' },
   ];
 
-  // Helper to test if an order item matches the current category filter
-  const isItemMatchingCategory = (item: any) => {
-    if (categoryFilter === 'all') return true;
-    const cat = (item.category || '').toLowerCase();
-    const name = (item.product_name || '').toLowerCase();
-    const itemType = (item.item_type || '').toLowerCase();
+  // Filter orders accurately using doesOrderMatchCategory
+  const displayedOrders = orders.filter((o) => doesOrderMatchCategory(o, categoryFilter));
 
-    if (categoryFilter === 'iPhone') return cat.includes('iphone') || name.includes('iphone');
-    if (categoryFilter === 'iPad') return cat.includes('ipad') || name.includes('ipad');
-    if (categoryFilter === 'MacBook') return cat.includes('mac') || name.includes('mac');
-    if (categoryFilter === 'AirPods_Watch') return cat.includes('airpod') || cat.includes('watch') || name.includes('airpod') || name.includes('watch');
-    if (categoryFilter === 'PhuKien') return cat.includes('phukien') || cat.includes('linhkien') || itemType === 'accessory' || name.includes('phụ kiện') || name.includes('linh kiện');
-    if (categoryFilter === 'DichVu') return cat.includes('dichvu') || itemType === 'service' || name.includes('dịch vụ') || name.includes('sửa chữa') || name.includes('thay thế');
-    return true;
-  };
+  // KPI filtered statistics using categoryHelper
+  const categoryMetrics = calculateCategoryFilteredMetrics(displayedOrders, categoryFilter);
 
-  // KPI filtered statistics
-  const totalFilteredSales = orders.reduce((sum, o) => sum + parseFloat(o.final_payment || 0), 0);
-  const totalFilteredUnitsCount = orders.reduce((sum, o) => {
-    if (!o.items) return sum;
-    const matchingItems = o.items.filter(isItemMatchingCategory);
-    const orderUnits = matchingItems.reduce((s: number, it: any) => s + (parseInt(it.quantity, 10) || 1), 0);
-    return sum + orderUnits;
-  }, 0);
-  const totalFilteredCommission = orders.reduce((sum, o) => sum + parseFloat(o.commission_amount || 0), 0);
+  const totalFilteredSales = categoryFilter === 'all'
+    ? displayedOrders.reduce((sum, o) => sum + parseFloat(o.final_payment || 0), 0)
+    : categoryMetrics.matchingRevenue;
+
+  const totalFilteredUnitsCount = categoryFilter === 'all'
+    ? displayedOrders.reduce((sum, o) => {
+        const items = o.items || o.products || [];
+        return sum + items.reduce((s: number, it: any) => s + (parseInt(it.quantity, 10) || 1), 0);
+      }, 0)
+    : categoryMetrics.matchingUnitsCount;
+
+  const totalFilteredCommission = displayedOrders.reduce((sum, o) => sum + parseFloat(o.commission_amount || 0), 0);
 
   const selectedCategoryLabel = categories.find((c) => c.id === categoryFilter)?.label || 'Tất Cả Danh Mục';
   const selectedStaffObj = staffList.find((s) => s.id === staffFilter);
   const selectedStaffName = selectedStaffObj ? selectedStaffObj.full_name : 'Tất Cả Nhân Viên';
 
   // Personal metrics calculation
-  const personalOrdersCount = orders.length;
-  const personalTotalSales = orders.reduce((sum, o) => sum + parseFloat(o.final_payment || 0), 0);
-  const personalTotalCommission = orders.reduce(
+  const personalOrdersCount = displayedOrders.length;
+  const personalTotalSales = displayedOrders.reduce((sum, o) => sum + parseFloat(o.final_payment || 0), 0);
+  const personalTotalCommission = displayedOrders.reduce(
     (sum, o) => sum + (o.seller_id === user?.id ? parseFloat(o.commission_amount || 0) : 0),
     0
   );
-  const personalDevicesWithCommissionCount = orders.reduce(
+  const personalDevicesWithCommissionCount = displayedOrders.reduce(
     (count, o) => count + (o.seller_id === user?.id ? (o.items?.length || 0) : 0),
     0
   );
@@ -335,7 +337,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
 
             <div className="flex items-center space-x-2">
               <span className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-xl text-[11px] font-bold text-slate-300 badge-nowrap">
-                {orders.length} hóa đơn tìm thấy
+                {displayedOrders.length} hóa đơn tìm thấy
               </span>
             </div>
           </div>
@@ -360,7 +362,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
             <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-0.5">
               <div className="text-[10px] font-bold text-slate-400 uppercase">Tổng Số Hóa Đơn</div>
               <div className="text-xl sm:text-2xl font-black text-slate-200 font-sans">
-                {orders.length} <span className="text-xs text-slate-400 font-normal">đơn</span>
+                {displayedOrders.length} <span className="text-xs text-slate-400 font-normal">đơn</span>
               </div>
               <div className="text-[10px] text-slate-500">{typeFilter === 'sell' ? 'Đơn bán hàng' : 'Đơn giao dịch'}</div>
             </div>
@@ -492,7 +494,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
       <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden">
         {loading ? (
           <div className="text-center py-16 text-xs text-slate-400 animate-pulse">Đang tải lịch sử đơn...</div>
-        ) : orders.length === 0 ? (
+        ) : displayedOrders.length === 0 ? (
           <div className="text-center py-16 text-xs text-slate-400">
             Không tìm thấy hóa đơn nào phù hợp với bộ lọc.
           </div>
@@ -512,7 +514,7 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
-                {orders.map((order) => {
+                {displayedOrders.map((order) => {
                   const isSell = order.type === 'sell';
                   return (
                     <tr key={order.id} className="hover:bg-slate-800/50 transition duration-150">
@@ -570,37 +572,58 @@ export default function OrdersView({ user, initialSearch = '' }: OrdersViewProps
                       </td>
                       <td className="px-4 py-3.5 text-slate-300">
                         <div className="space-y-1.5">
-                          {order.items?.map((item: any, idx: number) => (
-                            <div key={idx} className="space-y-0.5">
-                              <div className="flex items-center space-x-1.5 flex-wrap">
-                                <span className="font-bold text-slate-200">{item.product_name}</span>
-                                {item.storage && (
-                                  <span className="text-[10px] text-cyan-400 font-bold badge-nowrap">
-                                    {item.storage}
+                          {order.items?.map((item: any, idx: number) => {
+                            const tag = item.category_tag || getCategoryTag(item);
+                            const isMatch = isItemMatchingCategory(item, categoryFilter);
+                            return (
+                              <div key={idx} className={`space-y-0.5 ${categoryFilter !== 'all' && !isMatch ? 'opacity-40' : ''}`}>
+                                <div className="flex items-center space-x-1.5 flex-wrap">
+                                  <span
+                                    className={`text-[9px] px-1.5 py-0.2 rounded font-black border uppercase tracking-wider ${
+                                      tag === 'IPHONE'
+                                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                                        : tag === 'IPAD'
+                                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                                        : tag === 'MACBOOK'
+                                        ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                                        : tag === 'ACCESSORY'
+                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                        : tag === 'SERVICE'
+                                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                                    }`}
+                                  >
+                                    {tag}
                                   </span>
-                                )}
-                                {item.color && (
-                                  <span className="text-[10px] text-slate-400 badge-nowrap">
-                                    ({item.color})
-                                  </span>
-                                )}
-                                <span className="font-mono text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-cyan-300 font-bold border border-slate-800 badge-nowrap">
-                                  {item.imei}
-                                </span>
-                              </div>
-                              
-                              {/* Warranty Details */}
-                              {isSell && (
-                                <div className="flex items-center space-x-1 text-[10px] text-emerald-400 font-semibold badge-nowrap">
-                                  <ShieldCheck className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-                                  <span>
-                                    BH {item.warranty_months !== undefined ? item.warranty_months : 12}T
-                                    {item.warranty_until && ` (Đến ${new Date(item.warranty_until).toLocaleDateString('vi-VN')})`}
+                                  <span className="font-bold text-slate-200">{item.product_name}</span>
+                                  {item.storage && (
+                                    <span className="text-[10px] text-cyan-400 font-bold badge-nowrap">
+                                      {item.storage}
+                                    </span>
+                                  )}
+                                  {item.color && (
+                                    <span className="text-[10px] text-slate-400 badge-nowrap">
+                                      ({item.color})
+                                    </span>
+                                  )}
+                                  <span className="font-mono text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-cyan-300 font-bold border border-slate-800 badge-nowrap">
+                                    {item.imei}
                                   </span>
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                                
+                                {/* Warranty Details */}
+                                {isSell && (
+                                  <div className="flex items-center space-x-1 text-[10px] text-emerald-400 font-semibold badge-nowrap">
+                                    <ShieldCheck className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                                    <span>
+                                      BH {item.warranty_months !== undefined ? item.warranty_months : 12}T
+                                      {item.warranty_until && ` (Đến ${new Date(item.warranty_until).toLocaleDateString('vi-VN')})`}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                           {order.trade_in_value > 0 && (
                             <div className="text-[10px] font-bold text-amber-300 badge-nowrap pt-0.5">
                               🔄 Thu cũ đổi mới: -{formatVND(order.trade_in_value)}

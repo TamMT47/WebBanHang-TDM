@@ -26,7 +26,7 @@ interface ReportsViewProps {
 }
 
 export default function ReportsView({ user }: ReportsViewProps) {
-  const [range, setRange] = useState('today');
+  const [range, setRange] = useState('this_month');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [staffFilter, setStaffFilter] = useState('all');
   const [staffList, setStaffList] = useState<any[]>([]);

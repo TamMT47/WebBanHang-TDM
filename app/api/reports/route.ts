@@ -58,20 +58,46 @@ export async function GET(request: NextRequest) {
       staffCondition = `(o.seller_id = $${params.length} OR o.created_by = $${params.length})`;
     }
 
-    // Build Item Category Condition
+    // Auto-heal legacy order_items without product_name or category
+    await query(`
+      UPDATE order_items oi
+      SET 
+        product_name = COALESCE(oi.product_name, p.name),
+        category = COALESCE(oi.category, p.category)
+      FROM inventory inv
+      JOIN products p ON inv.product_id = p.id
+      WHERE oi.inventory_id = inv.id
+        AND (oi.product_name IS NULL OR oi.category IS NULL);
+    `).catch(() => {});
+
+    // Service condition (repair, battery, screen replacement, services)
+    const serviceCondition = `(
+      COALESCE(oi.category, p.category, '') = 'DichVu' 
+      OR COALESCE(oi.item_type, '') = 'service' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE '%thay pin%' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE '%thay màn%' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE '%ép kính%' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE '%sửa chữa%' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE '%sửa %' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE 'sửa%' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE '%dịch vụ%' 
+      OR COALESCE(oi.product_name, p.name, '') ILIKE '%thay thế%'
+    )`;
+
+    // Build Item Category Condition strictly separating physical devices from repair services
     let itemCatCondition = '1=1';
-    if (category === 'iPhone') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%iPhone%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%iPhone%')`;
-    } else if (category === 'iPad') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%iPad%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%iPad%')`;
-    } else if (category === 'MacBook' || category === 'Macbook') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%Mac%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Mac%')`;
-    } else if (category === 'AirPods_Watch' || category === 'Airpods' || category === 'AppleWatch') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%Airpod%' OR COALESCE(oi.category, p.category, '') ILIKE '%Watch%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Airpod%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Watch%')`;
-    } else if (category === 'PhuKien') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') IN ('PhuKien', 'LinhKien') OR COALESCE(oi.item_type, '') = 'accessory' OR COALESCE(oi.product_name, p.name, '') ILIKE '%phụ kiện%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%linh kiện%')`;
-    } else if (category === 'DichVu') {
-      itemCatCondition = `(COALESCE(oi.category, p.category, '') = 'DichVu' OR COALESCE(oi.item_type, '') = 'service' OR COALESCE(oi.product_name, p.name, '') ILIKE '%dịch vụ%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%sửa chữa%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%thay thế%')`;
+    if (category === 'iPhone' || category === 'IPHONE') {
+      itemCatCondition = `(NOT ${serviceCondition} AND (COALESCE(oi.category, p.category, '') ILIKE '%iPhone%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%iPhone%'))`;
+    } else if (category === 'iPad' || category === 'IPAD') {
+      itemCatCondition = `(NOT ${serviceCondition} AND (COALESCE(oi.category, p.category, '') ILIKE '%iPad%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%iPad%'))`;
+    } else if (category === 'MacBook' || category === 'Macbook' || category === 'MACBOOK') {
+      itemCatCondition = `(NOT ${serviceCondition} AND (COALESCE(oi.category, p.category, '') ILIKE '%Mac%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Mac%'))`;
+    } else if (category === 'AirPods_Watch' || category === 'Airpods' || category === 'AppleWatch' || category === 'ACCESSORY') {
+      itemCatCondition = `(NOT ${serviceCondition} AND (COALESCE(oi.category, p.category, '') ILIKE '%Airpod%' OR COALESCE(oi.category, p.category, '') ILIKE '%Watch%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Airpod%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%Watch%'))`;
+    } else if (category === 'PhuKien' || category === 'LINHKIEN') {
+      itemCatCondition = `(NOT ${serviceCondition} AND (COALESCE(oi.category, p.category, '') IN ('PhuKien', 'LinhKien') OR COALESCE(oi.item_type, '') = 'accessory' OR COALESCE(oi.product_name, p.name, '') ILIKE '%phụ kiện%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%linh kiện%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%sạc%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%cáp%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%ốp%'))`;
+    } else if (category === 'DichVu' || category === 'SERVICE') {
+      itemCatCondition = serviceCondition;
     } else if (category && category !== 'all') {
       const cleanCat = category.replace(/'/g, "''");
       itemCatCondition = `(COALESCE(oi.category, p.category, '') ILIKE '%${cleanCat}%' OR COALESCE(oi.product_name, p.name, '') ILIKE '%${cleanCat}%')`;
@@ -151,20 +177,23 @@ export async function GET(request: NextRequest) {
     const modelSeriesSql = `
       SELECT 
         CASE 
-          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%16%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iphone 16%') AND (COALESCE(p.category, oi.category) = 'iPhone' OR COALESCE(p.category, oi.category) IS NULL) THEN 'iPhone 16 Series'
-          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%15%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iphone 15%') AND (COALESCE(p.category, oi.category) = 'iPhone' OR COALESCE(p.category, oi.category) IS NULL) THEN 'iPhone 15 Series'
-          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%14%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iphone 14%') AND (COALESCE(p.category, oi.category) = 'iPhone' OR COALESCE(p.category, oi.category) IS NULL) THEN 'iPhone 14 Series'
-          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%13%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iphone 13%') AND (COALESCE(p.category, oi.category) = 'iPhone' OR COALESCE(p.category, oi.category) IS NULL) THEN 'iPhone 13 Series'
-          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%12%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iphone 12%') AND (COALESCE(p.category, oi.category) = 'iPhone' OR COALESCE(p.category, oi.category) IS NULL) THEN 'iPhone 12 Series'
-          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%11%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iphone 11%') AND (COALESCE(p.category, oi.category) = 'iPhone' OR COALESCE(p.category, oi.category) IS NULL) THEN 'iPhone 11 Series'
+          WHEN ${serviceCondition} THEN 'Dịch Vụ Sửa Chữa'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%18%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 18 Series'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%17%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 17 Series'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%16%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 16 Series'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%15%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 15 Series'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%14%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 14 Series'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%13%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 13 Series'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%12%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 12 Series'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%11%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 11 Series'
           WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%xs%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%xr%' OR COALESCE(p.name, oi.product_name, '') ILIKE '% x%' OR COALESCE(p.name, oi.product_name, '') ILIKE 'iphone x%') THEN 'iPhone X / XS / XR'
-          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%8%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%7%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%se%') AND COALESCE(p.category, oi.category) = 'iPhone' THEN 'iPhone 7 / 8 / SE'
-          WHEN COALESCE(p.category, oi.category) = 'iPad' OR COALESCE(p.name, oi.product_name, '') ILIKE '%ipad%' THEN 'iPad Series'
-          WHEN COALESCE(p.category, oi.category) = 'Macbook' OR COALESCE(p.name, oi.product_name, '') ILIKE '%macbook%' THEN 'Macbook Series'
-          WHEN COALESCE(p.category, oi.category) = 'Airpods' OR COALESCE(p.name, oi.product_name, '') ILIKE '%airpod%' THEN 'Airpods Series'
-          WHEN COALESCE(p.category, oi.category) = 'AppleWatch' OR COALESCE(p.name, oi.product_name, '') ILIKE '%watch%' THEN 'Apple Watch'
-          WHEN COALESCE(oi.category, p.category) = 'DichVu' OR oi.item_type = 'service' THEN 'Dịch Vụ Sửa Chữa'
-          WHEN COALESCE(oi.category, p.category) = 'PhuKien' OR oi.item_type = 'accessory' THEN 'Phụ Kiện'
+          WHEN (COALESCE(p.name, oi.product_name, '') ILIKE '%8%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%7%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%se%') AND (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iPhone%') THEN 'iPhone 7 / 8 / SE'
+          WHEN (COALESCE(p.category, oi.category) ILIKE '%iPhone%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%iphone%') THEN 'iPhone Khác'
+          WHEN COALESCE(p.category, oi.category) ILIKE '%iPad%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%ipad%' THEN 'iPad Series'
+          WHEN COALESCE(p.category, oi.category) ILIKE '%Mac%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%mac%' THEN 'Macbook Series'
+          WHEN COALESCE(p.category, oi.category) ILIKE '%Airpod%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%airpod%' THEN 'Airpods Series'
+          WHEN COALESCE(p.category, oi.category) ILIKE '%Watch%' OR COALESCE(p.name, oi.product_name, '') ILIKE '%watch%' THEN 'Apple Watch'
+          WHEN COALESCE(oi.category, p.category) IN ('PhuKien', 'LinhKien') OR oi.item_type = 'accessory' THEN 'Phụ Kiện & Linh Kiện'
           ELSE 'Sản Phẩm Khác'
         END AS series_name,
         SUM(COALESCE(oi.quantity, 1)) AS quantity_sold,
